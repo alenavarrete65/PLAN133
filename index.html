@@ -2128,63 +2128,65 @@ function renderProgreso(){
     return;
   }
 
-  const s4 = document.createElement('div'); s4.className='progreso-section';
-  s4.innerHTML = '<h3>Detalle por tema</h3>';
-  const table = document.createElement('table'); table.className='nota-table';
-  table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th><th>Tendencia</th></tr></thead>';
-  const tbody = document.createElement('tbody');
-  const grupoTagClass = {
-    'Bloques':'g-bloques',
-    'Leves':'g-leves',
-    'Inglés':'g-ingles',
-    'Psicotécnicos':'g-psico'
-  };
-  const GRUPO_BORDER_COLOR = {
-    'Bloques':'var(--amber)',
-    'Leves':'var(--green)',
-    'Inglés':'var(--blue)',
-    'Psicotécnicos':'#8b6fae'
-  };
-  grupos.forEach(grupo=>{
-    const tagClass = grupoTagClass[grupo] || 'g-bloques';
-    data.porGrupo[grupo].forEach(item=>{
-      const notas = item.notas;
-      const max = item.max;
-      const avg = notas.reduce((a,b)=>a+b,0)/notas.length;
+  const s4 = document.createElement('div');
+  appendAccordionSection(s4, 'detalleTema', progresoOpen, 'Detalle por tema', (body)=>{
+    const table = document.createElement('table'); table.className='nota-table';
+    table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th><th>Tendencia</th></tr></thead>';
+    const tbody = document.createElement('tbody');
+    const grupoTagClass = {
+      'Bloques':'g-bloques',
+      'Leves':'g-leves',
+      'Inglés':'g-ingles',
+      'Psicotécnicos':'g-psico'
+    };
+    const GRUPO_BORDER_COLOR = {
+      'Bloques':'var(--amber)',
+      'Leves':'var(--green)',
+      'Inglés':'var(--blue)',
+      'Psicotécnicos':'#8b6fae'
+    };
+    grupos.forEach(grupo=>{
+      const tagClass = grupoTagClass[grupo] || 'g-bloques';
+      data.porGrupo[grupo].forEach(item=>{
+        const notas = item.notas;
+        const max = item.max;
+        const avg = notas.reduce((a,b)=>a+b,0)/notas.length;
 
-      // Cada nota (a partir de la 2ª) muestra la diferencia con la vuelta anterior.
-      const notasHtml = notas.map((n,i)=>{
-        let deltaTxt = '';
-        if(i>0){
-          const diff = Math.round((n - notas[i-1])*10)/10;
-          if(diff > 0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
-          else if(diff < 0) deltaTxt = ' <span style="color:var(--red);">▼'+diff+'</span>';
-          else deltaTxt = ' <span style="color:var(--muted);">=</span>';
+        // Cada nota (a partir de la 2ª) muestra la diferencia con la vuelta anterior.
+        const notasHtml = notas.map((n,i)=>{
+          let deltaTxt = '';
+          if(i>0){
+            const diff = Math.round((n - notas[i-1])*10)/10;
+            if(diff > 0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
+            else if(diff < 0) deltaTxt = ' <span style="color:var(--red);">▼'+diff+'</span>';
+            else deltaTxt = ' <span style="color:var(--muted);">=</span>';
+          }
+          return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
+        }).join(' ');
+
+        // Tendencia general: última nota frente a la anterior.
+        let tendencia = '<span style="color:var(--muted);">—</span>';
+        if(notas.length>1){
+          const diff = Math.round((notas[notas.length-1]-notas[notas.length-2])*10)/10;
+          if(diff>0) tendencia = '<span style="color:var(--green);">▲ Mejorando (+'+diff+')</span>';
+          else if(diff<0) tendencia = '<span style="color:var(--red);">▼ Empeorando ('+diff+')</span>';
+          else tendencia = '<span style="color:var(--cream-dim);">▬ Igual</span>';
         }
-        return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
-      }).join(' ');
 
-      // Tendencia general: última nota frente a la anterior.
-      let tendencia = '<span style="color:var(--muted);">—</span>';
-      if(notas.length>1){
-        const diff = Math.round((notas[notas.length-1]-notas[notas.length-2])*10)/10;
-        if(diff>0) tendencia = '<span style="color:var(--green);">▲ Mejorando (+'+diff+')</span>';
-        else if(diff<0) tendencia = '<span style="color:var(--red);">▼ Empeorando ('+diff+')</span>';
-        else tendencia = '<span style="color:var(--cream-dim);">▬ Igual</span>';
-      }
-
-      const tr = document.createElement('tr');
-      tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
-        `<td>${notasHtml}</td>`+
-        `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
-        `<td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${tendencia}</td>`;
-      tbody.appendChild(tr);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
+          `<td>${notasHtml}</td>`+
+          `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
+          `<td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${tendencia}</td>`;
+        tbody.appendChild(tr);
+      });
     });
+    table.appendChild(tbody);
+    body.appendChild(table);
   });
-  table.appendChild(tbody);
-  s4.appendChild(table);
   host.appendChild(s4);
 }
+const progresoOpen = {detalleTema:false};
 /* ===================== RENDER: ENTRENOS (registro manual) ===================== */
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function renderEntrenos(){
