@@ -217,14 +217,69 @@
   .flat-item .fi-name{font-weight:600;}
   .flat-item .fi-clase{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
 
-  .ticks-row{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;}
-  .tick-lbl{display:inline-flex;align-items:center;gap:3px;font-family:var(--font-mono);font-size:10px;color:var(--cream-dim);
-    background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:2px 5px;cursor:pointer;}
-  .tick-lbl input{width:12px;height:12px;accent-color:var(--amber);cursor:pointer;}
-  .tick-lbl.checked{color:var(--bg);background:var(--green);border-color:var(--green);}
+  .ticks-row{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
+  .vuelta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
+    background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
+    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+  .vuelta-row.mode-nota{border-color:var(--amber-dim);}
+  .vuelta-row.mode-no_test,.vuelta-row.mode-no_tiempo,.vuelta-row.mode-solo_lectura{border-color:var(--blue);}
+  .vuelta-row .vuelta-lbl{min-width:52px;color:var(--cream);}
+  .vuelta-row select.vuelta-select{
+    background:var(--bg-panel);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:10px;padding:3px 4px;
+  }
+  .vuelta-row input.vuelta-nota{
+    width:52px;background:var(--bg-panel);color:var(--amber);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:11px;padding:3px 4px;
+  }
+  .vuelta-row .vuelta-del{background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px;margin-left:auto;}
   .tick-add{background:transparent;border:1px dashed var(--amber-dim);color:var(--amber);border-radius:2px;
-    width:20px;height:20px;line-height:1;cursor:pointer;font-family:var(--font-mono);font-size:12px;}
+    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;align-self:flex-start;}
   .tick-add:hover{border-color:var(--amber);}
+
+  /* ---- progreso / notas ---- */
+  .progreso-section{margin-top:24px;}
+  .progreso-section h3{font-family:var(--font-display);text-transform:uppercase;color:var(--amber);
+    border-bottom:1px solid var(--line);padding-bottom:6px;font-size:17px;letter-spacing:.03em;margin-bottom:12px;}
+  .chart-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:16px;margin-bottom:18px;}
+  .chart-card canvas{max-width:100%;}
+  .nota-table{width:100%;border-collapse:collapse;font-size:12px;}
+  .nota-table th{text-align:left;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);
+    border-bottom:1px solid var(--line);padding:6px 8px;}
+  .nota-table td{padding:6px 8px;border-bottom:1px solid var(--line);}
+  .nota-pill{font-family:var(--font-mono);font-size:10px;font-weight:600;padding:2px 6px;border-radius:8px;margin-right:4px;display:inline-block;}
+  .nota-pill.good{background:var(--green);color:#12241a;}
+  .nota-pill.mid{background:var(--amber);color:#1b2b1f;}
+  .nota-pill.bad{background:var(--red);color:#fff;}
+
+  /* ---- entrenos manual ---- */
+  .entreno-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
+  .entreno-item{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:10px 12px;}
+  .entreno-item input[type="date"]{
+    background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:12px;padding:6px;
+  }
+  .entreno-item input.entreno-tipo{
+    flex:1;min-width:140px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
+    border-radius:2px;font-family:var(--font-body);font-size:13px;padding:6px 8px;
+  }
+  .entreno-item textarea.entreno-notas{
+    flex-basis:100%;min-height:44px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
+    border-radius:2px;font-family:var(--font-body);font-size:12px;padding:6px 8px;resize:vertical;
+  }
+  .entreno-item .entreno-del{background:transparent;border:1px solid var(--red);color:var(--red);border-radius:2px;
+    padding:5px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;}
+
+  /* ---- orto tests (diario, dentro del modal del día) ---- */
+  .orto-tests-box{flex-basis:100%;margin-top:6px;display:flex;flex-direction:column;gap:5px;}
+  .orto-test-row{display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+  .orto-test-row input.vuelta-nota{
+    width:56px;background:var(--bg-panel-2);color:var(--amber);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:11px;padding:3px 4px;
+  }
+  .orto-test-row .vuelta-del{background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px;}
+
   .rot-pill{font-family:var(--font-mono);font-size:9px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:6px;
     background:var(--muted);color:#fff;text-transform:uppercase;}
 
@@ -269,6 +324,7 @@
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 <body>
 <div class="wrap">
@@ -284,6 +340,8 @@
     <button class="tab-btn active" data-tab="calendario">Calendario</button>
     <button class="tab-btn" data-tab="temario">Temario y notas</button>
     <button class="tab-btn" data-tab="ciclo">Ciclo bloques</button>
+    <button class="tab-btn" data-tab="progreso">Progreso</button>
+    <button class="tab-btn" data-tab="entrenos">Entrenos</button>
     <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
 
@@ -309,6 +367,16 @@
     <div id="cicloHost"></div>
   </div>
 
+  <!-- PROGRESO (comparativa de notas) -->
+  <div class="view" id="view-progreso">
+    <div id="progresoHost"></div>
+  </div>
+
+  <!-- ENTRENOS FÍSICOS (registro manual) -->
+  <div class="view" id="view-entrenos">
+    <div id="entrenosHost"></div>
+  </div>
+
   <!-- AJUSTES -->
   <div class="view" id="view-ajustes">
     <div class="empty-state" id="syncBox" style="text-align:left;margin-bottom:18px;"></div>
@@ -323,7 +391,11 @@
       desde la pestaña Calendario puedes activar el «modo repaso final»: a partir del mes que elijas (y todos los siguientes) cada bloque se estudia entero, azul y morado juntos el mismo día.
       Los días de descanso, trabajo o sin horario no cuentan para ninguna secuencia ·
       cada tarea del día (bloque, leve, inglés, psicotécnico, entreno, orto-grama) tiene un check ✓ tanto en la casilla del calendario como en el modal del día: por defecto se asume que la haces y la racha avanza sola; si marcas que NO la has completado, ese mismo contenido se repite automáticamente al día siguiente que toque esa misma categoría, hasta que quites la marca — así nada se salta si te retrasas ·
-      en la pestaña «Ciclo bloques» puedes ver, según tu calendario real, cuánto se tarda en completar cada vuelta (azul + morado) a cada bloque.
+      en la pestaña «Ciclo bloques» puedes ver, según tu calendario real, cuánto se tarda en completar cada vuelta (azul + morado) a cada bloque, y por color por separado ·
+      cada vuelta del temario ahora se marca como Pendiente, Nota test (con la nota), No test, No tiempo o Solo lectura, en vez de un simple check ·
+      en «Progreso» tienes la comparativa de todas las notas de test que vayas metiendo (por bloque de materia y por tema), incluidos los tests de ortografía ·
+      en el modal de cada día, dentro de Orto-grama, puedes ir añadiendo tests sueltos (Test 1, Test 2…) con su nota, ya que eso va por día y no por vueltas ·
+      en «Entrenos» puedes llevar tu propio registro manual de entrenamientos físicos con fecha, tipo y notas, aparte del marcador de «día de entreno» del calendario.
     </p>
     <button class="btn danger" id="resetBtn" style="margin-top:14px;">Borrar todos los datos</button>
   </div>
@@ -501,12 +573,13 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, ortoTests:{}, entrenosLog:[], settings:{unifyFromKey:null} };
 let currentMonthKey = null;
 let saveTimer = null;
 
 function pad2(n){ return String(n).padStart(2,'0'); }
 function monthKey(y,m){ return y+'-'+pad2(m); } // m: 1-12
+function dayKey(mKey,d){ return mKey+'-'+pad2(d); } // clave única por día, p.ej. "2026-09-01"
 function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
 function sortedMonthKeys(){ return Object.keys(state.months).sort(); }
 
@@ -523,7 +596,17 @@ async function loadState(){
   if(!state.ticks) state.ticks = {};
   if(!state.dayTicks) state.dayTicks = {};
   if(!state.orto) state.orto = {ortografia:'', gramatica:''};
+  if(!state.ortoTests) state.ortoTests = {};
+  if(!state.entrenosLog) state.entrenosLog = [];
   if(!state.settings) state.settings = {unifyFromKey:null};
+  // Migración: las "vueltas" antes eran un array de booleans (hecho/no hecho).
+  // Ahora cada vuelta es un objeto {mode, nota} para poder guardar notas de test.
+  Object.keys(state.ticks).forEach(key=>{
+    state.ticks[key] = state.ticks[key].map(v=>{
+      if(v && typeof v === 'object') return v;
+      return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
+    });
+  });
 }
 function scheduleSave(){
   if(!firebaseOk || !accessCode) return;
@@ -862,7 +945,8 @@ function renderCalendar(){
       tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
       if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
       if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
-      tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
+      const ortoTestCount = (state.ortoTests[dayKey(currentMonthKey,d)]||[]).length;
+      tasks.appendChild(taskRow('ORT', 'Orto-grama'+(ortoTestCount?' · '+ortoTestCount+' test'+(ortoTestCount>1?'s':''):''), 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
       tasks.onclick = ()=> openDayModal(d, info);
       tasks.style.cursor = 'pointer';
       cell.appendChild(tasks);
@@ -923,7 +1007,40 @@ function openDayModal(d, info){
   addModalRow(body, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles});
   if(info.entreno) addModalRow(body, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
   if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico});
-  addModalRow(body, 'tag-orto', 'ORTO-GRAMA', 'Ortografía y gramática diaria', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
+  const ortoRow = document.createElement('div'); ortoRow.className='modal-row'; ortoRow.style.flexWrap='wrap';
+  ortoRow.innerHTML = '<span class="tag tag-orto" style="margin-top:2px;">ORTO-GRAMA</span><span style="font-size:13px;flex:1;">Ortografía y gramática diaria</span>';
+  const ortoCb = document.createElement('input'); ortoCb.type='checkbox'; ortoCb.className='day-tick';
+  ortoCb.checked = !!dticks.orto; ortoCb.title='Marcar como NO completado';
+  ortoCb.onchange = ()=>{ setDayTick(currentMonthKey, d, 'orto', ortoCb.checked); renderCalendar(); };
+  ortoRow.appendChild(ortoCb);
+
+  const dKey = dayKey(currentMonthKey, d);
+  const testsBox = document.createElement('div'); testsBox.className='orto-tests-box';
+  function renderOrtoTests(){
+    testsBox.innerHTML = '';
+    if(!state.ortoTests[dKey]) state.ortoTests[dKey] = [];
+    const tests = state.ortoTests[dKey];
+    tests.forEach((t,i)=>{
+      const tr = document.createElement('div'); tr.className='orto-test-row';
+      const lbl = document.createElement('span'); lbl.textContent = 'Test '+(i+1)+':';
+      tr.appendChild(lbl);
+      const numIn = document.createElement('input'); numIn.type='number'; numIn.className='vuelta-nota';
+      numIn.step='0.1'; numIn.min='0'; numIn.max='10'; numIn.placeholder='Nota';
+      numIn.value = t.nota==null ? '' : t.nota;
+      numIn.oninput = ()=>{ t.nota = numIn.value===''? null : Number(numIn.value); scheduleSave(); };
+      tr.appendChild(numIn);
+      const del = document.createElement('button'); del.type='button'; del.className='vuelta-del'; del.textContent='✕'; del.title='Eliminar este test';
+      del.onclick = ()=>{ tests.splice(i,1); scheduleSave(); renderOrtoTests(); };
+      tr.appendChild(del);
+      testsBox.appendChild(tr);
+    });
+    const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir test';
+    addBtn.onclick = ()=>{ tests.push({nota:null}); scheduleSave(); renderOrtoTests(); };
+    testsBox.appendChild(addBtn);
+  }
+  renderOrtoTests();
+  ortoRow.appendChild(testsBox);
+  body.appendChild(ortoRow);
 
   document.getElementById('dayModal').classList.add('open');
 }
@@ -1053,23 +1170,67 @@ document.getElementById('confirmEditMonth').onclick = ()=>{
   renderAll();
 };
 
-/* ===================== TICKS (vueltas vistas) ===================== */
+/* ===================== TICKS (vueltas vistas + notas de test) ===================== */
+const VUELTA_MODES = [
+  ['pendiente','Pendiente'],
+  ['nota','Nota test'],
+  ['no_test','No test'],
+  ['no_tiempo','No tiempo'],
+  ['solo_lectura','Solo lectura'],
+];
+// Registro global: key de vuelta -> {grupo, label}. Lo rellenan renderBlocks/renderLeves/
+// renderIngles/renderPsico cada vez que se pintan, y lo lee la pestaña «Progreso».
+const KEY_LABELS = {};
+function migrateTickEntry(v){
+  if(v && typeof v === 'object') return v;
+  return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
+}
 function buildTicksRow(key){
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(false);
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null}));
+  state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
   const wrap = document.createElement('div'); wrap.className='ticks-row';
-  arr.forEach((val,i)=>{
-    const lbl = document.createElement('label'); lbl.className='tick-lbl'+(val?' checked':'');
-    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = val;
-    cb.onchange = ()=>{ arr[i]=cb.checked; lbl.classList.toggle('checked', cb.checked); scheduleSave(); };
-    lbl.appendChild(cb);
-    const span = document.createElement('span'); span.textContent = 'Vuelta '+(i+1);
-    lbl.appendChild(span);
-    wrap.appendChild(lbl);
+  arr.forEach((entry,i)=>{
+    const row = document.createElement('div'); row.className='vuelta-row mode-'+entry.mode;
+    const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
+    row.appendChild(lbl);
+
+    const sel = document.createElement('select'); sel.className='vuelta-select';
+    VUELTA_MODES.forEach(([val,txt])=>{
+      const o = document.createElement('option'); o.value=val; o.textContent=txt;
+      if(entry.mode===val) o.selected = true;
+      sel.appendChild(o);
+    });
+    sel.onchange = ()=>{
+      entry.mode = sel.value;
+      if(entry.mode !== 'nota') entry.nota = null;
+      scheduleSave();
+      wrap.replaceWith(buildTicksRow(key));
+    };
+    row.appendChild(sel);
+
+    if(entry.mode === 'nota'){
+      const numIn = document.createElement('input');
+      numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max='10';
+      numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
+      numIn.oninput = ()=>{
+        entry.nota = numIn.value===''? null : Number(numIn.value);
+        scheduleSave();
+      };
+      row.appendChild(numIn);
+    }
+
+    if(arr.length > 1){
+      const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
+      delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
+      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); wrap.replaceWith(buildTicksRow(key)); };
+      row.appendChild(delBtn);
+    }
+
+    wrap.appendChild(row);
   });
-  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+';
-  addBtn.title = 'Añadir otra vuelta';
-  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push(false); scheduleSave(); wrap.replaceWith(buildTicksRow(key)); };
+  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key)); };
   wrap.appendChild(addBtn);
   return wrap;
 }
@@ -1110,6 +1271,7 @@ function renderBlocks(){
       if(t.type==='armas_explosivos'){
         [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
           const noteKey = 'b'+num+'-'+idx+'-'+sub;
+          KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label)};
           const row = document.createElement('div'); row.className='tema-row';
           row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
           row.appendChild(buildNoteBox(noteKey));
@@ -1119,6 +1281,7 @@ function renderBlocks(){
         return;
       }
       const noteKey = 'b'+num+'-'+idx;
+      KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre)};
       const row = document.createElement('div'); row.className='tema-row';
       row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
       row.appendChild(buildNoteBox(noteKey));
@@ -1138,6 +1301,7 @@ function renderLeves(){
     if(t.type==='l39_l40'){
       [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
         const key = 'leve-'+idx+'-'+sub;
+        KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label)};
         const item = document.createElement('div'); item.className='flat-item';
         item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${t.clase?label:''}</span></div>`;
         item.appendChild(buildNoteBox(key));
@@ -1147,6 +1311,7 @@ function renderLeves(){
       return;
     }
     const key = 'leve-'+idx;
+    KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre)};
     const item = document.createElement('div'); item.className='flat-item';
     item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||t.nombre}</span><span class="fi-clase">${t.clase?t.nombre:''}</span></div>`;
     item.appendChild(buildNoteBox(key));
@@ -1161,6 +1326,7 @@ function renderIngles(){
   const grid = document.createElement('div'); grid.className='flat-grid';
   for(let i=1;i<=INGLES_TOTAL;i++){
     const key = 'ingles-'+i;
+    KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i};
     const item = document.createElement('div'); item.className='flat-item';
     item.innerHTML = `<div class="fi-head"><span class="fi-name">Tema ${i}</span></div>`;
     item.appendChild(buildNoteBox(key));
@@ -1175,6 +1341,7 @@ function renderPsico(){
   const grid = document.createElement('div'); grid.className='flat-grid';
   PSICO_ITEMS.forEach((name,idx)=>{
     const key = 'psico-'+idx;
+    KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name};
     const item = document.createElement('div'); item.className='flat-item';
     item.innerHTML = `<div class="fi-head"><span class="fi-name">${name}</span></div>`;
     item.appendChild(buildNoteBox(key));
@@ -1200,7 +1367,205 @@ function renderOrto(){
   host.appendChild(grid);
 }
 
-/* ===================== RENDER: AJUSTES ===================== */
+/* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
+let chartAvgByGroup = null, chartEvolTemario = null, chartEvolOrto = null;
+const GROUP_COLORS = {
+  'Bloques':'#b6543f', 'Leves':'#6f9a6a', 'Inglés':'#5c8a99',
+  'Psicotécnicos':'#8b6fae', 'Ortografía (tests)':'#d99a3c'
+};
+function collectNotaData(){
+  const porGrupo = {};          // grupo -> [{key,label,notas:[..]}]
+  const evolucionPorGrupo = {}; // grupo -> { vueltaIdx: [notas...] }
+  Object.keys(state.ticks).forEach(key=>{
+    const meta = KEY_LABELS[key];
+    if(!meta) return; // key de un tema que ya no existe en el temario actual
+    const entries = (state.ticks[key]||[]).map(migrateTickEntry);
+    const notas = [];
+    entries.forEach((e,i)=>{
+      if(e.mode==='nota' && e.nota!=null && !isNaN(e.nota)){
+        notas.push(e.nota);
+        if(!evolucionPorGrupo[meta.grupo]) evolucionPorGrupo[meta.grupo] = {};
+        if(!evolucionPorGrupo[meta.grupo][i]) evolucionPorGrupo[meta.grupo][i] = [];
+        evolucionPorGrupo[meta.grupo][i].push(e.nota);
+      }
+    });
+    if(notas.length){
+      if(!porGrupo[meta.grupo]) porGrupo[meta.grupo] = [];
+      porGrupo[meta.grupo].push({key, label:meta.label, notas});
+    }
+  });
+  const ortoFlat = []; // notas de ortografía en orden cronológico (por fecha)
+  Object.keys(state.ortoTests).sort().forEach(dk=>{
+    (state.ortoTests[dk]||[]).forEach(t=>{
+      if(t.nota!=null && !isNaN(t.nota)) ortoFlat.push(t.nota);
+    });
+  });
+  return {porGrupo, evolucionPorGrupo, ortoFlat};
+}
+function notaPillClass(n){ return n>=7 ? 'good' : (n>=5 ? 'mid' : 'bad'); }
+function renderProgreso(){
+  const host = document.getElementById('progresoHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const data = collectNotaData();
+  const grupos = Object.keys(data.porGrupo);
+  const hasOrto = data.ortoFlat.length > 0;
+
+  if(!grupos.length && !hasOrto){
+    host.innerHTML = '<div class="empty-state">Todavía no hay ninguna nota registrada.<br>Pon una vuelta en modo «Nota test» desde «Temario y notas», o añade un test de ortografía desde el modal de un día del calendario, y aquí aparecerá la comparativa.</div>';
+    return;
+  }
+
+  // --- Resumen ---
+  const statGrid = document.createElement('div'); statGrid.className='stat-grid';
+  grupos.forEach(grupo=>{
+    const all = data.porGrupo[grupo].flatMap(i=>i.notas);
+    const avg = all.reduce((a,b)=>a+b,0)/all.length;
+    const c = document.createElement('div'); c.className='stat-card';
+    c.innerHTML = `<div class="num">${avg.toFixed(1)}</div><div class="lbl">${grupo} · ${all.length} nota${all.length>1?'s':''}</div>`;
+    statGrid.appendChild(c);
+  });
+  if(hasOrto){
+    const avg = data.ortoFlat.reduce((a,b)=>a+b,0)/data.ortoFlat.length;
+    const c = document.createElement('div'); c.className='stat-card';
+    c.innerHTML = `<div class="num">${avg.toFixed(1)}</div><div class="lbl">Ortografía (tests) · ${data.ortoFlat.length} test${data.ortoFlat.length>1?'s':''}</div>`;
+    statGrid.appendChild(c);
+  }
+  host.appendChild(statGrid);
+
+  if(!window.Chart){
+    const warn = document.createElement('p');
+    warn.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);";
+    warn.textContent = 'No se ha podido cargar la librería de gráficos (revisa tu conexión a internet). Debajo tienes igualmente la tabla con todas las notas.';
+    host.appendChild(warn);
+  } else {
+    // --- Gráfico 1: media por grupo (barras) ---
+    const s1 = document.createElement('div'); s1.className='progreso-section';
+    s1.innerHTML = '<h3>Nota media por bloque de materia</h3>';
+    const c1 = document.createElement('div'); c1.className='chart-card';
+    const cv1 = document.createElement('canvas'); cv1.height=220; c1.appendChild(cv1); s1.appendChild(c1); host.appendChild(s1);
+    const barLabels = [...grupos, ...(hasOrto?['Ortografía (tests)']:[])];
+    const barValues = barLabels.map(g=>{
+      if(g==='Ortografía (tests)') return data.ortoFlat.reduce((a,b)=>a+b,0)/data.ortoFlat.length;
+      const all = data.porGrupo[g].flatMap(i=>i.notas);
+      return all.reduce((a,b)=>a+b,0)/all.length;
+    });
+    if(chartAvgByGroup) chartAvgByGroup.destroy();
+    chartAvgByGroup = new Chart(cv1, {
+      type:'bar',
+      data:{ labels:barLabels, datasets:[{ label:'Nota media', data:barValues, backgroundColor:barLabels.map(g=>GROUP_COLORS[g]||'#d99a3c') }] },
+      options:{ responsive:true, scales:{ y:{min:0,max:10, ticks:{color:'#b9baa8'}, grid:{color:'#34493d'} }, x:{ ticks:{color:'#b9baa8'}, grid:{display:false} } },
+        plugins:{ legend:{display:false} } }
+    });
+
+    // --- Gráfico 2: evolución por vuelta (bloques/leves/inglés/psico) ---
+    if(grupos.length){
+      const s2 = document.createElement('div'); s2.className='progreso-section';
+      s2.innerHTML = '<h3>Evolución de notas por vuelta</h3>';
+      const c2 = document.createElement('div'); c2.className='chart-card';
+      const cv2 = document.createElement('canvas'); cv2.height=240; c2.appendChild(cv2); s2.appendChild(c2); host.appendChild(s2);
+      const maxVueltaIdx = Math.max(...grupos.flatMap(g=>Object.keys(data.evolucionPorGrupo[g]||{}).map(Number)));
+      const lineLabels = []; for(let i=0;i<=maxVueltaIdx;i++) lineLabels.push('Vuelta '+(i+1));
+      const lineDatasets = grupos.map(grupo=>{
+        const byVuelta = data.evolucionPorGrupo[grupo] || {};
+        const points = lineLabels.map((_,i)=>{
+          const arr = byVuelta[i];
+          return (arr && arr.length) ? arr.reduce((a,b)=>a+b,0)/arr.length : null;
+        });
+        return { label:grupo, data:points, borderColor:GROUP_COLORS[grupo], backgroundColor:GROUP_COLORS[grupo], tension:0.25, spanGaps:true };
+      });
+      if(chartEvolTemario) chartEvolTemario.destroy();
+      chartEvolTemario = new Chart(cv2, {
+        type:'line',
+        data:{ labels:lineLabels, datasets:lineDatasets },
+        options:{ responsive:true, scales:{ y:{min:0,max:10, ticks:{color:'#b9baa8'}, grid:{color:'#34493d'} }, x:{ ticks:{color:'#b9baa8'}, grid:{display:false} } },
+          plugins:{ legend:{labels:{color:'#ece4d3'}} } }
+      });
+    }
+
+    // --- Gráfico 3: evolución tests de ortografía en el tiempo ---
+    if(hasOrto){
+      const s3 = document.createElement('div'); s3.className='progreso-section';
+      s3.innerHTML = '<h3>Evolución tests de ortografía y gramática</h3>';
+      const c3 = document.createElement('div'); c3.className='chart-card';
+      const cv3 = document.createElement('canvas'); cv3.height=220; c3.appendChild(cv3); s3.appendChild(c3); host.appendChild(s3);
+      if(chartEvolOrto) chartEvolOrto.destroy();
+      chartEvolOrto = new Chart(cv3, {
+        type:'line',
+        data:{ labels:data.ortoFlat.map((_,i)=>'Test '+(i+1)), datasets:[{ label:'Ortografía (tests)', data:data.ortoFlat, borderColor:GROUP_COLORS['Ortografía (tests)'], backgroundColor:GROUP_COLORS['Ortografía (tests)'], tension:0.25 }] },
+        options:{ responsive:true, scales:{ y:{min:0,max:10, ticks:{color:'#b9baa8'}, grid:{color:'#34493d'} }, x:{ ticks:{color:'#b9baa8'}, grid:{display:false} } },
+          plugins:{ legend:{display:false} } }
+      });
+    }
+  }
+
+  // --- Tabla de detalle ---
+  const s4 = document.createElement('div'); s4.className='progreso-section';
+  s4.innerHTML = '<h3>Detalle por tema</h3>';
+  const table = document.createElement('table'); table.className='nota-table';
+  table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th></tr></thead>';
+  const tbody = document.createElement('tbody');
+  grupos.forEach(grupo=>{
+    data.porGrupo[grupo].forEach(item=>{
+      const avg = item.notas.reduce((a,b)=>a+b,0)/item.notas.length;
+      const tr = document.createElement('tr');
+      tr.innerHTML = `<td>${grupo}</td><td>${item.label}</td>`+
+        `<td>${item.notas.map(n=>'<span class="nota-pill '+notaPillClass(n)+'">'+n+'</span>').join('')}</td>`+
+        `<td><span class="nota-pill ${notaPillClass(avg)}">${avg.toFixed(1)}</span></td>`;
+      tbody.appendChild(tr);
+    });
+  });
+  table.appendChild(tbody);
+  s4.appendChild(table);
+  host.appendChild(s4);
+}
+/* ===================== RENDER: ENTRENOS (registro manual) ===================== */
+function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function renderEntrenos(){
+  const host = document.getElementById('entrenosHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const topBar = document.createElement('div');
+  topBar.style.cssText = "display:flex;justify-content:space-between;align-items:center;";
+  topBar.innerHTML = '<h3 style="margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:17px;letter-spacing:.03em;">Entrenos físicos</h3>';
+  const addBtn = document.createElement('button'); addBtn.className='btn small'; addBtn.textContent='+ Añadir entreno';
+  addBtn.onclick = ()=>{
+    state.entrenosLog.unshift({id:Date.now(), date:todayISO(), tipo:'', notas:''});
+    scheduleSave();
+    renderEntrenos();
+  };
+  topBar.appendChild(addBtn);
+  host.appendChild(topBar);
+
+  if(!state.entrenosLog.length){
+    const empty = document.createElement('div'); empty.className='empty-state'; empty.style.marginTop='14px';
+    empty.textContent = 'Todavía no has apuntado ningún entreno. Usa el botón «+ Añadir entreno» para registrar el primero.';
+    host.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('div'); list.className='entreno-list';
+  const sorted = [...state.entrenosLog].sort((a,b)=> (b.date||'').localeCompare(a.date||''));
+  sorted.forEach(item=>{
+    const row = document.createElement('div'); row.className='entreno-item';
+    const dateIn = document.createElement('input'); dateIn.type='date'; dateIn.value = item.date||'';
+    dateIn.onchange = ()=>{ item.date = dateIn.value; scheduleSave(); renderEntrenos(); };
+    row.appendChild(dateIn);
+    const tipoIn = document.createElement('input'); tipoIn.type='text'; tipoIn.className='entreno-tipo';
+    tipoIn.placeholder='Tipo de entreno (ej. Piernas, Carrera 5km, Circuito...)'; tipoIn.value = item.tipo||'';
+    tipoIn.oninput = ()=>{ item.tipo = tipoIn.value; scheduleSave(); };
+    row.appendChild(tipoIn);
+    const delBtn = document.createElement('button'); delBtn.className='entreno-del'; delBtn.textContent='Eliminar';
+    delBtn.onclick = ()=>{ if(confirm('¿Eliminar este entreno?')){ state.entrenosLog = state.entrenosLog.filter(e=>e.id!==item.id); scheduleSave(); renderEntrenos(); } };
+    row.appendChild(delBtn);
+    const notasTa = document.createElement('textarea'); notasTa.className='entreno-notas';
+    notasTa.placeholder='Notas (series, peso, sensaciones, tiempo...)'; notasTa.value = item.notas||'';
+    notasTa.oninput = ()=>{ item.notas = notasTa.value; scheduleSave(); };
+    row.appendChild(notasTa);
+    list.appendChild(row);
+  });
+  host.appendChild(list);
+}
 function renderAjustes(){
   const host = document.getElementById('statGrid');
   const keys = sortedMonthKeys();
@@ -1343,7 +1708,7 @@ function renderSyncBox(){
 
 document.getElementById('resetBtn').onclick = async ()=>{
   if(confirm('Esto borrará todos los meses y notas guardados. ¿Continuar?')){
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, ortoTests:{}, entrenosLog:[], settings:{unifyFromKey:null} };
     currentMonthKey = null;
     if(firebaseOk && accessCode){
       await db.collection('plannings').doc(accessCode).set({state: JSON.stringify(state), updatedAt: Date.now()});
@@ -1373,6 +1738,8 @@ function renderAll(){
   renderPsico();
   renderOrto();
   renderCiclo();
+  renderProgreso();
+  renderEntrenos();
   renderAjustes();
   renderSyncBox();
 }
