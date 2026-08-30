@@ -118,6 +118,8 @@
   .cal-cell.status-DESCANSO{background:#25261f;border-color:#4a4a3a;}
   .cal-cell.status-TRABAJO{background:#1c2733;border-color:#33465a;}
   .cal-cell.status-DESCONOCIDO{background:repeating-linear-gradient(45deg,var(--bg-panel),var(--bg-panel) 6px,#25332b 6px,#25332b 12px);}
+  .cal-cell.today{border:2px solid var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
+  .cal-cell.today .cal-daynum span:first-child{color:var(--amber);}
   .cal-daynum{
     font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--cream);
     display:flex;justify-content:space-between;align-items:center;
@@ -1107,6 +1109,11 @@ function renderCalendar(){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const cell = document.createElement('div');
     cell.className = 'cal-cell status-'+info.status;
+    const now = new Date();
+    if(y===now.getFullYear() && m===(now.getMonth()+1) && d===now.getDate()){
+      cell.classList.add('today');
+      cell.id = 'todayCell';
+    }
 
     const numRow = document.createElement('div');
     numRow.className = 'cal-daynum';
@@ -2538,8 +2545,17 @@ function renderAll(){
   if(!accessCode){ renderCodeGate(); return; }
   await loadState();
   const keys = sortedMonthKeys();
-  currentMonthKey = keys.length ? keys[keys.length-1] : null;
+  const now = new Date();
+  const todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
+  currentMonthKey = keys.includes(todayKey) ? todayKey : (keys.length ? keys[keys.length-1] : null);
   renderAll();
+  // Al abrir la app, nos aseguramos de estar en la pestaña Calendario y desplazamos la vista hasta el día de hoy.
+  const calBtn = document.querySelector('.tab-btn[data-tab="calendario"]');
+  if(calBtn) calBtn.click();
+  requestAnimationFrame(()=>{
+    const todayCell = document.getElementById('todayCell');
+    if(todayCell) todayCell.scrollIntoView({block:'center', behavior:'auto'});
+  });
 })();
 </script>
 </body>
