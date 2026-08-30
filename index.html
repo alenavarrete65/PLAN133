@@ -232,6 +232,7 @@
     width:52px;background:var(--bg-panel);color:var(--amber);border:1px solid var(--line);border-radius:2px;
     font-family:var(--font-mono);font-size:11px;padding:3px 4px;
   }
+  .vuelta-row .vuelta-nota-max{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
   .vuelta-row .vuelta-del{background:transparent;border:none;color:var(--red);cursor:pointer;font-size:12px;margin-left:auto;}
   .tick-add{background:transparent;border:1px dashed var(--amber-dim);color:var(--amber);border-radius:2px;
     padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;align-self:flex-start;}
@@ -337,7 +338,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendario</button>
     <button class="tab-btn" data-tab="temario">Temario y notas</button>
-    <button class="tab-btn" data-tab="ciclo">Ciclo bloques</button>
+    <button class="tab-btn" data-tab="ciclo">¿Cuánto tiempo tardo en dar una vuelta?</button>
     <button class="tab-btn" data-tab="progreso">Progreso</button>
     <button class="tab-btn" data-tab="entrenos">Entrenos</button>
     <button class="tab-btn" data-tab="ajustes">Ajustes</button>
@@ -389,7 +390,7 @@
       desde la pestaña Calendario puedes activar el «modo repaso final»: a partir del mes que elijas (y todos los siguientes) cada bloque se estudia entero, azul y morado juntos el mismo día.
       Los días de descanso, trabajo o sin horario no cuentan para ninguna secuencia ·
       cada tarea del día (bloque, leve, inglés, psicotécnico, entreno, orto-grama) tiene un check ✓ tanto en la casilla del calendario como en el modal del día: por defecto se asume que la haces y la racha avanza sola; si marcas que NO la has completado, ese mismo contenido se repite automáticamente al día siguiente que toque esa misma categoría, hasta que quites la marca — así nada se salta si te retrasas ·
-      en la pestaña «Ciclo bloques» puedes ver, según tu calendario real, cuánto se tarda en completar cada vuelta (azul + morado) a cada bloque, y por color por separado ·
+      en la pestaña «¿Cuánto tiempo tardo en dar una vuelta?» puedes ver, según tu calendario real, cuánto se tarda en completar cada vuelta a bloques (azul + morado y por color por separado), leves, inglés y psicotécnicos ·
       cada vuelta del temario ahora se marca como Pendiente, Nota test (con la nota), No test, No tiempo o Solo lectura, en vez de un simple check ·
       en «Progreso» tienes la tabla comparativa de todas las notas de test que vayas metiendo en el temario (por bloque de materia y por tema), con la diferencia respecto a la vuelta anterior y la tendencia (mejorando / empeorando / igual) ·
       en «Temario y notas», dentro de Ortografía y gramática, puedes ir añadiendo tests sueltos (Test 1, Test 2…) marcando cada uno como Apto o No apto, con un recuento de cuántos No apto llevas en cada una ·
@@ -1144,6 +1145,9 @@ const VUELTA_MODES = [
   ['no_tiempo','No tiempo'],
   ['solo_lectura','Solo lectura'],
 ];
+// Nota máxima según el grupo de temario: bloques y leves se puntúan sobre 10,
+// inglés sobre 20 y psicotécnicos sobre 30.
+const GROUP_MAX_NOTA = { Bloques:10, Leves:10, 'Inglés':20, 'Psicotécnicos':30 };
 // Registro global: key de vuelta -> {grupo, label}. Lo rellenan renderBlocks/renderLeves/
 // renderIngles/renderPsico cada vez que se pintan, y lo lee la pestaña «Progreso».
 const KEY_LABELS = {};
@@ -1151,7 +1155,8 @@ function migrateTickEntry(v){
   if(v && typeof v === 'object') return v;
   return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
 }
-function buildTicksRow(key){
+function buildTicksRow(key, maxNota){
+  maxNota = maxNota || 10;
   if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
@@ -1171,32 +1176,36 @@ function buildTicksRow(key){
       entry.mode = sel.value;
       if(entry.mode !== 'nota') entry.nota = null;
       scheduleSave();
-      wrap.replaceWith(buildTicksRow(key));
+      wrap.replaceWith(buildTicksRow(key, maxNota));
     };
     row.appendChild(sel);
 
     if(entry.mode === 'nota'){
       const numIn = document.createElement('input');
-      numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max='10';
+      numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max=String(maxNota);
       numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
       numIn.oninput = ()=>{
         entry.nota = numIn.value===''? null : Number(numIn.value);
         scheduleSave();
       };
       row.appendChild(numIn);
+      const maxLbl = document.createElement('span');
+      maxLbl.className = 'vuelta-nota-max';
+      maxLbl.textContent = '/ '+maxNota;
+      row.appendChild(maxLbl);
     }
 
     if(arr.length > 1){
       const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
       delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
-      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); wrap.replaceWith(buildTicksRow(key)); };
+      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
       row.appendChild(delBtn);
     }
 
     wrap.appendChild(row);
   });
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
-  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key)); };
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
   wrap.appendChild(addBtn);
   return wrap;
 }
@@ -1237,7 +1246,7 @@ function renderBlocks(){
       if(t.type==='armas_explosivos'){
         [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
           const noteKey = 'b'+num+'-'+idx+'-'+sub;
-          KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label)};
+          KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label), max:GROUP_MAX_NOTA.Bloques};
           const row = document.createElement('div'); row.className='tema-row';
           row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
           row.appendChild(buildNoteBox(noteKey));
@@ -1247,7 +1256,7 @@ function renderBlocks(){
         return;
       }
       const noteKey = 'b'+num+'-'+idx;
-      KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre)};
+      KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Bloques};
       const row = document.createElement('div'); row.className='tema-row';
       row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
       row.appendChild(buildNoteBox(noteKey));
@@ -1259,6 +1268,11 @@ function renderBlocks(){
     host.appendChild(card);
   });
 }
+function temaNumFromClase(clase){
+  if(!clase) return '';
+  const m = String(clase).match(/^(\d+)/);
+  return m ? 'TEMA '+m[1] : '';
+}
 function renderLeves(){
   const host = document.getElementById('levesHost');
   host.innerHTML = '<h3>Leves (ciclo 1–17)</h3>';
@@ -1267,51 +1281,51 @@ function renderLeves(){
     if(t.type==='l39_l40'){
       [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
         const key = 'leve-'+idx+'-'+sub;
-        KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label)};
+        KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label), max:GROUP_MAX_NOTA.Leves};
         const item = document.createElement('div'); item.className='flat-item';
-        item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${t.clase?label:''}</span></div>`;
+        item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
         item.appendChild(buildNoteBox(key));
-        item.appendChild(buildTicksRow(key));
+        item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
         grid.appendChild(item);
       });
       return;
     }
     const key = 'leve-'+idx;
-    KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre)};
+    KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Leves};
     const item = document.createElement('div'); item.className='flat-item';
-    item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||t.nombre}</span><span class="fi-clase">${t.clase?t.nombre:''}</span></div>`;
+    item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${t.nombre}</span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
     item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key));
+    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
     grid.appendChild(item);
   });
   host.appendChild(grid);
 }
 function renderIngles(){
   const host = document.getElementById('inglesHost');
-  host.innerHTML = '<h3>Inglés (ciclo 1–32)</h3>';
+  host.innerHTML = '<h3>Inglés (ciclo 1–32) · notas sobre 20</h3>';
   const grid = document.createElement('div'); grid.className='flat-grid';
   for(let i=1;i<=INGLES_TOTAL;i++){
     const key = 'ingles-'+i;
-    KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i};
+    KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i, max:GROUP_MAX_NOTA['Inglés']};
     const item = document.createElement('div'); item.className='flat-item';
     item.innerHTML = `<div class="fi-head"><span class="fi-name">Tema ${i}</span></div>`;
     item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key));
+    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Inglés']));
     grid.appendChild(item);
   }
   host.appendChild(grid);
 }
 function renderPsico(){
   const host = document.getElementById('psicoHost');
-  host.innerHTML = '<h3>Psicotécnicos (ciclo 1–23 + controles)</h3>';
+  host.innerHTML = '<h3>Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30</h3>';
   const grid = document.createElement('div'); grid.className='flat-grid';
   PSICO_ITEMS.forEach((name,idx)=>{
     const key = 'psico-'+idx;
-    KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name};
+    KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name, max:GROUP_MAX_NOTA['Psicotécnicos']};
     const item = document.createElement('div'); item.className='flat-item';
     item.innerHTML = `<div class="fi-head"><span class="fi-name">${name}</span></div>`;
     item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key));
+    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Psicotécnicos']));
     grid.appendChild(item);
   });
   host.appendChild(grid);
@@ -1374,7 +1388,7 @@ function renderOrto(){
 
 /* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
 function collectNotaData(){
-  const porGrupo = {}; // grupo -> [{key,label,notas:[..]}]
+  const porGrupo = {}; // grupo -> [{key,label,notas:[..],max}]
   Object.keys(state.ticks).forEach(key=>{
     const meta = KEY_LABELS[key];
     if(!meta) return; // key de un tema que ya no existe en el temario actual
@@ -1385,12 +1399,15 @@ function collectNotaData(){
     });
     if(notas.length){
       if(!porGrupo[meta.grupo]) porGrupo[meta.grupo] = [];
-      porGrupo[meta.grupo].push({key, label:meta.label, notas});
+      porGrupo[meta.grupo].push({key, label:meta.label, notas, max: meta.max || GROUP_MAX_NOTA[meta.grupo] || 10});
     }
   });
   return {porGrupo};
 }
-function notaPillClass(n){ return n>=7 ? 'good' : (n>=5 ? 'mid' : 'bad'); }
+function notaPillClass(n, max){
+  max = max || 10;
+  return n >= max*0.7 ? 'good' : (n >= max*0.5 ? 'mid' : 'bad');
+}
 function renderProgreso(){
   const host = document.getElementById('progresoHost');
   if(!host) return;
@@ -1411,6 +1428,7 @@ function renderProgreso(){
   grupos.forEach(grupo=>{
     data.porGrupo[grupo].forEach(item=>{
       const notas = item.notas;
+      const max = item.max;
       const avg = notas.reduce((a,b)=>a+b,0)/notas.length;
 
       // Cada nota (a partir de la 2ª) muestra la diferencia con la vuelta anterior.
@@ -1422,7 +1440,7 @@ function renderProgreso(){
           else if(diff < 0) deltaTxt = ' <span style="color:var(--red);">▼'+diff+'</span>';
           else deltaTxt = ' <span style="color:var(--muted);">=</span>';
         }
-        return '<span class="nota-pill '+notaPillClass(n)+'">'+n+'</span>'+deltaTxt;
+        return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
       }).join(' ');
 
       // Tendencia general: última nota frente a la anterior.
@@ -1437,7 +1455,7 @@ function renderProgreso(){
       const tr = document.createElement('tr');
       tr.innerHTML = `<td>${grupo}</td><td>${item.label}</td>`+
         `<td>${notasHtml}</td>`+
-        `<td><span class="nota-pill ${notaPillClass(avg)}">${avg.toFixed(1)}</span></td>`+
+        `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
         `<td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${tendencia}</td>`;
       tbody.appendChild(tr);
     });
@@ -1520,48 +1538,72 @@ function renderAjustes(){
     host.appendChild(c);
   });
 }
-/* ===================== RENDER: CICLO DE BLOQUES ===================== */
+/* ===================== RENDER: ¿CUÁNTO TIEMPO TARDO EN DAR UNA VUELTA? ===================== */
+function cicloSectionTitle(text){
+  const h = document.createElement('h3');
+  h.textContent = text;
+  h.style.cssText = "font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px;font-size:17px;letter-spacing:.03em;";
+  return h;
+}
+function cicloIntro(text){
+  const p = document.createElement('p');
+  p.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:680px;margin:0 0 18px;";
+  p.textContent = text;
+  return p;
+}
+function simpleGapsBody(datesMs){
+  if(datesMs.length < 2){
+    return '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones en tu calendario guardado).</div>';
+  }
+  const gaps = [];
+  for(let i=1;i<datesMs.length;i++){
+    gaps.push(Math.round((datesMs[i]-datesMs[i-1])/86400000));
+  }
+  const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+  let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+datesMs.length+' apariciones registradas</div>';
+  html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+  return html;
+}
 function renderCiclo(){
   const host = document.getElementById('cicloHost');
   if(!host) return;
   host.innerHTML = '';
 
-  const title = document.createElement('h3');
-  title.textContent = 'Vuelta completa por bloque';
-  title.style.cssText = "font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px;font-size:17px;letter-spacing:.03em;";
-  host.appendChild(title);
-
-  const intro = document.createElement('p');
-  intro.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:680px;margin:0 0 18px;";
-  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).';
-  host.appendChild(intro);
-
   const plan = computePlan();
   const keys = sortedMonthKeys();
-  const appearances = {};
-  for(let b=1;b<=12;b++) appearances[b]=[];
+
+  // Lista cronológica de todos los días de estudio, con su entrada completa del plan.
+  const studyDays = [];
   keys.forEach(k=>{
     const md = plan[k] || {};
+    const [y,m] = k.split('-').map(Number);
     Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
       const e = md[d];
-      if(e.status !== 'ESTUDIO') return;
-      const arr = appearances[e.bloque];
-      // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
-      // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
-      // completa esa vuelta.
-      if(arr.length === 0 || arr[arr.length-1].color !== e.color){
-        const [y,m] = k.split('-').map(Number);
-        arr.push({dateMs:new Date(y, m-1, d).getTime(), color:e.color});
-      }
+      if(e.status === 'ESTUDIO') studyDays.push({dateMs:new Date(y,m-1,d).getTime(), e});
     });
   });
 
-  const grid = document.createElement('div');
-  grid.className = 'ciclo-grid';
+  /* ---------- BLOQUES ---------- */
+  host.appendChild(cicloSectionTitle('Vuelta completa por bloque'));
+  host.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
+  const blockAppearances = {};
+  for(let b=1;b<=12;b++) blockAppearances[b]=[];
+  studyDays.forEach(({dateMs,e})=>{
+    const arr = blockAppearances[e.bloque];
+    // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
+    // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
+    // completa esa vuelta.
+    if(arr.length === 0 || arr[arr.length-1].color !== e.color){
+      arr.push({dateMs, color:e.color});
+    }
+  });
+
+  const blockGrid = document.createElement('div');
+  blockGrid.className = 'ciclo-grid';
   Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
     const graves = BLOCKS[num].graves;
-    const arr = appearances[num];
+    const arr = blockAppearances[num];
     let bodyHtml;
     if(arr.length < 2){
       bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).</div>';
@@ -1606,9 +1648,99 @@ function renderCiclo(){
       </div>
       ${bodyHtml}
     `;
-    grid.appendChild(card);
+    blockGrid.appendChild(card);
   });
-  host.appendChild(grid);
+  host.appendChild(blockGrid);
+
+  /* ---------- LEVES ---------- */
+  host.appendChild(cicloSectionTitle('Vuelta completa por leve'));
+  host.appendChild(cicloIntro('Cada leve entra todos los días de estudio, así que una "vuelta" es simplemente el tiempo que tarda en volver a tocar ese mismo leve (ciclo de 17). Si un día no lo das por completado, ese mismo leve se repite al día siguiente de estudio y esa repetición no cuenta como una vuelta nueva.'));
+
+  const leveAppearances = LEVES.map(()=>[]);
+  let lastLeveNum = null;
+  studyDays.forEach(({dateMs,e})=>{
+    if(e.leveNum !== lastLeveNum){
+      leveAppearances[e.leveNum-1].push(dateMs);
+    }
+    lastLeveNum = e.leveNum;
+  });
+
+  const leveGrid = document.createElement('div');
+  leveGrid.className = 'ciclo-grid';
+  LEVES.forEach((t,idx)=>{
+    const nombre = t.type==='l39_l40' ? (t.l39+' / '+t.l40) : t.nombre;
+    const temaNum = temaNumFromClase(t.clase);
+    const card = document.createElement('div');
+    card.className = 'ciclo-card';
+    card.innerHTML = `
+      <div class="ch-row">
+        <div class="block-num">${idx+1}</div>
+        <div><h4>LEVE Nº${idx+1}: ${nombre}</h4><div class="kind">${temaNum}</div></div>
+      </div>
+      ${simpleGapsBody(leveAppearances[idx])}
+    `;
+    leveGrid.appendChild(card);
+  });
+  host.appendChild(leveGrid);
+
+  /* ---------- INGLÉS ---------- */
+  host.appendChild(cicloSectionTitle('Vuelta completa por tema de Inglés'));
+  host.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32).'));
+
+  const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
+  let lastInglesNum = null;
+  studyDays.forEach(({dateMs,e})=>{
+    if(e.inglesNum !== lastInglesNum){
+      inglesAppearances[e.inglesNum-1].push(dateMs);
+    }
+    lastInglesNum = e.inglesNum;
+  });
+
+  const inglesGrid = document.createElement('div');
+  inglesGrid.className = 'ciclo-grid';
+  for(let i=1;i<=INGLES_TOTAL;i++){
+    const card = document.createElement('div');
+    card.className = 'ciclo-card';
+    card.innerHTML = `
+      <div class="ch-row">
+        <div class="block-num">${i}</div>
+        <div><h4>Inglés · Tema ${i}</h4></div>
+      </div>
+      ${simpleGapsBody(inglesAppearances[i-1])}
+    `;
+    inglesGrid.appendChild(card);
+  }
+  host.appendChild(inglesGrid);
+
+  /* ---------- PSICOTÉCNICOS ---------- */
+  host.appendChild(cicloSectionTitle('Vuelta completa por psicotécnico'));
+  host.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 temas + 2 controles).'));
+
+  const psicoAppearances = PSICO_ITEMS.map(()=>[]);
+  let lastPsicoIdx = null;
+  studyDays.forEach(({dateMs,e})=>{
+    if(e.psicoIdx === undefined) return;
+    if(e.psicoIdx !== lastPsicoIdx){
+      psicoAppearances[e.psicoIdx].push(dateMs);
+    }
+    lastPsicoIdx = e.psicoIdx;
+  });
+
+  const psicoGrid = document.createElement('div');
+  psicoGrid.className = 'ciclo-grid';
+  PSICO_ITEMS.forEach((name,idx)=>{
+    const card = document.createElement('div');
+    card.className = 'ciclo-card';
+    card.innerHTML = `
+      <div class="ch-row">
+        <div class="block-num">${idx+1}</div>
+        <div><h4>${name}</h4></div>
+      </div>
+      ${simpleGapsBody(psicoAppearances[idx])}
+    `;
+    psicoGrid.appendChild(card);
+  });
+  host.appendChild(psicoGrid);
 }
 /* ===================== RENDER: SINCRONIZACIÓN ===================== */
 function renderSyncBox(){
