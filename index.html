@@ -245,6 +245,10 @@
   .ciclo-card .ciclo-gaps{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:3px;}
   .ciclo-card .ciclo-gaps strong{color:var(--cream);}
   .ciclo-card .ciclo-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
+  .ciclo-card .ciclo-color-section{border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:10px;}
+  .ciclo-card .ciclo-color-block .ciclo-color-title{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:4px;}
+  .ciclo-card .ciclo-color-block .ciclo-color-title strong{color:var(--amber);}
+  .ciclo-card .ciclo-color-block .ciclo-gaps{border-top:none;padding-top:0;margin-top:0;}
 
   .modal-add{display:flex;flex-direction:column;gap:10px;}
   .modal-add label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
@@ -852,7 +856,7 @@ function renderCalendar(){
       tasks.className = 'cal-tasks';
       const dticks = info.ticks || {};
       const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
-      const temasTxt = info.temasDelDia.map(t=>t.nombre).join(', ');
+      const temasTxt = info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
       tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
       tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
       tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
@@ -1237,7 +1241,7 @@ function renderCiclo(){
 
   const intro = document.createElement('p');
   intro.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:680px;margin:0 0 18px;";
-  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color.';
+  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).';
   host.appendChild(intro);
 
   const plan = computePlan();
@@ -1278,6 +1282,27 @@ function renderCiclo(){
       const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
       let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas</div>';
       html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+
+      // Desglose por color: cuánto tarda en volver a tocar el MISMO color de este bloque
+      // (p.ej. bloque 7 azul -> próxima vez bloque 7 azul), no solo la vuelta completa azul+morado.
+      const COLOR_LABEL = {azul:'Azul', morado:'Morado', unificado:'Unificado'};
+      let colorHtml = '';
+      ['azul','morado','unificado'].forEach(col=>{
+        const list = arr.filter(a=>a.color===col);
+        if(list.length < 2) return;
+        const cgaps = [];
+        for(let i=1;i<list.length;i++){
+          cgaps.push(Math.round((list[i].dateMs - list[i-1].dateMs)/86400000));
+        }
+        const cavg = cgaps.reduce((a,b)=>a+b,0) / cgaps.length;
+        const lbl = COLOR_LABEL[col];
+        colorHtml += '<div class="ciclo-color-block">'+
+          '<div class="ciclo-color-title"><span class="colorpill '+col+'">'+col+'</span> media hasta volver a tocar '+lbl.toLowerCase()+': <strong>'+cavg.toFixed(1)+' días</strong></div>'+
+          '<div class="ciclo-gaps">' + cgaps.map((g,i)=>'<div>'+lbl+' '+(i+1)+' → '+lbl+' '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>'+
+        '</div>';
+      });
+      if(colorHtml) html += '<div class="ciclo-color-section">'+colorHtml+'</div>';
+
       bodyHtml = html;
     }
     const card = document.createElement('div');
