@@ -136,10 +136,10 @@
     padding:1px 4px;border-radius:2px;flex-shrink:0;
   }
   .task-row .task-txt{flex:1;}
-  .task-row.tick-done{opacity:.5;}
-  .task-row.tick-done .task-txt{text-decoration:line-through;}
+  .task-row.tick-pending{background:rgba(182,84,63,.16);}
+  .task-row.tick-pending .task-txt{color:var(--red);}
   .day-tick{
-    margin-left:auto;flex-shrink:0;width:13px;height:13px;accent-color:var(--green);cursor:pointer;margin-top:1px;
+    margin-left:auto;flex-shrink:0;width:13px;height:13px;accent-color:var(--red);cursor:pointer;margin-top:1px;
   }
   .modal-row .day-tick{width:15px;height:15px;margin-left:auto;flex-shrink:0;margin-top:2px;}
   .tag-grave{background:var(--red);color:#fff;}
@@ -242,7 +242,9 @@
   .ciclo-card .kind{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;}
   .ciclo-card .ciclo-line{font-size:12px;margin-bottom:5px;color:var(--cream-dim);}
   .ciclo-card .ciclo-line strong{color:var(--amber);font-family:var(--font-mono);}
-  .ciclo-card .ciclo-real{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
+  .ciclo-card .ciclo-gaps{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:3px;}
+  .ciclo-card .ciclo-gaps strong{color:var(--cream);}
+  .ciclo-card .ciclo-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
 
   .modal-add{display:flex;flex-direction:column;gap:10px;}
   .modal-add label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
@@ -316,8 +318,8 @@
       en «Temario y notas» puedes marcar con ticks las vueltas ya vistas de cada tema y añadir más vueltas con el botón «+» ·
       desde la pestaña Calendario puedes activar el «modo repaso final»: a partir del mes que elijas (y todos los siguientes) cada bloque se estudia entero, azul y morado juntos el mismo día.
       Los días de descanso, trabajo o sin horario no cuentan para ninguna secuencia ·
-      cada tarea del día (bloque, leve, inglés, psicotécnico, entreno, orto-grama) tiene un check ✓ tanto en la casilla del calendario como en el modal del día: si no lo marcas, ese mismo contenido se repite automáticamente al día siguiente que toque esa misma categoría, hasta que lo marques como hecho — así nada se salta si te retrasas ·
-      en la pestaña «Ciclo bloques» puedes ver cuánto se tarda en completar una vuelta entera (azul + morado) a cada bloque, tanto en teoría como según tu calendario real.
+      cada tarea del día (bloque, leve, inglés, psicotécnico, entreno, orto-grama) tiene un check ✓ tanto en la casilla del calendario como en el modal del día: por defecto se asume que la haces y la racha avanza sola; si marcas que NO la has completado, ese mismo contenido se repite automáticamente al día siguiente que toque esa misma categoría, hasta que quites la marca — así nada se salta si te retrasas ·
+      en la pestaña «Ciclo bloques» puedes ver, según tu calendario real, cuánto se tarda en completar cada vuelta (azul + morado) a cada bloque.
     </p>
     <button class="btn danger" id="resetBtn" style="margin-top:14px;">Borrar todos los datos</button>
   </div>
@@ -631,10 +633,11 @@ function computePlan(){
         const rawTemas = BLOCKS[entry.bloque].temas.filter(t=>t.color===entry.color);
         entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
       }
-      // Solo avanzamos el puntero del bloque (índice, turno de color y armas/explosivos)
-      // si el día ha sido marcado como completado. Si no, el día siguiente que toque
-      // ese mismo tipo (grave/menos grave) repetirá exactamente el mismo contenido.
-      if(ticks.bloque){
+      // El tick de cada categoría marca "NO completado". Por defecto (sin marcar) se
+      // asume hecho y la racha avanza con normalidad; solo si marcas que NO se ha
+      // completado, el puntero se queda quieto y el día siguiente que toque esa misma
+      // categoría repetirá exactamente el mismo contenido, hasta que la desmarques.
+      if(!ticks.bloque){
         if(dayOfMonthParity === 1) gIdx++; else mgIdx++;
         if(unifyThisMonth || entry.color==='azul') azulCount[entry.bloque]++;
         blockTurn[entry.bloque]++;
@@ -643,10 +646,10 @@ function computePlan(){
       const leveIdx = lIdx % LEVES.length;
       entry.leveNum = leveIdx + 1;
       entry.leveInfo = resolveLeve(leveIdx);
-      if(ticks.leve){ leveAppear[leveIdx]++; lIdx++; }
+      if(!ticks.leve){ leveAppear[leveIdx]++; lIdx++; }
 
       entry.inglesNum = (iIdx % INGLES_TOTAL) + 1;
-      if(ticks.ingles){ iIdx++; }
+      if(!ticks.ingles){ iIdx++; }
 
       entry.orto = true;
       if(isTueThu){
@@ -655,7 +658,7 @@ function computePlan(){
         const psicoIdx = pIdx % PSICO_ITEMS.length;
         entry.psico = PSICO_ITEMS[psicoIdx];
         entry.psicoIdx = psicoIdx;
-        if(ticks.psico){ pIdx++; }
+        if(!ticks.psico){ pIdx++; }
       }
       plan[k][d] = entry;
     }
@@ -667,36 +670,6 @@ function setDayTick(monthKey, day, stream, val){
   if(!state.dayTicks[monthKey][day]) state.dayTicks[monthKey][day] = {};
   state.dayTicks[monthKey][day][stream] = val;
   scheduleSave();
-}
-/* Simulación "ideal": igual que arriba pero sin bloquear el avance por ticks.
-   Sirve solo para medir cuánto tardaría una vuelta completa a cada bloque si
-   se estudia todo al día, usando los descansos/trabajo ya metidos en el calendario. */
-function computeIdealPlan(){
-  const keys = sortedMonthKeys();
-  const plan = {};
-  let gIdx=0, mgIdx=0;
-  const blockTurn = {};
-  for(let b=1;b<=12;b++) blockTurn[b]=0;
-  keys.forEach(k=>{
-    const [y,m] = k.split('-').map(Number);
-    const nDays = daysInMonth(y,m);
-    const days = (state.months[k] && state.months[k].days) || {};
-    plan[k] = {};
-    for(let d=1; d<=nDays; d++){
-      const status = days[d] || 'ESTUDIO';
-      if(status !== 'ESTUDIO') continue;
-      const dateObj = new Date(y, m-1, d);
-      const dayOfMonthParity = d % 2;
-      let bloque, tipo;
-      if(dayOfMonthParity === 1){ tipo='grave'; bloque = GRAVES_ORDER[gIdx % GRAVES_ORDER.length]; gIdx++; }
-      else { tipo='mgrave'; bloque = MGRAVES_ORDER[mgIdx % MGRAVES_ORDER.length]; mgIdx++; }
-      const unifyThisMonth = !!(state.settings.unifyFromKey && k >= state.settings.unifyFromKey);
-      const color = unifyThisMonth ? 'unificado' : ((blockTurn[bloque] % 2 === 0) ? 'azul' : 'morado');
-      blockTurn[bloque]++;
-      plan[k][d] = {bloque, tipo, color, date:dateObj};
-    }
-  });
-  return plan;
 }
 
 /* ===================== RENDER: NAV MESES ===================== */
@@ -907,14 +880,14 @@ function taskRow(tag, txt, tagClass, tickInfo){
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.className = 'day-tick';
     cb.checked = !!tickInfo.checked;
-    cb.title = 'Marcar como completado';
+    cb.title = 'Marcar como NO completado (se repetirá el próximo día que toque)';
     cb.onclick = (e)=>{ e.stopPropagation(); };
     cb.onchange = ()=>{
       setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked);
       renderCalendar();
     };
     row.appendChild(cb);
-    if(cb.checked) row.classList.add('tick-done');
+    if(cb.checked) row.classList.add('tick-pending');
   }
   return row;
 }
@@ -934,10 +907,10 @@ function openDayModal(d, info){
     '<span class="colorpill '+info.color+'">'+info.color+'</span><br>'+
     bTemas.map(t=>'<div style="margin-top:4px;font-size:12px;">• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'')+'</div>').join('')+
     (info.unify ? '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.</div>' :
-    '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'), salvo que marques este bloque como completado más abajo.</div>')+
+    '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas abajo que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.</div>')+
     '</div>';
   const bCb = document.createElement('input'); bCb.type='checkbox'; bCb.className='day-tick';
-  bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como completado';
+  bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como NO completado';
   bCb.onchange = ()=>{ setDayTick(currentMonthKey, d, 'bloque', bCb.checked); renderCalendar(); };
   bRow.appendChild(bCb);
   body.appendChild(bRow);
@@ -955,7 +928,7 @@ function addModalRow(body, tagClass, tag, txt, tickInfo){
   row.innerHTML = '<span class="tag '+tagClass+'" style="margin-top:2px;">'+tag+'</span><span style="font-size:13px;flex:1;">'+txt+'</span>';
   if(tickInfo){
     const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
-    cb.checked = !!tickInfo.checked; cb.title='Marcar como completado';
+    cb.checked = !!tickInfo.checked; cb.title='Marcar como NO completado';
     cb.onchange = ()=>{ setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked); renderCalendar(); };
     row.appendChild(cb);
   }
@@ -1264,18 +1237,26 @@ function renderCiclo(){
 
   const intro = document.createElement('p');
   intro.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:680px;margin:0 0 18px;";
-  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. "Teórico" asume estudio todos los días sin descansos; "según tu calendario" usa los días de descanso/trabajo que ya tienes metidos en los meses guardados, contando desde la primera vez que aparece el bloque hasta que vuelve a aparecer (con el otro color).';
+  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color.';
   host.appendChild(intro);
 
-  const ideal = computeIdealPlan();
+  const plan = computePlan();
   const keys = sortedMonthKeys();
   const appearances = {};
   for(let b=1;b<=12;b++) appearances[b]=[];
   keys.forEach(k=>{
-    const md = ideal[k] || {};
+    const md = plan[k] || {};
     Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
       const e = md[d];
-      appearances[e.bloque].push({dateMs:e.date.getTime(), color:e.color});
+      if(e.status !== 'ESTUDIO') return;
+      const arr = appearances[e.bloque];
+      // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
+      // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
+      // completa esa vuelta.
+      if(arr.length === 0 || arr[arr.length-1].color !== e.color){
+        const [y,m] = k.split('-').map(Number);
+        arr.push({dateMs:new Date(y, m-1, d).getTime(), color:e.color});
+      }
     });
   });
 
@@ -1284,17 +1265,20 @@ function renderCiclo(){
 
   Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
     const graves = BLOCKS[num].graves;
-    const theoretical = graves ? 10 : 14;
     const arr = appearances[num];
-    let realHtml = 'Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).';
-    if(arr.length >= 2){
+    let bodyHtml;
+    if(arr.length < 2){
+      bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).</div>';
+    } else {
       const gaps = [];
       for(let i=1;i<arr.length;i++){
         if(arr[i-1].color === 'unificado'){ gaps.push(0); continue; }
         gaps.push(Math.round((arr[i].dateMs - arr[i-1].dateMs)/86400000));
       }
       const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
-      realHtml = 'Media real (según tu calendario): <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas';
+      let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas</div>';
+      html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+      bodyHtml = html;
     }
     const card = document.createElement('div');
     card.className = 'ciclo-card';
@@ -1303,8 +1287,7 @@ function renderCiclo(){
         <div class="block-num ${graves?'':'mg'}">${num}</div>
         <div><h4>Bloque ${num}</h4><div class="kind">${graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
       </div>
-      <div class="ciclo-line">Teórico (estudio diario, sin descansos): <strong>${theoretical} días</strong></div>
-      <div class="ciclo-real">${realHtml}</div>
+      ${bodyHtml}
     `;
     grid.appendChild(card);
   });
