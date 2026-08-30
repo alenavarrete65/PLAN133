@@ -294,6 +294,8 @@
   .cclase-cell.status-DESCANSO{background:#25261f;border-color:#4a4a3a;}
   .cclase-cell.status-TRABAJO{background:#1c2733;border-color:#33465a;}
   .cclase-cell.status-DESCONOCIDO{background:repeating-linear-gradient(45deg,var(--bg-panel),var(--bg-panel) 6px,#25332b 6px,#25332b 12px);}
+  .cclase-cell.today{border:2px solid var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
+  .cclase-cell.today .cal-daynum span:first-child{color:var(--amber);}
   .cclase-pills{display:flex;flex-direction:column;gap:2px;}
   .cclase-pill{
     font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.02em;
@@ -1790,6 +1792,11 @@ function renderClaseCalendar(){
     const jsDow = new Date(y, m-1, d).getDay();
     const cell = document.createElement('div');
     cell.className = 'cclase-cell status-'+status;
+    const now = new Date();
+    if(y===now.getFullYear() && m===(now.getMonth()+1) && d===now.getDate()){
+      cell.classList.add('today');
+      cell.id = 'todayClaseCell';
+    }
 
     const numRow = document.createElement('div'); numRow.className='cal-daynum';
     const wdName = DOW_SHORT[(jsDow===0?6:jsDow-1)];
@@ -2029,6 +2036,11 @@ function renderSimCalendar(){
     const jsDow = new Date(y, m-1, d).getDay();
     const cell = document.createElement('div');
     cell.className = 'cclase-cell status-'+status;
+    const now = new Date();
+    if(y===now.getFullYear() && m===(now.getMonth()+1) && d===now.getDate()){
+      cell.classList.add('today');
+      cell.id = 'todaySimCell';
+    }
 
     const numRow = document.createElement('div'); numRow.className='cal-daynum';
     const wdName = DOW_SHORT[(jsDow===0?6:jsDow-1)];
