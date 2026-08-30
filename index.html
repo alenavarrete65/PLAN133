@@ -311,6 +311,24 @@
   }
   .clase-check-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream);cursor:pointer;margin-bottom:8px;}
   .clase-check-row input{width:16px;height:16px;cursor:pointer;}
+  /* ---- Simulacros ---- */
+  .sim-card{
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px;margin-bottom:12px;
+  }
+  .sim-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .sim-card-head h4{margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;}
+  .sim-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
+  .sim-field label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
+  .sim-field input[type=number]{
+    width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    padding:7px 8px;font-family:var(--font-mono);font-size:13px;
+  }
+  .sim-field select{
+    width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    padding:7px 8px;font-family:var(--font-mono);font-size:12px;
+  }
+  .sim-field .nota-pill{margin-left:6px;}
+  .cclase-pill.p-sim{background:var(--red);color:#fff;}
 
   /* ---- progreso / notas ---- */
   .progreso-section{margin-top:24px;}
@@ -411,11 +429,11 @@
 
   <nav class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendario</button>
-    <button class="tab-btn" data-tab="temario">Temario y notas</button>
     <button class="tab-btn" data-tab="clases">Clases</button>
-    <button class="tab-btn" data-tab="ciclo">¿Cuánto tiempo tardo en dar una vuelta?</button>
-    <button class="tab-btn" data-tab="progreso">Progreso</button>
+    <button class="tab-btn" data-tab="temario">Temario y notas</button>
+    <button class="tab-btn" data-tab="simulacros">Simulacros</button>
     <button class="tab-btn" data-tab="entrenos">Entrenos</button>
+    <button class="tab-btn" data-tab="progreso">Progreso</button>
     <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
 
@@ -425,15 +443,6 @@
     <div id="unifyBar"></div>
     <div class="legend" id="legend"></div>
     <div id="calendarHost"></div>
-  </div>
-
-  <!-- TEMARIO -->
-  <div class="view" id="view-temario">
-    <div id="blocksHost"></div>
-    <section class="temario-group" id="levesHost"></section>
-    <section class="temario-group" id="inglesHost"></section>
-    <section class="temario-group" id="psicoHost"></section>
-    <section class="temario-group" id="ortoHost"></section>
   </div>
 
   <!-- CLASES (visualización de clases: vueltas vistas + calendario propio) -->
@@ -453,19 +462,41 @@
     </section>
   </div>
 
-  <!-- CICLO BLOQUES -->
-  <div class="view" id="view-ciclo">
-    <div id="cicloHost"></div>
+  <!-- TEMARIO -->
+  <div class="view" id="view-temario">
+    <div id="blocksHost"></div>
+    <section class="temario-group" id="levesHost"></section>
+    <section class="temario-group" id="inglesHost"></section>
+    <section class="temario-group" id="psicoHost"></section>
+    <section class="temario-group" id="ortoHost"></section>
   </div>
 
-  <!-- PROGRESO (comparativa de notas) -->
-  <div class="view" id="view-progreso">
-    <div id="progresoHost"></div>
+  <!-- SIMULACROS -->
+  <div class="view" id="view-simulacros">
+    <div id="simulacrosListHost"></div>
+
+    <section class="temario-group" style="margin-top:34px;">
+      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de simulacros</h3>
+      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+        Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario principal. Pulsa un día para marcar si ese día tocaba simulacro.
+      </div>
+      <div class="month-bar" id="simCalMonthBar"></div>
+      <div id="simCalHost"></div>
+    </section>
   </div>
 
   <!-- ENTRENOS FÍSICOS (registro manual) -->
   <div class="view" id="view-entrenos">
     <div id="entrenosHost"></div>
+  </div>
+
+  <!-- PROGRESO (comparativa de notas + tiempo por vuelta) -->
+  <div class="view" id="view-progreso">
+    <div id="progresoHost"></div>
+    <section class="temario-group" style="margin-top:34px;">
+      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">¿Cuánto tiempo tardo en dar una vuelta?</h3>
+      <div id="cicloHost"></div>
+    </section>
   </div>
 
   <!-- AJUSTES -->
@@ -550,6 +581,15 @@
     <h3 id="claseDayModalTitle">Día</h3>
     <div class="sub" id="claseDayModalSub"></div>
     <div id="claseDayModalBody"></div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="simDayModal">
+  <div class="modal">
+    <button class="modal-close" id="closeSimDayModal">✕</button>
+    <h3 id="simDayModalTitle">Día</h3>
+    <div class="sub" id="simDayModalSub"></div>
+    <div id="simDayModalBody"></div>
   </div>
 </div>
 
@@ -674,7 +714,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -707,6 +747,8 @@ async function loadState(){
   if(!state.clases.psico) state.clases.psico = {};
   if(!state.clases.ortoGram) state.clases.ortoGram = [];
   if(!state.claseCal) state.claseCal = {};
+  if(!state.simulacros) state.simulacros = [];
+  if(!state.simulacroCal) state.simulacroCal = {};
   // Migración: antes el modo repaso final se activaba por mes (unifyFromKey = "YYYY-MM").
   // Ahora se activa desde un día concreto (unifyFromDate = "YYYY-MM-DD").
   if(state.settings.unifyFromKey && !state.settings.unifyFromDate){
@@ -1824,6 +1866,215 @@ function openClaseDayModal(d, jsDow){
 document.getElementById('closeClaseDayModal').onclick = ()=> document.getElementById('claseDayModal').classList.remove('open');
 document.getElementById('claseDayModal').addEventListener('click', e=>{ if(e.target.id==='claseDayModal') e.currentTarget.classList.remove('open'); });
 
+/* ===================== RENDER: SIMULACROS ===================== */
+function renderSimulacrosList(){
+  const host = document.getElementById('simulacrosListHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const list = state.simulacros;
+
+  const topBar = document.createElement('div');
+  topBar.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;';
+  topBar.innerHTML = '<h3 style="margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:17px;letter-spacing:.03em;">Simulacros</h3>';
+  const addBtn = document.createElement('button');
+  addBtn.className = 'btn';
+  addBtn.textContent = '+ Añadir simulacro';
+  addBtn.onclick = ()=>{
+    list.push({conocimientos:null, ingles:null, psico:null, orto:null, gram:null});
+    scheduleSave();
+    renderSimulacrosList();
+  };
+  topBar.appendChild(addBtn);
+  host.appendChild(topBar);
+
+  if(!list.length){
+    const empty = document.createElement('div'); empty.className='empty-state';
+    empty.textContent = 'Todavía no has añadido ningún simulacro. Pulsa «+ Añadir simulacro» para registrar el primero.';
+    host.appendChild(empty);
+    return;
+  }
+
+  list.forEach((sim,i)=>{
+    const card = document.createElement('div'); card.className='sim-card';
+
+    const head = document.createElement('div'); head.className='sim-card-head';
+    head.innerHTML = `<h4>Simulacro ${i+1}</h4>`;
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn danger small';
+    delBtn.textContent = 'Eliminar';
+    delBtn.onclick = ()=>{
+      if(confirm('¿Eliminar el Simulacro '+(i+1)+'? Los simulacros posteriores se renumerarán.')){
+        list.splice(i,1);
+        scheduleSave();
+        renderSimulacrosList();
+      }
+    };
+    head.appendChild(delBtn);
+    card.appendChild(head);
+
+    const fields = document.createElement('div'); fields.className='sim-fields';
+
+    const mkNotaField = (label, prop, max)=>{
+      const f = document.createElement('div'); f.className='sim-field';
+      const lbl = document.createElement('label'); lbl.textContent = label+' (sobre '+max+')';
+      f.appendChild(lbl);
+      const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
+      const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.max=String(max);
+      inp.value = sim[prop]==null ? '' : sim[prop];
+      inp.placeholder = 'Nota';
+      const pillHolder = document.createElement('span');
+      const paintPill = ()=>{
+        pillHolder.innerHTML = (sim[prop]!=null && !isNaN(sim[prop]))
+          ? '<span class="nota-pill '+notaPillClass(sim[prop],max)+'">'+sim[prop]+'/'+max+'</span>' : '';
+      };
+      inp.oninput = ()=>{
+        sim[prop] = inp.value===''? null : Number(inp.value);
+        scheduleSave();
+        paintPill();
+      };
+      paintPill();
+      wrap.appendChild(inp); wrap.appendChild(pillHolder);
+      f.appendChild(wrap);
+      return f;
+    };
+    fields.appendChild(mkNotaField('Nota conocimientos','conocimientos',10));
+    fields.appendChild(mkNotaField('Nota inglés','ingles',20));
+    fields.appendChild(mkNotaField('Nota psicotécnico','psico',30));
+
+    const mkAptoField = (label, prop)=>{
+      const f = document.createElement('div'); f.className='sim-field';
+      const lbl = document.createElement('label'); lbl.textContent = label;
+      f.appendChild(lbl);
+      const sel = document.createElement('select');
+      sel.appendChild(new Option('— Sin marcar —',''));
+      sel.appendChild(new Option('Apto','APTO'));
+      sel.appendChild(new Option('No apto','NO_APTO'));
+      sel.value = sim[prop] || '';
+      sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); };
+      f.appendChild(sel);
+      return f;
+    };
+    fields.appendChild(mkAptoField('Ortografía','orto'));
+    fields.appendChild(mkAptoField('Gramática','gram'));
+
+    card.appendChild(fields);
+    host.appendChild(card);
+  });
+}
+function renderSimCalMonthBar(){
+  const bar = document.getElementById('simCalMonthBar');
+  if(!bar) return;
+  bar.innerHTML = '';
+  const keys = sortedMonthKeys();
+  if(!keys.length){
+    bar.innerHTML = '<span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">Añade un mes desde la pestaña Calendario para empezar.</span>';
+    return;
+  }
+  if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
+  const controls = document.createElement('div'); controls.className='month-controls';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹';
+  prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
+  controls.appendChild(prevBtn);
+  const sel = document.createElement('select');
+  keys.forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const opt = document.createElement('option'); opt.value=k; opt.textContent = MESES[m-1]+' '+y;
+    if(k===currentMonthKey) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
+  controls.appendChild(sel);
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›';
+  nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
+  controls.appendChild(nextBtn);
+  bar.appendChild(controls);
+  const info = document.createElement('span');
+  info.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:auto;';
+  info.textContent = 'Estado del día sincronizado con el Calendario principal';
+  bar.appendChild(info);
+}
+function renderSimCalendar(){
+  const host = document.getElementById('simCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde la pestaña Calendario.</div>';
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
+  const monthSim = state.simulacroCal[currentMonthKey] || {};
+
+  const grid = document.createElement('div'); grid.className='cal-grid';
+  DOW.forEach(dname=>{
+    const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
+    grid.appendChild(dow);
+  });
+  const firstDow = new Date(y, m-1, 1).getDay();
+  const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1;
+  for(let i=0;i<leadingBlanks;i++){
+    const b = document.createElement('div'); b.className='cclase-cell blank'; grid.appendChild(b);
+  }
+
+  for(let d=1; d<=nDays; d++){
+    const status = daysData[d] || 'ESTUDIO';
+    const jsDow = new Date(y, m-1, d).getDay();
+    const cell = document.createElement('div');
+    cell.className = 'cclase-cell status-'+status;
+
+    const numRow = document.createElement('div'); numRow.className='cal-daynum';
+    const wdName = DOW_SHORT[(jsDow===0?6:jsDow-1)];
+    numRow.innerHTML = '<span>'+d+'</span><span class="wd">'+wdName+'</span>';
+    cell.appendChild(numRow);
+
+    if(status !== 'ESTUDIO'){
+      const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      cell.appendChild(lbl);
+    }
+
+    const pills = document.createElement('div'); pills.className='cclase-pills';
+    if(monthSim[d]){
+      pills.innerHTML = '<span class="cclase-pill p-sim">SIMULACRO</span>';
+    } else {
+      pills.innerHTML = '<span class="cclase-empty">Sin simulacro</span>';
+    }
+    cell.appendChild(pills);
+
+    cell.onclick = ()=> openSimDayModal(d, jsDow);
+    grid.appendChild(cell);
+  }
+  host.appendChild(grid);
+}
+function openSimDayModal(d, jsDow){
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  document.getElementById('simDayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
+  document.getElementById('simDayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)];
+  const body = document.getElementById('simDayModalBody');
+  body.innerHTML = '';
+  if(!state.simulacroCal[currentMonthKey]) state.simulacroCal[currentMonthKey] = {};
+  const monthSim = state.simulacroCal[currentMonthKey];
+
+  const row = document.createElement('div'); row.className='clase-select-row';
+  row.innerHTML = '<label>Simulacro</label>';
+  const sel = document.createElement('select');
+  sel.appendChild(new Option('— Ninguno —',''));
+  sel.appendChild(new Option('Simulacro','SIMULACRO'));
+  sel.value = monthSim[d] ? 'SIMULACRO' : '';
+  sel.onchange = ()=>{
+    if(sel.value==='SIMULACRO') monthSim[d] = true; else delete monthSim[d];
+    scheduleSave();
+    renderSimCalendar();
+  };
+  row.appendChild(sel);
+  body.appendChild(row);
+
+  document.getElementById('simDayModal').classList.add('open');
+}
+document.getElementById('closeSimDayModal').onclick = ()=> document.getElementById('simDayModal').classList.remove('open');
+document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.target.id==='simDayModal') e.currentTarget.classList.remove('open'); });
+
 /* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
 function collectNotaData(){
   const porGrupo = {}; // grupo -> [{key,label,notas:[..],max}]
@@ -2238,7 +2489,7 @@ function renderSyncBox(){
 
 document.getElementById('resetBtn').onclick = async ()=>{
   if(confirm('Esto borrará todos los meses y notas guardados. ¿Continuar?')){
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
     currentMonthKey = null;
     if(firebaseOk && accessCode){
       await db.collection('plannings').doc(accessCode).set({state: JSON.stringify(state), updatedAt: Date.now()});
@@ -2273,6 +2524,9 @@ function renderAll(){
   renderClasesOrtoGram();
   renderClasesCalMonthBar();
   renderClaseCalendar();
+  renderSimulacrosList();
+  renderSimCalMonthBar();
+  renderSimCalendar();
   renderCiclo();
   renderProgreso();
   renderEntrenos();
