@@ -59,14 +59,59 @@
   }
   .plan-id{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
 
-  nav.tabs{display:flex;gap:6px;margin-bottom:22px;border-bottom:1px solid var(--line);}
+  nav.tabs{position:relative;margin-bottom:22px;}
+  .tabs-groups{display:flex;gap:6px;border-bottom:1px solid var(--line);}
+  .tabs-group{display:flex;gap:2px;}
+  .tabs-group + .tabs-group{border-left:1px solid var(--line);padding-left:6px;margin-left:4px;}
+  .tabs-group-label{display:none;}
   nav.tabs button{
     background:none;border:none;color:var(--cream-dim);font-family:var(--font-display);
     font-size:15px;letter-spacing:.05em;text-transform:uppercase;padding:10px 16px;cursor:pointer;
-    border-bottom:3px solid transparent;transition:.15s;
+    border-bottom:3px solid transparent;transition:.15s;white-space:nowrap;
   }
   nav.tabs button:hover{color:var(--cream);}
   nav.tabs button.active{color:var(--amber);border-bottom-color:var(--amber);}
+  .tabs-mobile-trigger{display:none;}
+
+  /* ---- calendar view toggle (grid / list) ---- */
+  .view-toggle{display:inline-flex;gap:2px;background:var(--bg-panel);border:1px solid var(--line);border-radius:3px;padding:2px;margin-bottom:14px;}
+  .view-toggle-btn{
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;text-transform:uppercase;
+    background:none;border:none;color:var(--cream-dim);padding:7px 14px;border-radius:2px;cursor:pointer;
+  }
+  .view-toggle-btn:hover{color:var(--cream);}
+  .view-toggle-btn.active{background:var(--amber);color:#1b2b1f;}
+
+  /* ---- day completion badge ---- */
+  .cal-daynum-left{display:flex;align-items:center;gap:5px;}
+  .day-status-badge{
+    font-family:var(--font-mono);font-weight:700;font-size:9px;line-height:1;
+    min-width:14px;height:14px;padding:0 3px;border-radius:8px;display:inline-flex;
+    align-items:center;justify-content:center;flex-shrink:0;
+  }
+  .day-status-badge.complete{background:var(--green);color:#12241a;}
+  .day-status-badge.pending{background:var(--red-text);color:#2a1410;}
+
+  /* ---- calendar agenda/list view (mobile-friendly) ---- */
+  .cal-list{display:flex;flex-direction:column;gap:10px;}
+  .cal-list-item{
+    background:var(--bg-panel);border:1px solid var(--line);border-radius:3px;padding:12px 14px;
+    display:flex;flex-direction:column;gap:8px;cursor:pointer;
+  }
+  .cal-list-item.today{border:2px solid var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
+  .cal-list-item.status-DESCANSO{background:#25261f;border-color:#4a4a3a;}
+  .cal-list-item.status-TRABAJO{background:#1c2733;border-color:#33465a;}
+  .cal-list-item.status-DESCONOCIDO{background:repeating-linear-gradient(45deg,var(--bg-panel),var(--bg-panel) 6px,#25332b 6px,#25332b 12px);}
+  .cal-list-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .cal-list-date{display:flex;align-items:baseline;gap:8px;font-family:var(--font-mono);}
+  .cal-list-daynum{font-size:20px;font-weight:600;color:var(--cream);}
+  .cal-list-item.today .cal-list-daynum{color:var(--amber);}
+  .cal-list-wd{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+  .cal-list-head-right{display:flex;align-items:center;gap:10px;}
+  .cal-list-status-select{width:auto;min-width:110px;padding:6px 6px;font-size:11px;}
+  .cal-list-tasks .task-row{padding:9px 8px;font-size:14px;border-radius:3px;}
+  .cal-list-tasks .task-row .tag{font-size:10px;padding:2px 6px;}
+  .cal-list-tasks .day-tick{width:19px;height:19px;}
 
   .view{display:none;}
   .view.active{display:block;}
@@ -439,6 +484,38 @@
     .cal-cell{min-height:96px;font-size:10px;}
     .cal-grid{gap:4px;}
     .brand h1{font-size:23px;}
+
+    /* Pestañas: menú desplegable agrupado en vez de barra horizontal */
+    .tabs-mobile-trigger{
+      display:flex;align-items:center;justify-content:space-between;width:100%;
+      background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;
+      color:var(--cream);font-family:var(--font-display);text-transform:uppercase;letter-spacing:.05em;
+      font-size:15px;padding:11px 14px;cursor:pointer;
+    }
+    .tabs-mobile-trigger .chev{color:var(--amber);font-family:var(--font-mono);font-size:13px;transition:transform .15s;}
+    nav.tabs.open .tabs-mobile-trigger .chev{transform:rotate(180deg);}
+    .tabs-groups{
+      display:none;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:2px;
+      background:var(--bg-panel);position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:40;
+      box-shadow:0 10px 24px rgba(0,0,0,.4);max-height:70vh;overflow-y:auto;
+    }
+    nav.tabs.open .tabs-groups{display:flex;}
+    .tabs-group{flex-direction:column;gap:0;}
+    .tabs-group + .tabs-group{border-left:none;padding-left:0;margin-left:0;border-top:1px solid var(--line);}
+    .tabs-group-label{
+      display:block;font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;
+      letter-spacing:.08em;padding:9px 14px 3px;
+    }
+    nav.tabs .tabs-groups button.tab-btn{
+      text-align:left;width:100%;border-bottom:none;padding:11px 14px;border-left:3px solid transparent;
+    }
+    nav.tabs .tabs-groups button.tab-btn.active{border-left-color:var(--amber);background:var(--bg-panel-2);}
+
+    /* Vista lista: más espacio táctil y texto más legible */
+    .cal-list-item{padding:14px 14px;}
+    .cal-list-daynum{font-size:22px;}
+    .cal-list-tasks .task-row{padding:10px 8px;font-size:14.5px;}
+    .view-toggle-btn{padding:9px 16px;font-size:12px;}
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
@@ -459,14 +536,31 @@
     </div>
   </header>
 
-  <nav class="tabs">
-    <button class="tab-btn active" data-tab="calendario">Calendario</button>
-    <button class="tab-btn" data-tab="clases">Clases</button>
-    <button class="tab-btn" data-tab="temario">Temario y notas</button>
-    <button class="tab-btn" data-tab="simulacros">Simulacros</button>
-    <button class="tab-btn" data-tab="entrenos">Entrenos</button>
-    <button class="tab-btn" data-tab="progreso">Progreso</button>
-    <button class="tab-btn" data-tab="ajustes">Ajustes</button>
+  <nav class="tabs" id="tabsNav">
+    <button type="button" class="tabs-mobile-trigger" id="tabsMobileTrigger" aria-expanded="false" aria-controls="tabsGroups">
+      <span id="tabsMobileTriggerLabel">Calendario</span><span class="chev">▾</span>
+    </button>
+    <div class="tabs-groups" id="tabsGroups">
+      <div class="tabs-group">
+        <span class="tabs-group-label">Planificación</span>
+        <button class="tab-btn active" data-tab="calendario">Calendario</button>
+        <button class="tab-btn" data-tab="clases">Clases</button>
+      </div>
+      <div class="tabs-group">
+        <span class="tabs-group-label">Contenido</span>
+        <button class="tab-btn" data-tab="temario">Temario y notas</button>
+        <button class="tab-btn" data-tab="simulacros">Simulacros</button>
+      </div>
+      <div class="tabs-group">
+        <span class="tabs-group-label">Seguimiento</span>
+        <button class="tab-btn" data-tab="entrenos">Entrenos</button>
+        <button class="tab-btn" data-tab="progreso">Progreso</button>
+      </div>
+      <div class="tabs-group">
+        <span class="tabs-group-label">Sistema</span>
+        <button class="tab-btn" data-tab="ajustes">Ajustes</button>
+      </div>
+    </div>
   </nav>
 
   <!-- CALENDARIO -->
@@ -474,7 +568,11 @@
     <div class="month-bar" id="monthBar"></div>
     <div id="unifyBar"></div>
     <div class="legend" id="legend"></div>
-    <div class="tick-help">☑ Marca la casilla de una tarea solo si <strong>NO</strong> la has completado ese día — así se repetirá el próximo día que toque, en vez de darse por hecha.</div>
+    <div class="tick-help">☑ Marca la casilla de una tarea solo si <strong>NO</strong> la has completado ese día — así se repetirá el próximo día que toque, en vez de darse por hecha. El indicador ✓/número junto a la fecha te dice de un vistazo si el día está completo o tiene pendientes.</div>
+    <div class="view-toggle" id="calViewToggle" role="tablist" aria-label="Vista del calendario">
+      <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+      <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+    </div>
     <div id="calendarHost"></div>
   </div>
 
@@ -795,6 +893,8 @@ function normalizeState(){
       return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
     });
   });
+  // El estado (posiblemente) ha cambiado por completo: descartamos la caché de computePlan().
+  invalidatePlan();
 }
 async function loadState(){
   if(!firebaseOk || !accessCode) return;
@@ -1051,19 +1151,74 @@ function renderCodeGate(){
 /* ===================== MOTOR DE CÁLCULO ===================== */
 // Recorre TODOS los meses guardados en orden cronológico y genera la asignación
 // de cada día de estudio, encadenando los contadores mes a mes.
+/* ===================== CACHÉ INCREMENTAL DE computePlan() =====================
+   computePlan() es intrínsecamente secuencial: el contenido de cada día depende
+   de contadores (gIdx, mgIdx, lIdx, iIdx, pIdx, blockTurn, azulCount, leveAppear)
+   que arrastran el histórico completo desde el primer mes guardado. Recalcular
+   todos los meses en cada pulsación de un tick es caro cuando hay muchos meses
+   guardados.
+
+   Solución: al terminar cada mes guardamos una "foto" (checkpoint) de esos
+   contadores. En la siguiente llamada, si sabemos desde qué mes hay cambios
+   (planDirtyFromKey), restauramos el checkpoint del mes anterior y solo
+   recalculamos desde ahí en adelante, reutilizando (misma referencia de objeto)
+   los meses anteriores que no han cambiado. Si no se indica un mes concreto, o
+   si la propia lista de meses cambia (añadir/eliminar/renombrar mes), se
+   recalcula todo — pero eso es una acción puntual y poco frecuente, a
+   diferencia de marcar/desmarcar ticks o cambiar el estado de un día, que es
+   la operación habitual y la que de verdad necesita ser barata. */
+let _planCache = null; // { keysSig, plan, checkpoints }
+let _planDirtyFromKey = ''; // '' = recalcular todo; 'YYYY-MM' = recalcular desde ese mes; null = nada pendiente
+function invalidatePlan(fromKey){
+  if(fromKey === undefined || fromKey === null){ _planDirtyFromKey = ''; return; }
+  if(_planDirtyFromKey === '') return; // ya hay un recálculo total pendiente, no hace falta afinar
+  if(_planDirtyFromKey === null || fromKey < _planDirtyFromKey) _planDirtyFromKey = fromKey;
+}
+function freshPlanCarry(){
+  const blockTurn = {}, azulCount = {};
+  for(let b=1;b<=12;b++){ blockTurn[b]=0; azulCount[b]=0; }
+  const leveAppear = {};
+  for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
+  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, blockTurn, azulCount, leveAppear};
+}
+function clonePlanCarry(c){
+  return {
+    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx,
+    blockTurn: Object.assign({}, c.blockTurn),
+    azulCount: Object.assign({}, c.azulCount),
+    leveAppear: Object.assign({}, c.leveAppear)
+  };
+}
 function computePlan(){
   const keys = sortedMonthKeys();
-  const plan = {}; // monthKey -> { day: {status, graveIdx, leveIdx, inglesIdx, psicoIdx, entreno} }
-  let gIdx=0, mgIdx=0, lIdx=0, iIdx=0, pIdx=0;
-  const blockTurn = {}; // bloque -> nº de veces que ya ha aparecido (par=azul, impar=morado)
-  const azulCount = {}; // bloque -> nº de veces que le ha tocado azul (para armas/explosivos)
-  for(let b=1;b<=12;b++){ blockTurn[b]=0; azulCount[b]=0; }
-  const leveAppear = {}; // idx leve -> nº de veces que ha aparecido (para L39/L40)
-  for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
+  const keysSig = keys.join('|');
+  const cacheReusable = !!(_planCache && _planCache.keysSig === keysSig);
+
+  // Nada pendiente y los meses guardados no han cambiado: devolvemos la caché tal cual.
+  if(_planDirtyFromKey === null && cacheReusable) return _planCache.plan;
+
+  // ¿Desde qué índice de `keys` hace falta recalcular?
+  let startIdx = 0;
+  if(cacheReusable && _planDirtyFromKey !== ''){
+    const i = keys.indexOf(_planDirtyFromKey);
+    startIdx = i >= 0 ? i : 0;
+  }
+
+  const plan = {};
+  const checkpoints = {};
+  let carry;
+  if(startIdx > 0 && cacheReusable){
+    // Reutilizamos (misma referencia) los meses anteriores al primero afectado,
+    // y partimos de su checkpoint en vez de recalcular desde el mes 1.
+    for(let i=0;i<startIdx;i++){ const k = keys[i]; plan[k] = _planCache.plan[k]; checkpoints[k] = _planCache.checkpoints[k]; }
+    carry = clonePlanCarry(_planCache.checkpoints[keys[startIdx-1]]);
+  } else {
+    carry = freshPlanCarry();
+  }
 
   function resolveTema(t, bloque){
     if(t.type==='armas_explosivos'){
-      const turn = azulCount[bloque];
+      const turn = carry.azulCount[bloque];
       return {nombre:(turn%2===0)?t.armas:t.explosivos, clase:t.clase, color:t.color, rotKey:'arm-'+bloque};
     }
     return t;
@@ -1071,13 +1226,14 @@ function computePlan(){
   function resolveLeve(idx){
     const item = LEVES[idx];
     if(item.type==='l39_l40'){
-      const turn = leveAppear[idx];
+      const turn = carry.leveAppear[idx];
       return {nombre:(turn%2===0)?item.l39:item.l40, clase:item.clase};
     }
     return item;
   }
 
-  keys.forEach(k=>{
+  for(let ki=startIdx; ki<keys.length; ki++){
+    const k = keys[ki];
     const [y,m] = k.split('-').map(Number);
     const nDays = daysInMonth(y,m);
     const days = (state.months[k] && state.months[k].days) || {};
@@ -1099,10 +1255,10 @@ function computePlan(){
       const dayOfMonthParity = d % 2; // 1 = impar, 0 = par
       if(dayOfMonthParity === 1){
         entry.bloqueTipo = 'grave';
-        entry.bloque = GRAVES_ORDER[gIdx % GRAVES_ORDER.length];
+        entry.bloque = GRAVES_ORDER[carry.gIdx % GRAVES_ORDER.length];
       } else {
         entry.bloqueTipo = 'mgrave';
-        entry.bloque = MGRAVES_ORDER[mgIdx % MGRAVES_ORDER.length];
+        entry.bloque = MGRAVES_ORDER[carry.mgIdx % MGRAVES_ORDER.length];
       }
       const dayKey = k + '-' + pad2(d);
       const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
@@ -1112,7 +1268,7 @@ function computePlan(){
         const rawTemas = BLOCKS[entry.bloque].temas;
         entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
       } else {
-        entry.color = (blockTurn[entry.bloque] % 2 === 0) ? 'azul' : 'morado';
+        entry.color = (carry.blockTurn[entry.bloque] % 2 === 0) ? 'azul' : 'morado';
         const rawTemas = BLOCKS[entry.bloque].temas.filter(t=>t.color===entry.color);
         entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
       }
@@ -1121,37 +1277,42 @@ function computePlan(){
       // completado, el puntero se queda quieto y el día siguiente que toque esa misma
       // categoría repetirá exactamente el mismo contenido, hasta que la desmarques.
       if(!ticks.bloque){
-        if(dayOfMonthParity === 1) gIdx++; else mgIdx++;
-        if(unifyThisMonth || entry.color==='azul') azulCount[entry.bloque]++;
-        blockTurn[entry.bloque]++;
+        if(dayOfMonthParity === 1) carry.gIdx++; else carry.mgIdx++;
+        if(unifyThisMonth || entry.color==='azul') carry.azulCount[entry.bloque]++;
+        carry.blockTurn[entry.bloque]++;
       }
 
-      const leveIdx = lIdx % LEVES.length;
+      const leveIdx = carry.lIdx % LEVES.length;
       entry.leveNum = leveIdx + 1;
       entry.leveInfo = resolveLeve(leveIdx);
-      if(!ticks.leve){ leveAppear[leveIdx]++; lIdx++; }
+      if(!ticks.leve){ carry.leveAppear[leveIdx]++; carry.lIdx++; }
 
-      entry.inglesNum = (iIdx % INGLES_TOTAL) + 1;
-      if(!ticks.ingles){ iIdx++; }
+      entry.inglesNum = (carry.iIdx % INGLES_TOTAL) + 1;
+      if(!ticks.ingles){ carry.iIdx++; }
 
       entry.orto = true;
       if(isTueThu){
         entry.entreno = true;
       } else if(isMonWed){
-        const psicoIdx = pIdx % PSICO_ITEMS.length;
+        const psicoIdx = carry.pIdx % PSICO_ITEMS.length;
         entry.psico = PSICO_ITEMS[psicoIdx];
         entry.psicoIdx = psicoIdx;
-        if(!ticks.psico){ pIdx++; }
+        if(!ticks.psico){ carry.pIdx++; }
       }
       plan[k][d] = entry;
     }
-  });
+    checkpoints[k] = clonePlanCarry(carry);
+  }
+
+  _planCache = {keysSig, plan, checkpoints};
+  _planDirtyFromKey = null;
   return plan;
 }
 function setDayTick(monthKey, day, stream, val){
   if(!state.dayTicks[monthKey]) state.dayTicks[monthKey] = {};
   if(!state.dayTicks[monthKey][day]) state.dayTicks[monthKey][day] = {};
   state.dayTicks[monthKey][day][stream] = val;
+  invalidatePlan(monthKey); // solo hace falta recalcular desde este mes en adelante
   scheduleSave();
 }
 
@@ -1201,6 +1362,7 @@ function renderMonthBar(){
       if(confirm('¿Eliminar el mes '+currentMonthKey+' y todos sus datos de días? Esto no borra las notas del temario.')){
         delete state.months[currentMonthKey];
         currentMonthKey = null;
+        invalidatePlan();
         scheduleSave();
         renderAll();
       }
@@ -1276,6 +1438,7 @@ function renderMonthBar(){
     setBtn.onclick = ()=>{
       const d = parseInt(daySel.value, 10);
       state.settings.unifyFromDate = currentMonthKey + '-' + pad2(d);
+      invalidatePlan(); // afecta potencialmente a cualquier mes, recalculo completo
       scheduleSave();
       renderAll();
     };
@@ -1288,6 +1451,7 @@ function renderMonthBar(){
       deactivateBtn.onclick = ()=>{
         if(confirm('Esto desactivará la unificación de colores en todos los meses. ¿Continuar?')){
           state.settings.unifyFromDate = null;
+          invalidatePlan();
           scheduleSave();
           renderAll();
         }
@@ -1317,10 +1481,117 @@ function renderLegend(){
 
 /* ===================== RENDER: CALENDARIO ===================== */
 function renderCalendar(){
+  if(typeof calViewMode !== 'undefined' && calViewMode === 'list') renderCalendarList();
+  else renderCalendarGrid();
+}
+/* Construye el bloque de tareas de un día (bloque, leve, inglés, entreno, psico, orto).
+   Se reutiliza tanto en la vista de rejilla como en la vista de lista/agenda. */
+function buildTasksBlock(d, info){
+  const tasks = document.createElement('div');
+  tasks.className = 'cal-tasks';
+  const dticks = info.ticks || {};
+  const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
+  const temasTxt = info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
+  tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
+  tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
+  tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
+  if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
+  if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
+  tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
+  return tasks;
+}
+/* Calcula cuántas tareas del día están pendientes (tick = NO completado).
+   Devuelve null en días que no son de estudio. */
+function dayCompletionInfo(info){
+  if(info.status !== 'ESTUDIO') return null;
+  const dticks = info.ticks || {};
+  const streams = ['bloque','leve','ingles','orto'];
+  if(info.entreno) streams.push('entreno');
+  if(info.psico) streams.push('psico');
+  const pending = streams.filter(s=> dticks[s]).length;
+  return {total:streams.length, pending};
+}
+/* Indicador visual: ✓ verde si el día está 100% completo, o un número en rojo
+   con la cantidad de tareas pendientes, para verlo de un vistazo sin abrir el día. */
+function dayCompletionBadge(info){
+  const comp = dayCompletionInfo(info);
+  if(!comp) return null;
+  const badge = document.createElement('span');
+  if(comp.pending===0){
+    badge.className = 'day-status-badge complete';
+    badge.textContent = '✓';
+    badge.title = 'Día completo: todas las tareas hechas';
+  } else {
+    badge.className = 'day-status-badge pending';
+    badge.textContent = String(comp.pending);
+    badge.title = comp.pending+' tarea'+(comp.pending>1?'s':'')+' pendiente'+(comp.pending>1?'s':'');
+  }
+  badge.setAttribute('aria-label', badge.title);
+  return badge;
+}
+/* Firma corta y barata de calcular que identifica el contenido visible de un día.
+   Se usa para saber si hace falta reconstruir su nodo DOM o si podemos dejarlo tal
+   cual estaba (evita repintar los ~28-31 días del mes por cada tick que se marca). */
+function dayRenderSig(info, dayStatusRaw, isToday){
+  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0);
+}
+function buildCalGridCell(y, m, d, info, daysData, isToday){
+  const cell = document.createElement('div');
+  cell.className = 'cal-cell status-'+info.status;
+  if(isToday){ cell.classList.add('today'); cell.id = 'todayCell'; }
+
+  const numRow = document.createElement('div');
+  numRow.className = 'cal-daynum';
+  const wdName = DOW_SHORT[(info.dow===0?6:info.dow-1)];
+  const leftWrap = document.createElement('span'); leftWrap.className='cal-daynum-left';
+  const dnSpan = document.createElement('span'); dnSpan.textContent = d;
+  leftWrap.appendChild(dnSpan);
+  const badge = dayCompletionBadge(info);
+  if(badge) leftWrap.appendChild(badge);
+  numRow.appendChild(leftWrap);
+  const wdSpan = document.createElement('span'); wdSpan.className='wd'; wdSpan.textContent = wdName;
+  numRow.appendChild(wdSpan);
+  cell.appendChild(numRow);
+
+  const statusSel = document.createElement('select');
+  statusSel.className = 'status-select';
+  statusSel.setAttribute('aria-label','Estado del día '+d);
+  ['ESTUDIO','DESCANSO','TRABAJO','DESCONOCIDO'].forEach(opt=>{
+    const o = document.createElement('option'); o.value = opt;
+    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
+    statusSel.appendChild(o);
+  });
+  statusSel.onchange = ()=>{
+    if(statusSel.value==='ESTUDIO') delete daysData[d];
+    else daysData[d] = statusSel.value;
+    invalidatePlan(currentMonthKey);
+    scheduleSave();
+    renderCalendar();
+  };
+  cell.appendChild(statusSel);
+
+  if(info.status === 'ESTUDIO'){
+    const tasks = buildTasksBlock(d, info);
+    tasks.onclick = ()=> openDayModal(d, info);
+    tasks.style.cursor = 'pointer';
+    cell.appendChild(tasks);
+  } else {
+    const lbl = document.createElement('div');
+    lbl.className = 'off-label';
+    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    cell.appendChild(lbl);
+  }
+  return cell;
+}
+/* Caché del último render de la vista rejilla, para poder diferenciar día a día
+   en la siguiente llamada en vez de tirar y reconstruir todo el mes. */
+let _calGridCache = null; // { monthKey, nDays, gridEl, cellEls:{d:node}, sigs:{d:sig} }
+function renderCalendarGrid(){
   const host = document.getElementById('calendarHost');
-  host.innerHTML = '';
   if(!currentMonthKey){
     host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Pulsa «+ Añadir mes» para crear tu primer planning.</div>';
+    _calGridCache = null;
     return;
   }
   const [y,m] = currentMonthKey.split('-').map(Number);
@@ -1329,78 +1600,137 @@ function renderCalendar(){
   const daysData = state.months[currentMonthKey].days;
   const plan = computePlan();
   const monthPlan = plan[currentMonthKey] || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
 
-  const grid = document.createElement('div');
-  grid.className = 'cal-grid';
-  DOW.forEach(dname=>{
-    const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
-    grid.appendChild(dow);
-  });
-
-  const firstDow = new Date(y, m-1, 1).getDay(); // 0 sun..6 sat
-  const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1; // convert to Mon-first
-  for(let i=0;i<leadingBlanks;i++){
-    const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b);
+  const reuse = !!(_calGridCache && _calGridCache.monthKey===currentMonthKey && _calGridCache.nDays===nDays && host.firstChild===_calGridCache.gridEl);
+  let grid;
+  if(reuse){
+    grid = _calGridCache.gridEl;
+  } else {
+    host.innerHTML = '';
+    grid = document.createElement('div');
+    grid.className = 'cal-grid';
+    DOW.forEach(dname=>{
+      const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
+      grid.appendChild(dow);
+    });
+    const firstDow = new Date(y, m-1, 1).getDay(); // 0 sun..6 sat
+    const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1; // convert to Mon-first
+    for(let i=0;i<leadingBlanks;i++){
+      const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b);
+    }
+    host.appendChild(grid);
+    _calGridCache = {monthKey:currentMonthKey, nDays, gridEl:grid, cellEls:{}, sigs:{}};
   }
 
   for(let d=1; d<=nDays; d++){
     const info = monthPlan[d] || {status:'ESTUDIO'};
-    const cell = document.createElement('div');
-    cell.className = 'cal-cell status-'+info.status;
-    const now = new Date();
-    if(y===now.getFullYear() && m===(now.getMonth()+1) && d===now.getDate()){
-      cell.classList.add('today');
-      cell.id = 'todayCell';
-    }
-
-    const numRow = document.createElement('div');
-    numRow.className = 'cal-daynum';
-    const wdName = DOW_SHORT[(info.dow===0?6:info.dow-1)];
-    numRow.innerHTML = '<span>'+d+'</span><span class="wd">'+wdName+'</span>';
-    cell.appendChild(numRow);
-
-    const statusSel = document.createElement('select');
-    statusSel.className = 'status-select';
-    statusSel.setAttribute('aria-label','Estado del día '+d);
-    ['ESTUDIO','DESCANSO','TRABAJO','DESCONOCIDO'].forEach(opt=>{
-      const o = document.createElement('option'); o.value = opt;
-      o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : 'Sin horario';
-      if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
-      statusSel.appendChild(o);
-    });
-    statusSel.onchange = ()=>{
-      if(statusSel.value==='ESTUDIO') delete daysData[d];
-      else daysData[d] = statusSel.value;
-      scheduleSave();
-      renderCalendar();
-    };
-    cell.appendChild(statusSel);
-
-    if(info.status === 'ESTUDIO'){
-      const tasks = document.createElement('div');
-      tasks.className = 'cal-tasks';
-      const dticks = info.ticks || {};
-      const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
-      const temasTxt = info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
-      tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
-      tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
-      tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
-      if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
-      if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
-      tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
-      tasks.onclick = ()=> openDayModal(d, info);
-      tasks.style.cursor = 'pointer';
-      cell.appendChild(tasks);
-    } else {
-      const lbl = document.createElement('div');
-      lbl.className = 'off-label';
-      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
-      cell.appendChild(lbl);
-    }
-
-    grid.appendChild(cell);
+    const isToday = isCurrentMonth && d===now.getDate();
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday);
+    if(reuse && _calGridCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
+    const cell = buildCalGridCell(y, m, d, info, daysData, isToday);
+    const prevEl = _calGridCache.cellEls[d];
+    if(prevEl && prevEl.parentNode===grid) grid.replaceChild(cell, prevEl);
+    else grid.appendChild(cell);
+    _calGridCache.cellEls[d] = cell;
+    _calGridCache.sigs[d] = sig;
   }
-  host.appendChild(grid);
+}
+function buildCalListItem(y, m, d, info, daysData, isToday){
+  const item = document.createElement('div');
+  item.className = 'cal-list-item status-'+info.status;
+  if(isToday){ item.classList.add('today'); item.id = 'todayCell'; }
+
+  const head = document.createElement('div'); head.className='cal-list-head';
+  const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+  const wdName = DOW[(info.dow===0?6:info.dow-1)];
+  dateWrap.innerHTML = '<span class="cal-list-daynum">'+d+'</span><span class="cal-list-wd">'+wdName+'</span>';
+  head.appendChild(dateWrap);
+
+  const headRight = document.createElement('div'); headRight.className='cal-list-head-right';
+  const badge = dayCompletionBadge(info);
+  if(badge) headRight.appendChild(badge);
+
+  const statusSel = document.createElement('select');
+  statusSel.className = 'status-select cal-list-status-select';
+  statusSel.setAttribute('aria-label','Estado del día '+d);
+  ['ESTUDIO','DESCANSO','TRABAJO','DESCONOCIDO'].forEach(opt=>{
+    const o = document.createElement('option'); o.value = opt;
+    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
+    statusSel.appendChild(o);
+  });
+  statusSel.onclick = (e)=> e.stopPropagation();
+  statusSel.onchange = ()=>{
+    if(statusSel.value==='ESTUDIO') delete daysData[d];
+    else daysData[d] = statusSel.value;
+    invalidatePlan(currentMonthKey);
+    scheduleSave();
+    renderCalendar();
+  };
+  headRight.appendChild(statusSel);
+  head.appendChild(headRight);
+  item.appendChild(head);
+
+  if(info.status === 'ESTUDIO'){
+    const tasks = buildTasksBlock(d, info);
+    tasks.classList.add('cal-list-tasks');
+    item.appendChild(tasks);
+    item.onclick = ()=> openDayModal(d, info);
+  } else {
+    const lbl = document.createElement('div');
+    lbl.className = 'off-label';
+    lbl.style.margin = '2px 0 0';
+    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    item.appendChild(lbl);
+  }
+  return item;
+}
+/* Vista alternativa tipo lista/agenda: una fila por día, apilada verticalmente,
+   con más espacio táctil y texto más legible — pensada para móvil.
+   Caché del último render, igual que en la vista rejilla, para diferenciar día a día. */
+let _calListCache = null; // { monthKey, nDays, listEl, itemEls:{d:node}, sigs:{d:sig} }
+function renderCalendarList(){
+  const host = document.getElementById('calendarHost');
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Pulsa «+ Añadir mes» para crear tu primer planning.</div>';
+    _calListCache = null;
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  if(!state.months[currentMonthKey]) state.months[currentMonthKey] = {days:{}};
+  const daysData = state.months[currentMonthKey].days;
+  const plan = computePlan();
+  const monthPlan = plan[currentMonthKey] || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
+
+  const reuse = !!(_calListCache && _calListCache.monthKey===currentMonthKey && _calListCache.nDays===nDays && host.firstChild===_calListCache.listEl);
+  let list;
+  if(reuse){
+    list = _calListCache.listEl;
+  } else {
+    host.innerHTML = '';
+    list = document.createElement('div');
+    list.className = 'cal-list';
+    host.appendChild(list);
+    _calListCache = {monthKey:currentMonthKey, nDays, listEl:list, itemEls:{}, sigs:{}};
+  }
+
+  for(let d=1; d<=nDays; d++){
+    const info = monthPlan[d] || {status:'ESTUDIO'};
+    const isToday = isCurrentMonth && d===now.getDate();
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday);
+    if(reuse && _calListCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
+    const item = buildCalListItem(y, m, d, info, daysData, isToday);
+    const prevEl = _calListCache.itemEls[d];
+    if(prevEl && prevEl.parentNode===list) list.replaceChild(item, prevEl);
+    else list.appendChild(item);
+    _calListCache.itemEls[d] = item;
+    _calListCache.sigs[d] = sig;
+  }
 }
 function taskRow(tag, txt, tagClass, tickInfo){
   const row = document.createElement('div'); row.className='task-row';
@@ -1509,6 +1839,7 @@ document.getElementById('confirmAddMonth').onclick = ()=>{
   const y = Number(document.getElementById('newYearSelect').value);
   const k = monthKey(y,m);
   if(!state.months[k]) state.months[k] = {days:{}};
+  invalidatePlan();
   currentMonthKey = k;
   scheduleSave();
   document.getElementById('addMonthModal').classList.remove('open');
@@ -1581,6 +1912,7 @@ document.getElementById('confirmEditMonth').onclick = ()=>{
     state.months = newMonths;
     currentMonthKey = newKey;
   }
+  invalidatePlan();
   scheduleSave();
   document.getElementById('editMonthModal').classList.remove('open');
   renderAll();
@@ -1686,6 +2018,31 @@ function renderAccordionSection(host, key, titleText, buildFn){
   host.appendChild(wrap);
   buildFn(body);
 }
+/* ---- Helpers genéricos compartidos por Bloques / Leves / Inglés / Psicotécnicos ----
+   Los cuatro apartados repetían el mismo patrón: registrar la entrada en KEY_LABELS
+   y montar una caja de notas + una fila de vueltas (buildTicksRow). Estas dos funciones
+   concentran esa lógica común; el HTML/CSS resultante es idéntico al de antes. */
+function buildTemaControls(key, grupo, label, notePlaceholder){
+  KEY_LABELS[key] = {grupo, label, max:GROUP_MAX_NOTA[grupo]};
+  const frag = document.createDocumentFragment();
+  frag.appendChild(buildNoteBox(key, notePlaceholder));
+  frag.appendChild(buildTicksRow(key, GROUP_MAX_NOTA[grupo]));
+  return frag;
+}
+function buildFlatItem(key, grupo, label, headHTML, notePlaceholder){
+  const item = document.createElement('div'); item.className='flat-item';
+  item.innerHTML = '<div class="fi-head">'+headHTML+'</div>';
+  item.appendChild(buildTemaControls(key, grupo, label, notePlaceholder));
+  return item;
+}
+function renderFlatSection(hostId, sectionKey, title, grupo, buildItems){
+  const host = document.getElementById(hostId);
+  renderAccordionSection(host, sectionKey, title, (body)=>{
+    const grid = document.createElement('div'); grid.className='flat-grid';
+    buildItems(grid, grupo);
+    body.appendChild(grid);
+  });
+}
 function renderBlocks(){
   const host = document.getElementById('blocksHost');
   renderAccordionSection(host, 'bloques', 'Bloques', (body)=>{
@@ -1704,21 +2061,17 @@ function renderBlocks(){
         if(t.type==='armas_explosivos'){
           [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
             const noteKey = 'b'+num+'-'+idx+'-'+sub;
-            KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label), max:GROUP_MAX_NOTA.Bloques};
             const row = document.createElement('div'); row.className='tema-row';
             row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
-            row.appendChild(buildNoteBox(noteKey));
-            row.appendChild(buildTicksRow(noteKey));
+            row.appendChild(buildTemaControls(noteKey, 'Bloques', 'B'+num+' · '+(t.clase||label)));
             bbody.appendChild(row);
           });
           return;
         }
         const noteKey = 'b'+num+'-'+idx;
-        KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Bloques};
         const row = document.createElement('div'); row.className='tema-row';
         row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
-        row.appendChild(buildNoteBox(noteKey));
-        row.appendChild(buildTicksRow(noteKey));
+        row.appendChild(buildTemaControls(noteKey, 'Bloques', 'B'+num+' · '+(t.clase||t.nombre)));
         bbody.appendChild(row);
       });
       head.onclick = ()=>{ bbody.classList.toggle('open'); head.querySelector('.chev').textContent = bbody.classList.contains('open')?'▴':'▾'; };
@@ -1733,63 +2086,36 @@ function temaNumFromClase(clase){
   return m ? 'TEMA '+m[1] : '';
 }
 function renderLeves(){
-  const host = document.getElementById('levesHost');
-  renderAccordionSection(host, 'leves', 'Leves (ciclo 1–17)', (body)=>{
-    const grid = document.createElement('div'); grid.className='flat-grid';
+  renderFlatSection('levesHost', 'leves', 'Leves (ciclo 1–17)', 'Leves', (grid)=>{
     LEVES.forEach((t,idx)=>{
       if(t.type==='l39_l40'){
         [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
           const key = 'leve-'+idx+'-'+sub;
-          KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label), max:GROUP_MAX_NOTA.Leves};
-          const item = document.createElement('div'); item.className='flat-item';
-          item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
-          item.appendChild(buildNoteBox(key));
-          item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
-          grid.appendChild(item);
+          const headHTML = `<span class="fi-name">LEVE Nº${idx+1}: ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${temaNumFromClase(t.clase)}</span>`;
+          grid.appendChild(buildFlatItem(key, 'Leves', (idx+1)+'. '+(t.clase||label), headHTML));
         });
         return;
       }
       const key = 'leve-'+idx;
-      KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Leves};
-      const item = document.createElement('div'); item.className='flat-item';
-      item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${t.nombre}</span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
-      item.appendChild(buildNoteBox(key));
-      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
-      grid.appendChild(item);
+      const headHTML = `<span class="fi-name">LEVE Nº${idx+1}: ${t.nombre}</span><span class="fi-clase">${temaNumFromClase(t.clase)}</span>`;
+      grid.appendChild(buildFlatItem(key, 'Leves', (idx+1)+'. '+(t.clase||t.nombre), headHTML));
     });
-    body.appendChild(grid);
   });
 }
 function renderIngles(){
-  const host = document.getElementById('inglesHost');
-  renderAccordionSection(host, 'ingles', 'Inglés (ciclo 1–32) · notas sobre 20', (body)=>{
-    const grid = document.createElement('div'); grid.className='flat-grid';
+  renderFlatSection('inglesHost', 'ingles', 'Inglés (ciclo 1–32) · notas sobre 20', 'Inglés', (grid)=>{
     for(let i=1;i<=INGLES_TOTAL;i++){
       const key = 'ingles-'+i;
-      KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i, max:GROUP_MAX_NOTA['Inglés']};
-      const item = document.createElement('div'); item.className='flat-item';
-      item.innerHTML = `<div class="fi-head"><span class="fi-name">Tema ${i}</span></div>`;
-      item.appendChild(buildNoteBox(key));
-      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Inglés']));
-      grid.appendChild(item);
+      grid.appendChild(buildFlatItem(key, 'Inglés', 'Tema '+i, `<span class="fi-name">Tema ${i}</span>`));
     }
-    body.appendChild(grid);
   });
 }
 function renderPsico(){
-  const host = document.getElementById('psicoHost');
-  renderAccordionSection(host, 'psico', 'Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30', (body)=>{
-    const grid = document.createElement('div'); grid.className='flat-grid';
+  renderFlatSection('psicoHost', 'psico', 'Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30', 'Psicotécnicos', (grid)=>{
     PSICO_ITEMS.forEach((name,idx)=>{
       const key = 'psico-'+idx;
-      KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name, max:GROUP_MAX_NOTA['Psicotécnicos']};
-      const item = document.createElement('div'); item.className='flat-item';
-      item.innerHTML = `<div class="fi-head"><span class="fi-name">${name}</span></div>`;
-      item.appendChild(buildNoteBox(key));
-      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Psicotécnicos']));
-      grid.appendChild(item);
+      grid.appendChild(buildFlatItem(key, 'Psicotécnicos', name, `<span class="fi-name">${name}</span>`));
     });
-    body.appendChild(grid);
   });
 }
 function renderOrto(){
@@ -2769,20 +3095,59 @@ document.getElementById('resetBtn').onclick = ()=>{
     const keepPin = state.settings ? state.settings.pinHash : null;
     state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
     currentMonthKey = null;
+    invalidatePlan();
     scheduleSave();
     renderAll();
   }
 };
 
 /* ===================== TABS ===================== */
+const tabsNavEl = document.getElementById('tabsNav');
+const tabsMobileTriggerEl = document.getElementById('tabsMobileTrigger');
+const tabsMobileTriggerLabelEl = document.getElementById('tabsMobileTriggerLabel');
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick = ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+    if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
+    if(tabsNavEl) tabsNavEl.classList.remove('open');
   };
 });
+if(tabsMobileTriggerEl){
+  tabsMobileTriggerEl.onclick = ()=>{
+    const isOpen = tabsNavEl.classList.toggle('open');
+    tabsMobileTriggerEl.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+  };
+  document.addEventListener('click', (e)=>{
+    if(tabsNavEl.classList.contains('open') && !tabsNavEl.contains(e.target)){
+      tabsNavEl.classList.remove('open');
+      tabsMobileTriggerEl.setAttribute('aria-expanded','false');
+    }
+  });
+}
+
+/* ===================== VISTA CALENDARIO: rejilla / lista ===================== */
+let calViewMode = 'grid';
+try{
+  calViewMode = localStorage.getItem('calViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  calViewMode = window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid';
+}
+function syncViewToggleButtons(){
+  document.querySelectorAll('.view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===calViewMode));
+}
+function setCalViewMode(mode){
+  calViewMode = mode;
+  try{ localStorage.setItem('calViewMode', mode); }catch(e){}
+  syncViewToggleButtons();
+  renderCalendar();
+}
+document.querySelectorAll('.view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setCalViewMode(btn.dataset.view);
+});
+syncViewToggleButtons();
 
 /* ===================== INIT ===================== */
 function renderAll(){
