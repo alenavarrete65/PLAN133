@@ -135,6 +135,13 @@
     font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
     padding:1px 4px;border-radius:2px;flex-shrink:0;
   }
+  .task-row .task-txt{flex:1;}
+  .task-row.tick-done{opacity:.5;}
+  .task-row.tick-done .task-txt{text-decoration:line-through;}
+  .day-tick{
+    margin-left:auto;flex-shrink:0;width:13px;height:13px;accent-color:var(--green);cursor:pointer;margin-top:1px;
+  }
+  .modal-row .day-tick{width:15px;height:15px;margin-left:auto;flex-shrink:0;margin-top:2px;}
   .tag-grave{background:var(--red);color:#fff;}
   .tag-mgrave{background:var(--amber);color:#1b2b1f;}
   .tag-leve{background:var(--green);color:#12241a;}
@@ -227,6 +234,16 @@
   .stat-card .num{font-family:var(--font-display);font-size:26px;color:var(--amber);}
   .stat-card .lbl{font-family:var(--font-mono);font-size:10px;color:var(--cream-dim);text-transform:uppercase;}
 
+  /* ---- ciclo ---- */
+  .ciclo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
+  .ciclo-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px;}
+  .ciclo-card .ch-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .ciclo-card h4{margin:0;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:15px;}
+  .ciclo-card .kind{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;}
+  .ciclo-card .ciclo-line{font-size:12px;margin-bottom:5px;color:var(--cream-dim);}
+  .ciclo-card .ciclo-line strong{color:var(--amber);font-family:var(--font-mono);}
+  .ciclo-card .ciclo-real{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
+
   .modal-add{display:flex;flex-direction:column;gap:10px;}
   .modal-add label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
   .modal-add select{width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-mono);}
@@ -260,6 +277,7 @@
   <nav class="tabs">
     <button class="tab-btn active" data-tab="calendario">Calendario</button>
     <button class="tab-btn" data-tab="temario">Temario y notas</button>
+    <button class="tab-btn" data-tab="ciclo">Ciclo bloques</button>
     <button class="tab-btn" data-tab="ajustes">Ajustes</button>
   </nav>
 
@@ -280,6 +298,11 @@
     <section class="temario-group" id="ortoHost"></section>
   </div>
 
+  <!-- CICLO BLOQUES -->
+  <div class="view" id="view-ciclo">
+    <div id="cicloHost"></div>
+  </div>
+
   <!-- AJUSTES -->
   <div class="view" id="view-ajustes">
     <div class="empty-state" id="syncBox" style="text-align:left;margin-bottom:18px;"></div>
@@ -292,7 +315,9 @@
       los leves con L39/L40 alternan igual: 1ª aparición → Ley 39/2015, 2ª → Ley 40/2015, 3ª → 39/2015... ·
       en «Temario y notas» puedes marcar con ticks las vueltas ya vistas de cada tema y añadir más vueltas con el botón «+» ·
       desde la pestaña Calendario puedes activar el «modo repaso final»: a partir del mes que elijas (y todos los siguientes) cada bloque se estudia entero, azul y morado juntos el mismo día.
-      Los días de descanso, trabajo o sin horario no cuentan para ninguna secuencia.
+      Los días de descanso, trabajo o sin horario no cuentan para ninguna secuencia ·
+      cada tarea del día (bloque, leve, inglés, psicotécnico, entreno, orto-grama) tiene un check ✓ tanto en la casilla del calendario como en el modal del día: si no lo marcas, ese mismo contenido se repite automáticamente al día siguiente que toque esa misma categoría, hasta que lo marques como hecho — así nada se salta si te retrasas ·
+      en la pestaña «Ciclo bloques» puedes ver cuánto se tarda en completar una vuelta entera (azul + morado) a cada bloque, tanto en teoría como según tu calendario real.
     </p>
     <button class="btn danger" id="resetBtn" style="margin-top:14px;">Borrar todos los datos</button>
   </div>
@@ -470,7 +495,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -490,6 +515,7 @@ async function loadState(){
   if(!state.months) state.months = {};
   if(!state.notes) state.notes = {};
   if(!state.ticks) state.ticks = {};
+  if(!state.dayTicks) state.dayTicks = {};
   if(!state.orto) state.orto = {ortografia:'', gramatica:''};
   if(!state.settings) state.settings = {unifyFromKey:null};
 }
@@ -571,6 +597,7 @@ function computePlan(){
     const [y,m] = k.split('-').map(Number);
     const nDays = daysInMonth(y,m);
     const days = (state.months[k] && state.months[k].days) || {};
+    const monthTicks = (state.dayTicks && state.dayTicks[k]) || {};
     plan[k] = {};
     for(let d=1; d<=nDays; d++){
       const status = days[d] || 'ESTUDIO';
@@ -583,47 +610,90 @@ function computePlan(){
         plan[k][d] = {status, dow:jsDow};
         continue;
       }
-      const entry = {status:'ESTUDIO', dow:jsDow};
+      const ticks = monthTicks[d] || {};
+      const entry = {status:'ESTUDIO', dow:jsDow, ticks};
       const dayOfMonthParity = d % 2; // 1 = impar, 0 = par
       if(dayOfMonthParity === 1){
         entry.bloqueTipo = 'grave';
         entry.bloque = GRAVES_ORDER[gIdx % GRAVES_ORDER.length];
-        gIdx++;
       } else {
         entry.bloqueTipo = 'mgrave';
         entry.bloque = MGRAVES_ORDER[mgIdx % MGRAVES_ORDER.length];
-        mgIdx++;
       }
       const unifyThisMonth = !!(state.settings.unifyFromKey && k >= state.settings.unifyFromKey);
       entry.unify = unifyThisMonth;
       if(unifyThisMonth){
         entry.color = 'unificado';
-        blockTurn[entry.bloque]++;
         const rawTemas = BLOCKS[entry.bloque].temas;
         entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
-        azulCount[entry.bloque]++;
       } else {
         entry.color = (blockTurn[entry.bloque] % 2 === 0) ? 'azul' : 'morado';
-        blockTurn[entry.bloque]++;
         const rawTemas = BLOCKS[entry.bloque].temas.filter(t=>t.color===entry.color);
         entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
-        if(entry.color==='azul') azulCount[entry.bloque]++;
       }
+      // Solo avanzamos el puntero del bloque (índice, turno de color y armas/explosivos)
+      // si el día ha sido marcado como completado. Si no, el día siguiente que toque
+      // ese mismo tipo (grave/menos grave) repetirá exactamente el mismo contenido.
+      if(ticks.bloque){
+        if(dayOfMonthParity === 1) gIdx++; else mgIdx++;
+        if(unifyThisMonth || entry.color==='azul') azulCount[entry.bloque]++;
+        blockTurn[entry.bloque]++;
+      }
+
       const leveIdx = lIdx % LEVES.length;
       entry.leveNum = leveIdx + 1;
       entry.leveInfo = resolveLeve(leveIdx);
-      leveAppear[leveIdx]++;
-      lIdx++;
-      entry.inglesNum = (iIdx % INGLES_TOTAL) + 1; iIdx++;
+      if(ticks.leve){ leveAppear[leveIdx]++; lIdx++; }
+
+      entry.inglesNum = (iIdx % INGLES_TOTAL) + 1;
+      if(ticks.ingles){ iIdx++; }
+
       entry.orto = true;
       if(isTueThu){
         entry.entreno = true;
       } else if(isMonWed){
-        entry.psico = PSICO_ITEMS[pIdx % PSICO_ITEMS.length];
-        entry.psicoIdx = pIdx % PSICO_ITEMS.length;
-        pIdx++;
+        const psicoIdx = pIdx % PSICO_ITEMS.length;
+        entry.psico = PSICO_ITEMS[psicoIdx];
+        entry.psicoIdx = psicoIdx;
+        if(ticks.psico){ pIdx++; }
       }
       plan[k][d] = entry;
+    }
+  });
+  return plan;
+}
+function setDayTick(monthKey, day, stream, val){
+  if(!state.dayTicks[monthKey]) state.dayTicks[monthKey] = {};
+  if(!state.dayTicks[monthKey][day]) state.dayTicks[monthKey][day] = {};
+  state.dayTicks[monthKey][day][stream] = val;
+  scheduleSave();
+}
+/* Simulación "ideal": igual que arriba pero sin bloquear el avance por ticks.
+   Sirve solo para medir cuánto tardaría una vuelta completa a cada bloque si
+   se estudia todo al día, usando los descansos/trabajo ya metidos en el calendario. */
+function computeIdealPlan(){
+  const keys = sortedMonthKeys();
+  const plan = {};
+  let gIdx=0, mgIdx=0;
+  const blockTurn = {};
+  for(let b=1;b<=12;b++) blockTurn[b]=0;
+  keys.forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const nDays = daysInMonth(y,m);
+    const days = (state.months[k] && state.months[k].days) || {};
+    plan[k] = {};
+    for(let d=1; d<=nDays; d++){
+      const status = days[d] || 'ESTUDIO';
+      if(status !== 'ESTUDIO') continue;
+      const dateObj = new Date(y, m-1, d);
+      const dayOfMonthParity = d % 2;
+      let bloque, tipo;
+      if(dayOfMonthParity === 1){ tipo='grave'; bloque = GRAVES_ORDER[gIdx % GRAVES_ORDER.length]; gIdx++; }
+      else { tipo='mgrave'; bloque = MGRAVES_ORDER[mgIdx % MGRAVES_ORDER.length]; mgIdx++; }
+      const unifyThisMonth = !!(state.settings.unifyFromKey && k >= state.settings.unifyFromKey);
+      const color = unifyThisMonth ? 'unificado' : ((blockTurn[bloque] % 2 === 0) ? 'azul' : 'morado');
+      blockTurn[bloque]++;
+      plan[k][d] = {bloque, tipo, color, date:dateObj};
     }
   });
   return plan;
@@ -807,14 +877,15 @@ function renderCalendar(){
     if(info.status === 'ESTUDIO'){
       const tasks = document.createElement('div');
       tasks.className = 'cal-tasks';
+      const dticks = info.ticks || {};
       const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
       const temasTxt = info.temasDelDia.map(t=>t.nombre).join(', ');
-      tasks.appendChild(taskRow('tag-grave', bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave'));
-      tasks.appendChild(taskRow(null, 'LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve'));
-      tasks.appendChild(taskRow(null, 'ING', 'Tema '+info.inglesNum, 'tag-ing'));
-      if(info.entreno) tasks.appendChild(taskRow(null, 'FÍS', 'Entreno', 'tag-entreno'));
-      if(info.psico) tasks.appendChild(taskRow(null, 'PSI', info.psico, 'tag-psico'));
-      tasks.appendChild(taskRow(null, 'ORT', 'Orto-grama', 'tag-orto'));
+      tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
+      tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
+      tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
+      if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
+      if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
+      tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
       tasks.onclick = ()=> openDayModal(d, info);
       tasks.style.cursor = 'pointer';
       cell.appendChild(tasks);
@@ -829,9 +900,22 @@ function renderCalendar(){
   }
   host.appendChild(grid);
 }
-function taskRow(tagClassUnused, tag, txt, tagClass){
+function taskRow(tag, txt, tagClass, tickInfo){
   const row = document.createElement('div'); row.className='task-row';
   row.innerHTML = '<span class="tag '+tagClass+'">'+tag+'</span><span class="task-txt">'+txt+'</span>';
+  if(tickInfo){
+    const cb = document.createElement('input');
+    cb.type = 'checkbox'; cb.className = 'day-tick';
+    cb.checked = !!tickInfo.checked;
+    cb.title = 'Marcar como completado';
+    cb.onclick = (e)=>{ e.stopPropagation(); };
+    cb.onchange = ()=>{
+      setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked);
+      renderCalendar();
+    };
+    row.appendChild(cb);
+    if(cb.checked) row.classList.add('tick-done');
+  }
   return row;
 }
 
@@ -843,27 +927,38 @@ function openDayModal(d, info){
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
 
+  const dticks = info.ticks || {};
   const bTemas = info.temasDelDia;
   const bRow = document.createElement('div'); bRow.className='modal-row';
-  bRow.innerHTML = '<div><span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
+  bRow.innerHTML = '<div style="flex:1;"><span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
     '<span class="colorpill '+info.color+'">'+info.color+'</span><br>'+
-    bTemas.map(t=>'<div style="margin-top:4px;font-size:12px;">• '+t.nombre+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.clase+')</span>':'')+'</div>').join('')+
+    bTemas.map(t=>'<div style="margin-top:4px;font-size:12px;">• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'')+'</div>').join('')+
     (info.unify ? '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.</div>' :
-    '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+').</div>')+
+    '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'), salvo que marques este bloque como completado más abajo.</div>')+
     '</div>';
+  const bCb = document.createElement('input'); bCb.type='checkbox'; bCb.className='day-tick';
+  bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como completado';
+  bCb.onchange = ()=>{ setDayTick(currentMonthKey, d, 'bloque', bCb.checked); renderCalendar(); };
+  bRow.appendChild(bCb);
   body.appendChild(bRow);
 
-  addModalRow(body, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+info.leveInfo.nombre+(info.leveInfo.clase?' ('+info.leveInfo.clase+')':''));
-  addModalRow(body, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL);
-  if(info.entreno) addModalRow(body, 'tag-entreno', 'ENTRENO', 'Día de entreno físico');
-  if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico);
-  addModalRow(body, 'tag-orto', 'ORTO-GRAMA', 'Ortografía y gramática diaria');
+  addModalRow(body, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve});
+  addModalRow(body, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles});
+  if(info.entreno) addModalRow(body, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
+  if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico});
+  addModalRow(body, 'tag-orto', 'ORTO-GRAMA', 'Ortografía y gramática diaria', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
 
   document.getElementById('dayModal').classList.add('open');
 }
-function addModalRow(body, tagClass, tag, txt){
+function addModalRow(body, tagClass, tag, txt, tickInfo){
   const row = document.createElement('div'); row.className='modal-row';
-  row.innerHTML = '<span class="tag '+tagClass+'" style="margin-top:2px;">'+tag+'</span><span style="font-size:13px;">'+txt+'</span>';
+  row.innerHTML = '<span class="tag '+tagClass+'" style="margin-top:2px;">'+tag+'</span><span style="font-size:13px;flex:1;">'+txt+'</span>';
+  if(tickInfo){
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
+    cb.checked = !!tickInfo.checked; cb.title='Marcar como completado';
+    cb.onchange = ()=>{ setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked); renderCalendar(); };
+    row.appendChild(cb);
+  }
   body.appendChild(row);
 }
 document.getElementById('closeDayModal').onclick = ()=> document.getElementById('dayModal').classList.remove('open');
@@ -1039,7 +1134,7 @@ function renderBlocks(){
         [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
           const noteKey = 'b'+num+'-'+idx+'-'+sub;
           const row = document.createElement('div'); row.className='tema-row';
-          row.innerHTML = `<div class="tema-head"><span class="tema-name">${label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase||''}</span></div>`;
+          row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
           row.appendChild(buildNoteBox(noteKey));
           row.appendChild(buildTicksRow(noteKey));
           body.appendChild(row);
@@ -1048,7 +1143,7 @@ function renderBlocks(){
       }
       const noteKey = 'b'+num+'-'+idx;
       const row = document.createElement('div'); row.className='tema-row';
-      row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase||''}</span></div>`;
+      row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
       row.appendChild(buildNoteBox(noteKey));
       row.appendChild(buildTicksRow(noteKey));
       body.appendChild(row);
@@ -1067,7 +1162,7 @@ function renderLeves(){
       [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
         const key = 'leve-'+idx+'-'+sub;
         const item = document.createElement('div'); item.className='flat-item';
-        item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${t.clase||''}</span></div>`;
+        item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${t.clase?label:''}</span></div>`;
         item.appendChild(buildNoteBox(key));
         item.appendChild(buildTicksRow(key));
         grid.appendChild(item);
@@ -1076,7 +1171,7 @@ function renderLeves(){
     }
     const key = 'leve-'+idx;
     const item = document.createElement('div'); item.className='flat-item';
-    item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.nombre}</span><span class="fi-clase">${t.clase||''}</span></div>`;
+    item.innerHTML = `<div class="fi-head"><span class="fi-name">${idx+1}. ${t.clase||t.nombre}</span><span class="fi-clase">${t.clase?t.nombre:''}</span></div>`;
     item.appendChild(buildNoteBox(key));
     item.appendChild(buildTicksRow(key));
     grid.appendChild(item);
@@ -1156,6 +1251,65 @@ function renderAjustes(){
     host.appendChild(c);
   });
 }
+/* ===================== RENDER: CICLO DE BLOQUES ===================== */
+function renderCiclo(){
+  const host = document.getElementById('cicloHost');
+  if(!host) return;
+  host.innerHTML = '';
+
+  const title = document.createElement('h3');
+  title.textContent = 'Vuelta completa por bloque';
+  title.style.cssText = "font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:8px;font-size:17px;letter-spacing:.03em;";
+  host.appendChild(title);
+
+  const intro = document.createElement('p');
+  intro.style.cssText = "font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:680px;margin:0 0 18px;";
+  intro.textContent = 'Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. "Teórico" asume estudio todos los días sin descansos; "según tu calendario" usa los días de descanso/trabajo que ya tienes metidos en los meses guardados, contando desde la primera vez que aparece el bloque hasta que vuelve a aparecer (con el otro color).';
+  host.appendChild(intro);
+
+  const ideal = computeIdealPlan();
+  const keys = sortedMonthKeys();
+  const appearances = {};
+  for(let b=1;b<=12;b++) appearances[b]=[];
+  keys.forEach(k=>{
+    const md = ideal[k] || {};
+    Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
+      const e = md[d];
+      appearances[e.bloque].push({dateMs:e.date.getTime(), color:e.color});
+    });
+  });
+
+  const grid = document.createElement('div');
+  grid.className = 'ciclo-grid';
+
+  Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
+    const graves = BLOCKS[num].graves;
+    const theoretical = graves ? 10 : 14;
+    const arr = appearances[num];
+    let realHtml = 'Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).';
+    if(arr.length >= 2){
+      const gaps = [];
+      for(let i=1;i<arr.length;i++){
+        if(arr[i-1].color === 'unificado'){ gaps.push(0); continue; }
+        gaps.push(Math.round((arr[i].dateMs - arr[i-1].dateMs)/86400000));
+      }
+      const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+      realHtml = 'Media real (según tu calendario): <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas';
+    }
+    const card = document.createElement('div');
+    card.className = 'ciclo-card';
+    card.innerHTML = `
+      <div class="ch-row">
+        <div class="block-num ${graves?'':'mg'}">${num}</div>
+        <div><h4>Bloque ${num}</h4><div class="kind">${graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
+      </div>
+      <div class="ciclo-line">Teórico (estudio diario, sin descansos): <strong>${theoretical} días</strong></div>
+      <div class="ciclo-real">${realHtml}</div>
+    `;
+    grid.appendChild(card);
+  });
+  host.appendChild(grid);
+}
 /* ===================== RENDER: SINCRONIZACIÓN ===================== */
 function renderSyncBox(){
   const host = document.getElementById('syncBox');
@@ -1181,7 +1335,7 @@ function renderSyncBox(){
 
 document.getElementById('resetBtn').onclick = async ()=>{
   if(confirm('Esto borrará todos los meses y notas guardados. ¿Continuar?')){
-    state = { months:{}, notes:{}, ticks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, orto:{ortografia:'', gramatica:''}, settings:{unifyFromKey:null} };
     currentMonthKey = null;
     if(firebaseOk && accessCode){
       await db.collection('plannings').doc(accessCode).set({state: JSON.stringify(state), updatedAt: Date.now()});
@@ -1210,6 +1364,7 @@ function renderAll(){
   renderIngles();
   renderPsico();
   renderOrto();
+  renderCiclo();
   renderAjustes();
   renderSyncBox();
 }
