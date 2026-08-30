@@ -147,6 +147,14 @@
   .tag-leve{background:var(--green);color:#12241a;}
   .tag-ing{background:var(--blue);color:#0e2027;}
   .tag-psico{background:#8b6fae;color:#fff;}
+  .grupo-tag{
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
+    padding:2px 6px;border-radius:2px;display:inline-block;white-space:nowrap;
+  }
+  .grupo-tag.g-bloques{background:var(--amber);color:#1b2b1f;}
+  .grupo-tag.g-leves{background:var(--green);color:#12241a;}
+  .grupo-tag.g-ingles{background:var(--blue);color:#0e2027;}
+  .grupo-tag.g-psico{background:#8b6fae;color:#fff;}
   .tag-orto{background:var(--muted);color:#fff;}
   .tag-entreno{background:#c0672f;color:#fff;}
   .colorpill{
@@ -584,7 +592,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromKey:null} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -610,7 +618,13 @@ async function loadState(){
     state.ortoTests = {ortografia:[], gramatica:[]};
   }
   if(!state.entrenosLog) state.entrenosLog = [];
-  if(!state.settings) state.settings = {unifyFromKey:null};
+  if(!state.settings) state.settings = {unifyFromDate:null};
+  // Migración: antes el modo repaso final se activaba por mes (unifyFromKey = "YYYY-MM").
+  // Ahora se activa desde un día concreto (unifyFromDate = "YYYY-MM-DD").
+  if(state.settings.unifyFromKey && !state.settings.unifyFromDate){
+    state.settings.unifyFromDate = state.settings.unifyFromKey + '-01';
+  }
+  delete state.settings.unifyFromKey;
   delete state.orto; // sustituido por los tests APTO/NO APTO de ortoTests
   // Migración: las "vueltas" antes eran un array de booleans (hecho/no hecho).
   // Ahora cada vuelta es un objeto {mode, nota} para poder guardar notas de test.
@@ -722,7 +736,8 @@ function computePlan(){
         entry.bloqueTipo = 'mgrave';
         entry.bloque = MGRAVES_ORDER[mgIdx % MGRAVES_ORDER.length];
       }
-      const unifyThisMonth = !!(state.settings.unifyFromKey && k >= state.settings.unifyFromKey);
+      const dayKey = k + '-' + pad2(d);
+      const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
       entry.unify = unifyThisMonth;
       if(unifyThisMonth){
         entry.color = 'unificado';
@@ -844,34 +859,72 @@ function renderMonthBar(){
     const unifyBar = document.createElement('div');
     unifyBar.className = 'month-bar';
     unifyBar.style.marginTop = '8px';
-    const uf = state.settings.unifyFromKey;
-    const isActiveHere = uf && currentMonthKey >= uf;
+    unifyBar.style.flexWrap = 'wrap';
+    unifyBar.style.gap = '8px';
+
+    const uf = state.settings.unifyFromDate; // "YYYY-MM-DD" o null
+    const ufMonth = uf ? uf.slice(0,7) : null;
+    const ufDay = uf ? parseInt(uf.slice(8,10),10) : null;
+    const fullyActiveThisMonth = !!(ufMonth && currentMonthKey > ufMonth);
+    const partiallyActiveThisMonth = !!(ufMonth && ufMonth === currentMonthKey);
+    const isActiveHere = fullyActiveThisMonth || partiallyActiveThisMonth;
+
     const info = document.createElement('span');
     info.style.fontFamily = 'var(--font-mono)';
     info.style.fontSize = '11px';
     info.style.color = 'var(--cream-dim)';
     if(uf){
-      const [uy,um] = uf.split('-').map(Number);
-      info.textContent = 'Modo repaso final (azul+morado juntos) activo desde ' + MESES[um-1] + ' ' + uy + (isActiveHere ? ' — activo en este mes' : ' — aún no llega a este mes');
+      const [uy,um,ud] = uf.split('-').map(Number);
+      let estado;
+      if(fullyActiveThisMonth) estado = ' — activo en todo este mes';
+      else if(partiallyActiveThisMonth) estado = ' — activo desde el día ' + ud + ' de este mes';
+      else estado = ' — aún no llega a este mes';
+      info.textContent = 'Modo repaso final (azul+morado juntos) activo desde el ' + ud + ' de ' + MESES[um-1] + ' ' + uy + estado;
     } else {
       info.textContent = 'Modo repaso final desactivado (bloques divididos en azul/morado).';
     }
-    const toggleBtn = document.createElement('button');
-    toggleBtn.className = isActiveHere ? 'btn small' : 'btn ghost small';
-    toggleBtn.textContent = isActiveHere ? 'Desactivar modo repaso final' : 'Activar modo repaso final desde este mes';
-    toggleBtn.onclick = ()=>{
-      if(isActiveHere){
-        if(confirm('Esto desactivará la unificación de colores en todos los meses. ¿Continuar?')){
-          state.settings.unifyFromKey = null;
-        }
-      } else {
-        state.settings.unifyFromKey = currentMonthKey;
-      }
+    unifyBar.appendChild(info);
+
+    // Selector de día dentro del mes visible, para fijar o mover el inicio.
+    const [cy, cm] = currentMonthKey.split('-').map(Number);
+    const nDaysThisMonth = daysInMonth(cy, cm);
+    const daySel = document.createElement('select');
+    daySel.className = 'status-select';
+    daySel.style.width = 'auto';
+    for(let d=1; d<=nDaysThisMonth; d++){
+      const opt = document.createElement('option');
+      opt.value = String(d);
+      opt.textContent = 'Día ' + d;
+      daySel.appendChild(opt);
+    }
+    daySel.value = String(partiallyActiveThisMonth ? ufDay : 1);
+    unifyBar.appendChild(daySel);
+
+    const setBtn = document.createElement('button');
+    setBtn.className = 'btn ghost small';
+    setBtn.textContent = uf ? 'Mover inicio a este día' : 'Activar desde este día';
+    setBtn.onclick = ()=>{
+      const d = parseInt(daySel.value, 10);
+      state.settings.unifyFromDate = currentMonthKey + '-' + pad2(d);
       scheduleSave();
       renderAll();
     };
-    unifyBar.appendChild(info);
-    unifyBar.appendChild(toggleBtn);
+    unifyBar.appendChild(setBtn);
+
+    if(uf){
+      const deactivateBtn = document.createElement('button');
+      deactivateBtn.className = 'btn danger small';
+      deactivateBtn.textContent = 'Desactivar modo repaso final';
+      deactivateBtn.onclick = ()=>{
+        if(confirm('Esto desactivará la unificación de colores en todos los meses. ¿Continuar?')){
+          state.settings.unifyFromDate = null;
+          scheduleSave();
+          renderAll();
+        }
+      };
+      unifyBar.appendChild(deactivateBtn);
+    }
+
     unifyHost.appendChild(unifyBar);
   }
 }
@@ -1450,7 +1503,20 @@ function renderProgreso(){
   const table = document.createElement('table'); table.className='nota-table';
   table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th><th>Tendencia</th></tr></thead>';
   const tbody = document.createElement('tbody');
+  const grupoTagClass = {
+    'Bloques':'g-bloques',
+    'Leves':'g-leves',
+    'Inglés':'g-ingles',
+    'Psicotécnicos':'g-psico'
+  };
+  const GRUPO_BORDER_COLOR = {
+    'Bloques':'var(--amber)',
+    'Leves':'var(--green)',
+    'Inglés':'var(--blue)',
+    'Psicotécnicos':'#8b6fae'
+  };
   grupos.forEach(grupo=>{
+    const tagClass = grupoTagClass[grupo] || 'g-bloques';
     data.porGrupo[grupo].forEach(item=>{
       const notas = item.notas;
       const max = item.max;
@@ -1478,7 +1544,7 @@ function renderProgreso(){
       }
 
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${grupo}</td><td>${item.label}</td>`+
+      tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
         `<td>${notasHtml}</td>`+
         `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
         `<td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${tendencia}</td>`;
@@ -1812,7 +1878,7 @@ function renderSyncBox(){
 
 document.getElementById('resetBtn').onclick = async ()=>{
   if(confirm('Esto borrará todos los meses y notas guardados. ¿Continuar?')){
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromKey:null} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null} };
     currentMonthKey = null;
     if(firebaseOk && accessCode){
       await db.collection('plannings').doc(accessCode).set({state: JSON.stringify(state), updatedAt: Date.now()});
