@@ -211,6 +211,18 @@
     font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);
     padding-bottom:6px;font-size:17px;letter-spacing:.03em;
   }
+  .temario-section{background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:2px;margin-bottom:14px;overflow:hidden;}
+  .temario-section-head{
+    display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;
+  }
+  .temario-section-head:hover{background:var(--bg-panel-2);}
+  .temario-section-head h3{
+    margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:16px;letter-spacing:.03em;
+  }
+  .temario-section-body{display:none;padding:0 14px 14px;}
+  .temario-section.open .temario-section-body{display:block;}
+  .temario-section.open .temario-section-head{border-bottom:1px solid var(--line);}
+
   .flat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;margin-top:10px;}
   .flat-item{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:9px 10px;}
   .flat-item .fi-head{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;}
@@ -538,7 +550,7 @@ const LEVES = [
 ];
 const INGLES_TOTAL = 32;
 const PSICO_ITEMS = [];
-for(let i=1;i<=23;i++) PSICO_ITEMS.push('Tema '+i);
+for(let i=1;i<=23;i++) PSICO_ITEMS.push('Prueba '+i);
 PSICO_ITEMS.push('CONTROL 1'); PSICO_ITEMS.push('CONTROL 2');
 
 /* ===================== CONFIGURACIÓN FIREBASE ===================== */
@@ -1218,54 +1230,63 @@ function buildNoteBox(key, placeholder){
 }
 
 /* ===================== RENDER: TEMARIO ===================== */
+// Recuerda qué secciones están desplegadas entre renderizados (por defecto, todas cerradas).
+const temarioOpen = {bloques:false, leves:false, ingles:false, psico:false, orto:false};
+function renderAccordionSection(host, key, titleText, buildFn){
+  host.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'temario-section' + (temarioOpen[key] ? ' open' : '');
+  const head = document.createElement('div'); head.className = 'temario-section-head';
+  head.innerHTML = `<h3>${titleText}</h3><div class="chev">${temarioOpen[key] ? '▴' : '▾'}</div>`;
+  const body = document.createElement('div'); body.className = 'temario-section-body';
+  head.onclick = ()=>{
+    temarioOpen[key] = !temarioOpen[key];
+    wrap.classList.toggle('open', temarioOpen[key]);
+    head.querySelector('.chev').textContent = temarioOpen[key] ? '▴' : '▾';
+  };
+  wrap.appendChild(head); wrap.appendChild(body);
+  host.appendChild(wrap);
+  buildFn(body);
+}
 function renderBlocks(){
   const host = document.getElementById('blocksHost');
-  host.innerHTML = '';
-  const title = document.createElement('h3');
-  title.textContent = 'Bloques';
-  title.style.fontFamily = 'var(--font-display)';
-  title.style.textTransform = 'uppercase';
-  title.style.color = 'var(--amber)';
-  title.style.borderBottom = '1px solid var(--line)';
-  title.style.paddingBottom = '6px';
-  title.style.marginBottom = '10px';
-  host.appendChild(title);
-
-  Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
-    const b = BLOCKS[num];
-    const card = document.createElement('div'); card.className='block-card';
-    const head = document.createElement('div'); head.className='block-head';
-    head.innerHTML = `
-      <div class="block-title">
-        <div class="block-num ${b.graves?'':'mg'}">${num}</div>
-        <div><h4>Bloque ${num}</h4><div class="kind">${b.graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
-      </div>
-      <div class="chev">▾</div>`;
-    const body = document.createElement('div'); body.className='block-body';
-    b.temas.forEach((t,idx)=>{
-      if(t.type==='armas_explosivos'){
-        [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
-          const noteKey = 'b'+num+'-'+idx+'-'+sub;
-          KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label), max:GROUP_MAX_NOTA.Bloques};
-          const row = document.createElement('div'); row.className='tema-row';
-          row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
-          row.appendChild(buildNoteBox(noteKey));
-          row.appendChild(buildTicksRow(noteKey));
-          body.appendChild(row);
-        });
-        return;
-      }
-      const noteKey = 'b'+num+'-'+idx;
-      KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Bloques};
-      const row = document.createElement('div'); row.className='tema-row';
-      row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
-      row.appendChild(buildNoteBox(noteKey));
-      row.appendChild(buildTicksRow(noteKey));
-      body.appendChild(row);
+  renderAccordionSection(host, 'bloques', 'Bloques', (body)=>{
+    Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
+      const b = BLOCKS[num];
+      const card = document.createElement('div'); card.className='block-card';
+      const head = document.createElement('div'); head.className='block-head';
+      head.innerHTML = `
+        <div class="block-title">
+          <div class="block-num ${b.graves?'':'mg'}">${num}</div>
+          <div><h4>Bloque ${num}</h4><div class="kind">${b.graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
+        </div>
+        <div class="chev">▾</div>`;
+      const bbody = document.createElement('div'); bbody.className='block-body';
+      b.temas.forEach((t,idx)=>{
+        if(t.type==='armas_explosivos'){
+          [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
+            const noteKey = 'b'+num+'-'+idx+'-'+sub;
+            KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||label), max:GROUP_MAX_NOTA.Bloques};
+            const row = document.createElement('div'); row.className='tema-row';
+            row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
+            row.appendChild(buildNoteBox(noteKey));
+            row.appendChild(buildTicksRow(noteKey));
+            bbody.appendChild(row);
+          });
+          return;
+        }
+        const noteKey = 'b'+num+'-'+idx;
+        KEY_LABELS[noteKey] = {grupo:'Bloques', label:'B'+num+' · '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Bloques};
+        const row = document.createElement('div'); row.className='tema-row';
+        row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
+        row.appendChild(buildNoteBox(noteKey));
+        row.appendChild(buildTicksRow(noteKey));
+        bbody.appendChild(row);
+      });
+      head.onclick = ()=>{ bbody.classList.toggle('open'); head.querySelector('.chev').textContent = bbody.classList.contains('open')?'▴':'▾'; };
+      card.appendChild(head); card.appendChild(bbody);
+      body.appendChild(card);
     });
-    head.onclick = ()=>{ body.classList.toggle('open'); head.querySelector('.chev').textContent = body.classList.contains('open')?'▴':'▾'; };
-    card.appendChild(head); card.appendChild(body);
-    host.appendChild(card);
   });
 }
 function temaNumFromClase(clase){
@@ -1275,64 +1296,67 @@ function temaNumFromClase(clase){
 }
 function renderLeves(){
   const host = document.getElementById('levesHost');
-  host.innerHTML = '<h3>Leves (ciclo 1–17)</h3>';
-  const grid = document.createElement('div'); grid.className='flat-grid';
-  LEVES.forEach((t,idx)=>{
-    if(t.type==='l39_l40'){
-      [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
-        const key = 'leve-'+idx+'-'+sub;
-        KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label), max:GROUP_MAX_NOTA.Leves};
-        const item = document.createElement('div'); item.className='flat-item';
-        item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
-        item.appendChild(buildNoteBox(key));
-        item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
-        grid.appendChild(item);
-      });
-      return;
-    }
-    const key = 'leve-'+idx;
-    KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Leves};
-    const item = document.createElement('div'); item.className='flat-item';
-    item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${t.nombre}</span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
-    item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
-    grid.appendChild(item);
+  renderAccordionSection(host, 'leves', 'Leves (ciclo 1–17)', (body)=>{
+    const grid = document.createElement('div'); grid.className='flat-grid';
+    LEVES.forEach((t,idx)=>{
+      if(t.type==='l39_l40'){
+        [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
+          const key = 'leve-'+idx+'-'+sub;
+          KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||label), max:GROUP_MAX_NOTA.Leves};
+          const item = document.createElement('div'); item.className='flat-item';
+          item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${label}<span class="rot-pill">alterna cada vuelta</span></span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
+          item.appendChild(buildNoteBox(key));
+          item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
+          grid.appendChild(item);
+        });
+        return;
+      }
+      const key = 'leve-'+idx;
+      KEY_LABELS[key] = {grupo:'Leves', label:(idx+1)+'. '+(t.clase||t.nombre), max:GROUP_MAX_NOTA.Leves};
+      const item = document.createElement('div'); item.className='flat-item';
+      item.innerHTML = `<div class="fi-head"><span class="fi-name">LEVE Nº${idx+1}: ${t.nombre}</span><span class="fi-clase">${temaNumFromClase(t.clase)}</span></div>`;
+      item.appendChild(buildNoteBox(key));
+      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA.Leves));
+      grid.appendChild(item);
+    });
+    body.appendChild(grid);
   });
-  host.appendChild(grid);
 }
 function renderIngles(){
   const host = document.getElementById('inglesHost');
-  host.innerHTML = '<h3>Inglés (ciclo 1–32) · notas sobre 20</h3>';
-  const grid = document.createElement('div'); grid.className='flat-grid';
-  for(let i=1;i<=INGLES_TOTAL;i++){
-    const key = 'ingles-'+i;
-    KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i, max:GROUP_MAX_NOTA['Inglés']};
-    const item = document.createElement('div'); item.className='flat-item';
-    item.innerHTML = `<div class="fi-head"><span class="fi-name">Tema ${i}</span></div>`;
-    item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Inglés']));
-    grid.appendChild(item);
-  }
-  host.appendChild(grid);
+  renderAccordionSection(host, 'ingles', 'Inglés (ciclo 1–32) · notas sobre 20', (body)=>{
+    const grid = document.createElement('div'); grid.className='flat-grid';
+    for(let i=1;i<=INGLES_TOTAL;i++){
+      const key = 'ingles-'+i;
+      KEY_LABELS[key] = {grupo:'Inglés', label:'Tema '+i, max:GROUP_MAX_NOTA['Inglés']};
+      const item = document.createElement('div'); item.className='flat-item';
+      item.innerHTML = `<div class="fi-head"><span class="fi-name">Tema ${i}</span></div>`;
+      item.appendChild(buildNoteBox(key));
+      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Inglés']));
+      grid.appendChild(item);
+    }
+    body.appendChild(grid);
+  });
 }
 function renderPsico(){
   const host = document.getElementById('psicoHost');
-  host.innerHTML = '<h3>Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30</h3>';
-  const grid = document.createElement('div'); grid.className='flat-grid';
-  PSICO_ITEMS.forEach((name,idx)=>{
-    const key = 'psico-'+idx;
-    KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name, max:GROUP_MAX_NOTA['Psicotécnicos']};
-    const item = document.createElement('div'); item.className='flat-item';
-    item.innerHTML = `<div class="fi-head"><span class="fi-name">${name}</span></div>`;
-    item.appendChild(buildNoteBox(key));
-    item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Psicotécnicos']));
-    grid.appendChild(item);
+  renderAccordionSection(host, 'psico', 'Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30', (body)=>{
+    const grid = document.createElement('div'); grid.className='flat-grid';
+    PSICO_ITEMS.forEach((name,idx)=>{
+      const key = 'psico-'+idx;
+      KEY_LABELS[key] = {grupo:'Psicotécnicos', label:name, max:GROUP_MAX_NOTA['Psicotécnicos']};
+      const item = document.createElement('div'); item.className='flat-item';
+      item.innerHTML = `<div class="fi-head"><span class="fi-name">${name}</span></div>`;
+      item.appendChild(buildNoteBox(key));
+      item.appendChild(buildTicksRow(key, GROUP_MAX_NOTA['Psicotécnicos']));
+      grid.appendChild(item);
+    });
+    body.appendChild(grid);
   });
-  host.appendChild(grid);
 }
 function renderOrto(){
   const host = document.getElementById('ortoHost');
-  host.innerHTML = '<h3>Ortografía y gramática</h3>';
+  renderAccordionSection(host, 'orto', 'Ortografía y gramática', (body)=>{
   const grid = document.createElement('div'); grid.className='flat-grid orto-grid';
 
   const mk = (label, field) => {
@@ -1383,7 +1407,8 @@ function renderOrto(){
     grid.appendChild(item);
   };
   mk('Ortografía','ortografia'); mk('Gramática','gramatica');
-  host.appendChild(grid);
+  body.appendChild(grid);
+  });
 }
 
 /* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
@@ -1564,6 +1589,22 @@ function simpleGapsBody(datesMs){
   html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
   return html;
 }
+const cicloOpen = {bloques:false, leves:false, ingles:false, psico:false};
+function appendAccordionSection(host, key, openMap, titleText, buildFn){
+  const wrap = document.createElement('div');
+  wrap.className = 'temario-section' + (openMap[key] ? ' open' : '');
+  const head = document.createElement('div'); head.className = 'temario-section-head';
+  head.innerHTML = `<h3>${titleText}</h3><div class="chev">${openMap[key] ? '▴' : '▾'}</div>`;
+  const body = document.createElement('div'); body.className = 'temario-section-body';
+  head.onclick = ()=>{
+    openMap[key] = !openMap[key];
+    wrap.classList.toggle('open', openMap[key]);
+    head.querySelector('.chev').textContent = openMap[key] ? '▴' : '▾';
+  };
+  wrap.appendChild(head); wrap.appendChild(body);
+  host.appendChild(wrap);
+  buildFn(body);
+}
 function renderCiclo(){
   const host = document.getElementById('cicloHost');
   if(!host) return;
@@ -1584,163 +1625,167 @@ function renderCiclo(){
   });
 
   /* ---------- BLOQUES ---------- */
-  host.appendChild(cicloSectionTitle('Vuelta completa por bloque'));
-  host.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
+  appendAccordionSection(host, 'bloques', cicloOpen, 'Vuelta completa por bloque', (body)=>{
+    body.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
-  const blockAppearances = {};
-  for(let b=1;b<=12;b++) blockAppearances[b]=[];
-  studyDays.forEach(({dateMs,e})=>{
-    const arr = blockAppearances[e.bloque];
-    // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
-    // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
-    // completa esa vuelta.
-    if(arr.length === 0 || arr[arr.length-1].color !== e.color){
-      arr.push({dateMs, color:e.color});
-    }
-  });
-
-  const blockGrid = document.createElement('div');
-  blockGrid.className = 'ciclo-grid';
-  Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
-    const graves = BLOCKS[num].graves;
-    const arr = blockAppearances[num];
-    let bodyHtml;
-    if(arr.length < 2){
-      bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).</div>';
-    } else {
-      const gaps = [];
-      for(let i=1;i<arr.length;i++){
-        if(arr[i-1].color === 'unificado'){ gaps.push(0); continue; }
-        gaps.push(Math.round((arr[i].dateMs - arr[i-1].dateMs)/86400000));
+    const blockAppearances = {};
+    for(let b=1;b<=12;b++) blockAppearances[b]=[];
+    studyDays.forEach(({dateMs,e})=>{
+      const arr = blockAppearances[e.bloque];
+      // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
+      // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
+      // completa esa vuelta.
+      if(arr.length === 0 || arr[arr.length-1].color !== e.color){
+        arr.push({dateMs, color:e.color});
       }
-      const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
-      let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas</div>';
-      html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+    });
 
-      // Desglose por color: cuánto tarda en volver a tocar el MISMO color de este bloque
-      // (p.ej. bloque 7 azul -> próxima vez bloque 7 azul), no solo la vuelta completa azul+morado.
-      const COLOR_LABEL = {azul:'Azul', morado:'Morado', unificado:'Unificado'};
-      let colorHtml = '';
-      ['azul','morado','unificado'].forEach(col=>{
-        const list = arr.filter(a=>a.color===col);
-        if(list.length < 2) return;
-        const cgaps = [];
-        for(let i=1;i<list.length;i++){
-          cgaps.push(Math.round((list[i].dateMs - list[i-1].dateMs)/86400000));
+    const blockGrid = document.createElement('div');
+    blockGrid.className = 'ciclo-grid';
+    Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
+      const graves = BLOCKS[num].graves;
+      const arr = blockAppearances[num];
+      let bodyHtml;
+      if(arr.length < 2){
+        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).</div>';
+      } else {
+        const gaps = [];
+        for(let i=1;i<arr.length;i++){
+          if(arr[i-1].color === 'unificado'){ gaps.push(0); continue; }
+          gaps.push(Math.round((arr[i].dateMs - arr[i-1].dateMs)/86400000));
         }
-        const cavg = cgaps.reduce((a,b)=>a+b,0) / cgaps.length;
-        const lbl = COLOR_LABEL[col];
-        colorHtml += '<div class="ciclo-color-block">'+
-          '<div class="ciclo-color-title"><span class="colorpill '+col+'">'+col+'</span> media hasta volver a tocar '+lbl.toLowerCase()+': <strong>'+cavg.toFixed(1)+' días</strong></div>'+
-          '<div class="ciclo-gaps">' + cgaps.map((g,i)=>'<div>'+lbl+' '+(i+1)+' → '+lbl+' '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>'+
-        '</div>';
-      });
-      if(colorHtml) html += '<div class="ciclo-color-section">'+colorHtml+'</div>';
+        const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+        let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas</div>';
+        html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
 
-      bodyHtml = html;
-    }
-    const card = document.createElement('div');
-    card.className = 'ciclo-card';
-    card.innerHTML = `
-      <div class="ch-row">
-        <div class="block-num ${graves?'':'mg'}">${num}</div>
-        <div><h4>Bloque ${num}</h4><div class="kind">${graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
-      </div>
-      ${bodyHtml}
-    `;
-    blockGrid.appendChild(card);
+        // Desglose por color: cuánto tarda en volver a tocar el MISMO color de este bloque
+        // (p.ej. bloque 7 azul -> próxima vez bloque 7 azul), no solo la vuelta completa azul+morado.
+        const COLOR_LABEL = {azul:'Azul', morado:'Morado', unificado:'Unificado'};
+        let colorHtml = '';
+        ['azul','morado','unificado'].forEach(col=>{
+          const list = arr.filter(a=>a.color===col);
+          if(list.length < 2) return;
+          const cgaps = [];
+          for(let i=1;i<list.length;i++){
+            cgaps.push(Math.round((list[i].dateMs - list[i-1].dateMs)/86400000));
+          }
+          const cavg = cgaps.reduce((a,b)=>a+b,0) / cgaps.length;
+          const lbl = COLOR_LABEL[col];
+          colorHtml += '<div class="ciclo-color-block">'+
+            '<div class="ciclo-color-title"><span class="colorpill '+col+'">'+col+'</span> media hasta volver a tocar '+lbl.toLowerCase()+': <strong>'+cavg.toFixed(1)+' días</strong></div>'+
+            '<div class="ciclo-gaps">' + cgaps.map((g,i)=>'<div>'+lbl+' '+(i+1)+' → '+lbl+' '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>'+
+          '</div>';
+        });
+        if(colorHtml) html += '<div class="ciclo-color-section">'+colorHtml+'</div>';
+
+        bodyHtml = html;
+      }
+      const card = document.createElement('div');
+      card.className = 'ciclo-card';
+      card.innerHTML = `
+        <div class="ch-row">
+          <div class="block-num ${graves?'':'mg'}">${num}</div>
+          <div><h4>Bloque ${num}</h4><div class="kind">${graves?'Grave · días impares':'Menos grave · días pares'}</div></div>
+        </div>
+        ${bodyHtml}
+      `;
+      blockGrid.appendChild(card);
+    });
+    body.appendChild(blockGrid);
   });
-  host.appendChild(blockGrid);
 
   /* ---------- LEVES ---------- */
-  host.appendChild(cicloSectionTitle('Vuelta completa por leve'));
-  host.appendChild(cicloIntro('Cada leve entra todos los días de estudio, así que una "vuelta" es simplemente el tiempo que tarda en volver a tocar ese mismo leve (ciclo de 17). Si un día no lo das por completado, ese mismo leve se repite al día siguiente de estudio y esa repetición no cuenta como una vuelta nueva.'));
+  appendAccordionSection(host, 'leves', cicloOpen, 'Vuelta completa por leve', (body)=>{
+    body.appendChild(cicloIntro('Cada leve entra todos los días de estudio, así que una "vuelta" es simplemente el tiempo que tarda en volver a tocar ese mismo leve (ciclo de 17). Si un día no lo das por completado, ese mismo leve se repite al día siguiente de estudio y esa repetición no cuenta como una vuelta nueva.'));
 
-  const leveAppearances = LEVES.map(()=>[]);
-  let lastLeveNum = null;
-  studyDays.forEach(({dateMs,e})=>{
-    if(e.leveNum !== lastLeveNum){
-      leveAppearances[e.leveNum-1].push(dateMs);
-    }
-    lastLeveNum = e.leveNum;
-  });
+    const leveAppearances = LEVES.map(()=>[]);
+    let lastLeveNum = null;
+    studyDays.forEach(({dateMs,e})=>{
+      if(e.leveNum !== lastLeveNum){
+        leveAppearances[e.leveNum-1].push(dateMs);
+      }
+      lastLeveNum = e.leveNum;
+    });
 
-  const leveGrid = document.createElement('div');
-  leveGrid.className = 'ciclo-grid';
-  LEVES.forEach((t,idx)=>{
-    const nombre = t.type==='l39_l40' ? (t.l39+' / '+t.l40) : t.nombre;
-    const temaNum = temaNumFromClase(t.clase);
-    const card = document.createElement('div');
-    card.className = 'ciclo-card';
-    card.innerHTML = `
-      <div class="ch-row">
-        <div class="block-num">${idx+1}</div>
-        <div><h4>LEVE Nº${idx+1}: ${nombre}</h4><div class="kind">${temaNum}</div></div>
-      </div>
-      ${simpleGapsBody(leveAppearances[idx])}
-    `;
-    leveGrid.appendChild(card);
+    const leveGrid = document.createElement('div');
+    leveGrid.className = 'ciclo-grid';
+    LEVES.forEach((t,idx)=>{
+      const nombre = t.type==='l39_l40' ? (t.l39+' / '+t.l40) : t.nombre;
+      const temaNum = temaNumFromClase(t.clase);
+      const card = document.createElement('div');
+      card.className = 'ciclo-card';
+      card.innerHTML = `
+        <div class="ch-row">
+          <div class="block-num">${idx+1}</div>
+          <div><h4>LEVE Nº${idx+1}: ${nombre}</h4><div class="kind">${temaNum}</div></div>
+        </div>
+        ${simpleGapsBody(leveAppearances[idx])}
+      `;
+      leveGrid.appendChild(card);
+    });
+    body.appendChild(leveGrid);
   });
-  host.appendChild(leveGrid);
 
   /* ---------- INGLÉS ---------- */
-  host.appendChild(cicloSectionTitle('Vuelta completa por tema de Inglés'));
-  host.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32).'));
+  appendAccordionSection(host, 'ingles', cicloOpen, 'Vuelta completa por tema de Inglés', (body)=>{
+    body.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32).'));
 
-  const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
-  let lastInglesNum = null;
-  studyDays.forEach(({dateMs,e})=>{
-    if(e.inglesNum !== lastInglesNum){
-      inglesAppearances[e.inglesNum-1].push(dateMs);
+    const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
+    let lastInglesNum = null;
+    studyDays.forEach(({dateMs,e})=>{
+      if(e.inglesNum !== lastInglesNum){
+        inglesAppearances[e.inglesNum-1].push(dateMs);
+      }
+      lastInglesNum = e.inglesNum;
+    });
+
+    const inglesGrid = document.createElement('div');
+    inglesGrid.className = 'ciclo-grid';
+    for(let i=1;i<=INGLES_TOTAL;i++){
+      const card = document.createElement('div');
+      card.className = 'ciclo-card';
+      card.innerHTML = `
+        <div class="ch-row">
+          <div class="block-num">${i}</div>
+          <div><h4>Inglés · Tema ${i}</h4></div>
+        </div>
+        ${simpleGapsBody(inglesAppearances[i-1])}
+      `;
+      inglesGrid.appendChild(card);
     }
-    lastInglesNum = e.inglesNum;
+    body.appendChild(inglesGrid);
   });
-
-  const inglesGrid = document.createElement('div');
-  inglesGrid.className = 'ciclo-grid';
-  for(let i=1;i<=INGLES_TOTAL;i++){
-    const card = document.createElement('div');
-    card.className = 'ciclo-card';
-    card.innerHTML = `
-      <div class="ch-row">
-        <div class="block-num">${i}</div>
-        <div><h4>Inglés · Tema ${i}</h4></div>
-      </div>
-      ${simpleGapsBody(inglesAppearances[i-1])}
-    `;
-    inglesGrid.appendChild(card);
-  }
-  host.appendChild(inglesGrid);
 
   /* ---------- PSICOTÉCNICOS ---------- */
-  host.appendChild(cicloSectionTitle('Vuelta completa por psicotécnico'));
-  host.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 temas + 2 controles).'));
+  appendAccordionSection(host, 'psico', cicloOpen, 'Vuelta completa por psicotécnico', (body)=>{
+    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 pruebas + 2 controles).'));
 
-  const psicoAppearances = PSICO_ITEMS.map(()=>[]);
-  let lastPsicoIdx = null;
-  studyDays.forEach(({dateMs,e})=>{
-    if(e.psicoIdx === undefined) return;
-    if(e.psicoIdx !== lastPsicoIdx){
-      psicoAppearances[e.psicoIdx].push(dateMs);
-    }
-    lastPsicoIdx = e.psicoIdx;
-  });
+    const psicoAppearances = PSICO_ITEMS.map(()=>[]);
+    let lastPsicoIdx = null;
+    studyDays.forEach(({dateMs,e})=>{
+      if(e.psicoIdx === undefined) return;
+      if(e.psicoIdx !== lastPsicoIdx){
+        psicoAppearances[e.psicoIdx].push(dateMs);
+      }
+      lastPsicoIdx = e.psicoIdx;
+    });
 
-  const psicoGrid = document.createElement('div');
-  psicoGrid.className = 'ciclo-grid';
-  PSICO_ITEMS.forEach((name,idx)=>{
-    const card = document.createElement('div');
-    card.className = 'ciclo-card';
-    card.innerHTML = `
-      <div class="ch-row">
-        <div class="block-num">${idx+1}</div>
-        <div><h4>${name}</h4></div>
-      </div>
-      ${simpleGapsBody(psicoAppearances[idx])}
-    `;
-    psicoGrid.appendChild(card);
+    const psicoGrid = document.createElement('div');
+    psicoGrid.className = 'ciclo-grid';
+    PSICO_ITEMS.forEach((name,idx)=>{
+      const card = document.createElement('div');
+      card.className = 'ciclo-card';
+      card.innerHTML = `
+        <div class="ch-row">
+          <div class="block-num">${idx+1}</div>
+          <div><h4>${name}</h4></div>
+        </div>
+        ${simpleGapsBody(psicoAppearances[idx])}
+      `;
+      psicoGrid.appendChild(card);
+    });
+    body.appendChild(psicoGrid);
   });
-  host.appendChild(psicoGrid);
 }
 /* ===================== RENDER: SINCRONIZACIÓN ===================== */
 function renderSyncBox(){
