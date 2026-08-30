@@ -101,6 +101,10 @@
   .legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend i{width:10px;height:10px;display:inline-block;border-radius:2px;}
+  .tick-help{
+    font-family:var(--font-mono);font-size:11px;color:var(--red);background:rgba(182,84,63,.12);
+    border:1px solid var(--red);border-radius:2px;padding:8px 10px;margin-bottom:14px;line-height:1.5;
+  }
 
   /* ---- calendar grid ---- */
   .cal-grid{
@@ -446,6 +450,7 @@
     <div class="month-bar" id="monthBar"></div>
     <div id="unifyBar"></div>
     <div class="legend" id="legend"></div>
+    <div class="tick-help">☑ Marca la casilla de una tarea solo si <strong>NO</strong> la has completado ese día — así se repetirá el próximo día que toque, en vez de darse por hecha.</div>
     <div id="calendarHost"></div>
   </div>
 
@@ -1193,6 +1198,11 @@ function openDayModal(d, info){
   body.innerHTML = '';
 
   const dticks = info.ticks || {};
+  const helpNote = document.createElement('div');
+  helpNote.className = 'tick-help';
+  helpNote.style.marginBottom = '12px';
+  helpNote.innerHTML = '☑ Marca la casilla solo si <strong>NO</strong> has completado esa tarea (se repetirá el próximo día que toque).';
+  body.appendChild(helpNote);
   const bTemas = info.temasDelDia;
   const bRow = document.createElement('div'); bRow.className='modal-row';
   bRow.innerHTML = '<div style="flex:1;"><span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
