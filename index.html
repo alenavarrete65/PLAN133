@@ -59,6 +59,20 @@
   }
   .plan-id{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
 
+  /* ---- bandera de España (decorativa, cabecera) ---- */
+  .brand-top{display:flex;align-items:center;gap:10px;}
+  .flag-es{
+    display:inline-block;width:34px;height:23px;flex:0 0 auto;
+    border-radius:3px;overflow:hidden;
+    border:1px solid rgba(236,228,211,0.35);
+    box-shadow:0 2px 5px rgba(0,0,0,0.35);
+    background:
+      linear-gradient(#aa151b 0 25%, #f1bf00 25% 75%, #aa151b 75% 100%);
+    transform:rotate(-2deg);
+    transition:transform .25s ease;
+  }
+  .brand-top:hover .flag-es{transform:rotate(0deg) scale(1.04);}
+
   .motivation-strip{
     display:flex;align-items:center;gap:10px;
     background:var(--bg-panel);border:1px solid var(--amber-dim);border-left:4px solid var(--amber);
@@ -467,6 +481,24 @@
   .nota-pill.mid{background:var(--amber);color:#1b2b1f;}
   .nota-pill.bad{background:var(--red);color:#fff;}
 
+  /* ---- marcas físicas mínimas (oposición) ---- */
+  .marcas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px;margin-bottom:28px;}
+  .marca-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px;display:flex;flex-direction:column;gap:8px;}
+  .marca-card .marca-nombre{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--cream);font-size:14px;}
+  .marca-card .marca-min{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);text-transform:uppercase;}
+  .marca-card .marca-input-row{display:flex;align-items:center;gap:8px;margin-top:2px;}
+  .marca-card .marca-input-row label{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+  .marca-card input.marca-valor{
+    width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:13px;padding:6px 8px;
+  }
+  .marca-bar-track{height:6px;border-radius:3px;background:var(--bg-panel-2);border:1px solid var(--line);overflow:hidden;margin-top:2px;}
+  .marca-bar-fill{height:100%;border-radius:3px;transition:width .3s ease;}
+  .marca-bar-fill.ok{background:var(--green);}
+  .marca-bar-fill.no{background:var(--red);}
+  .marca-status-row{display:flex;justify-content:space-between;align-items:center;margin-top:2px;}
+  .marca-status-row .marca-actual{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
+
   /* ---- entrenos manual ---- */
   .entreno-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
   .entreno-item{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
@@ -588,7 +620,10 @@
   <header class="app-head">
     <div class="brand">
       <span class="eyebrow">Planificación de estudio</span>
-      <h1>OPERACIÓN BAEZA</h1>
+      <div class="brand-top">
+        <span class="flag-es" role="img" aria-label="Bandera de España"></span>
+        <h1>OPERACIÓN BAEZA</h1>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
@@ -687,6 +722,7 @@
 
   <!-- ENTRENOS FÍSICOS (registro manual) -->
   <div class="view" id="view-entrenos">
+    <div id="marcasHost"></div>
     <div id="entrenosHost"></div>
   </div>
 
@@ -938,7 +974,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -961,6 +997,7 @@ function normalizeState(){
     state.ortoTests = {ortografia:[], gramatica:[]};
   }
   if(!state.entrenosLog) state.entrenosLog = [];
+  if(!state.marcas) state.marcas = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
   if(!state.clases) state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
@@ -3003,6 +3040,105 @@ function renderProgreso(){
   host.appendChild(s4);
 }
 const progresoOpen = {detalleTema:false};
+/* ===================== MARCAS FÍSICAS MÍNIMAS (oposición Guardia Civil) ===================== */
+function parseTiempoASegundos(v){
+  if(v==null || v==='') return NaN;
+  const s = String(v).trim();
+  if(s.includes(':')){
+    const [m, sec] = s.split(':');
+    const mm = parseFloat(m), ss = parseFloat(sec);
+    if(isNaN(mm) || isNaN(ss)) return NaN;
+    return mm*60 + ss;
+  }
+  return parseFloat(s.replace(',','.'));
+}
+const PRUEBAS_FISICAS = [
+  { id:'flexiones', nombre:'Flexiones', tipo:'min', objetivo:16, unidad:'reps',
+    minText:'Mínimo exigido: 16 repeticiones', placeholder:'Ej. 18',
+    parse:v=>parseFloat(String(v).replace(',','.')), formatActual:v=>v+' reps' },
+  { id:'circuito', nombre:'Circuito de agilidad', tipo:'max', objetivo:14, unidad:'seg',
+    minText:'Máximo exigido: 14,00 segundos', placeholder:'Ej. 13.50',
+    parse:v=>parseFloat(String(v).replace(',','.')), formatActual:v=>v+' s' },
+  { id:'carrera', nombre:'Carrera 2.000 m', tipo:'max', objetivo:9*60+25, unidad:'mm:ss',
+    minText:'Máximo exigido: 9:25 minutos', placeholder:'Ej. 9:10',
+    parse:parseTiempoASegundos, formatActual:v=>v },
+  { id:'natacion', nombre:'Natación', tipo:'max', objetivo:70, unidad:'seg',
+    minText:'Máximo exigido: 70 segundos', placeholder:'Ej. 65',
+    parse:v=>parseFloat(String(v).replace(',','.')), formatActual:v=>v+' s' },
+];
+function renderMarcas(){
+  const host = document.getElementById('marcasHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const topBar = document.createElement('div');
+  topBar.innerHTML = '<h3 style="margin:0 0 4px;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:17px;letter-spacing:.03em;">Marcas físicas mínimas</h3>'
+    + '<div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Apunta tu mejor marca en cada prueba para ver si ya cumples el mínimo de la oposición.</div>';
+  host.appendChild(topBar);
+
+  const grid = document.createElement('div'); grid.className = 'marcas-grid';
+  PRUEBAS_FISICAS.forEach(p=>{
+    const raw = state.marcas[p.id] || '';
+    const val = p.parse(raw);
+    const tieneValor = raw!=='' && !isNaN(val);
+    let apto = null, pct = 0;
+    if(tieneValor){
+      apto = (p.tipo==='min') ? (val >= p.objetivo) : (val <= p.objetivo);
+      if(p.tipo==='min'){ pct = Math.max(0, Math.min(100, (val/p.objetivo)*100)); }
+      else { pct = val<=p.objetivo ? 100 : Math.max(0, Math.min(100, (p.objetivo/val)*100)); }
+    }
+    const card = document.createElement('div'); card.className = 'marca-card';
+    card.innerHTML = `
+      <div class="marca-nombre">${p.nombre}</div>
+      <div class="marca-min">${p.minText}</div>
+      <div class="marca-input-row">
+        <label>Tu marca</label>
+        <input type="text" class="marca-valor" placeholder="${p.placeholder}" value="${raw}">
+      </div>
+      <div class="marca-bar-track"><div class="marca-bar-fill ${tieneValor ? (apto?'ok':'no') : ''}" style="width:${tieneValor?pct:0}%;"></div></div>
+      <div class="marca-status-row">
+        <span class="marca-actual">${tieneValor ? p.formatActual(raw) : 'Sin registrar'}</span>
+        ${tieneValor ? `<span class="nota-pill ${apto?'good':'bad'}">${apto?'APTO':'NO APTO'}</span>` : ''}
+      </div>
+    `;
+    const input = card.querySelector('.marca-valor');
+    const barFill = card.querySelector('.marca-bar-fill');
+    const actualSpan = card.querySelector('.marca-actual');
+    const statusRow = card.querySelector('.marca-status-row');
+    input.oninput = ()=>{
+      state.marcas[p.id] = input.value;
+      scheduleSave();
+      const rawNow = input.value;
+      const valNow = p.parse(rawNow);
+      const tieneValorNow = rawNow!=='' && !isNaN(valNow);
+      let aptoNow = null, pctNow = 0;
+      if(tieneValorNow){
+        aptoNow = (p.tipo==='min') ? (valNow >= p.objetivo) : (valNow <= p.objetivo);
+        if(p.tipo==='min'){ pctNow = Math.max(0, Math.min(100, (valNow/p.objetivo)*100)); }
+        else { pctNow = valNow<=p.objetivo ? 100 : Math.max(0, Math.min(100, (p.objetivo/valNow)*100)); }
+      }
+      barFill.style.width = (tieneValorNow?pctNow:0)+'%';
+      barFill.className = 'marca-bar-fill' + (tieneValorNow ? (aptoNow?' ok':' no') : '');
+      actualSpan.textContent = tieneValorNow ? p.formatActual(rawNow) : 'Sin registrar';
+      const existingPill = statusRow.querySelector('.nota-pill');
+      if(tieneValorNow){
+        if(existingPill){
+          existingPill.className = 'nota-pill ' + (aptoNow?'good':'bad');
+          existingPill.textContent = aptoNow?'APTO':'NO APTO';
+        } else {
+          const pill = document.createElement('span');
+          pill.className = 'nota-pill ' + (aptoNow?'good':'bad');
+          pill.textContent = aptoNow?'APTO':'NO APTO';
+          statusRow.appendChild(pill);
+        }
+      } else if(existingPill){
+        existingPill.remove();
+      }
+    };
+    grid.appendChild(card);
+  });
+  host.appendChild(grid);
+}
+
 /* ===================== RENDER: ENTRENOS (registro manual) ===================== */
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function renderEntrenos(){
@@ -3349,7 +3485,7 @@ document.getElementById('resetBtn').onclick = ()=>{
     // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
     // no debería dejar el planning sin protección.
     const keepPin = state.settings ? state.settings.pinHash : null;
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
     currentMonthKey = null;
     invalidatePlan();
     scheduleSave();
@@ -3426,6 +3562,7 @@ function renderAll(){
   renderSimCalendar();
   renderCiclo();
   renderProgreso();
+  renderMarcas();
   renderEntrenos();
   renderAjustes();
   renderSyncBox();
