@@ -2984,7 +2984,7 @@ function renderCiclo(){
 
   /* ---------- BLOQUES ---------- */
   appendAccordionSection(host, 'bloques', cicloOpen, 'Vuelta completa por bloque', (body)=>{
-    body.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se ha visto tanto el grupo azul como el grupo morado de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos), desde la primera vez que aparece el bloque hasta que vuelve a aparecer con el otro color. Debajo de eso se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
+    body.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se han visto los dos colores, azul y morado, de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos): cada "Vuelta N → Vuelta N+1" es el tiempo desde que se completó una vuelta (viendo el segundo color que le faltaba) hasta que se completa la siguiente. Debajo se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
     const blockAppearances = {};
     for(let b=1;b<=12;b++) blockAppearances[b]=[];
@@ -2997,23 +2997,45 @@ function renderCiclo(){
         arr.push({dateMs, color:e.color});
       }
     });
+    // Agrupa las apariciones (azul, morado, azul, morado…) en VUELTAS COMPLETAS: una vuelta
+    // termina en cuanto se han visto los dos colores del bloque. En modo repaso final, cada
+    // aparición "unificada" ya incluye los dos colores en un solo día, así que cada una es
+    // una vuelta completa por sí misma.
+    function buildFullCycles(arr){
+      const cycles = [];
+      let seenAzul = false, seenMorado = false;
+      arr.forEach(({dateMs, color})=>{
+        if(color === 'unificado'){
+          cycles.push({completeMs:dateMs});
+          seenAzul = false; seenMorado = false;
+          return;
+        }
+        if(color === 'azul') seenAzul = true;
+        if(color === 'morado') seenMorado = true;
+        if(seenAzul && seenMorado){
+          cycles.push({completeMs:dateMs});
+          seenAzul = false; seenMorado = false;
+        }
+      });
+      return cycles;
+    }
 
     const blockGrid = document.createElement('div');
     blockGrid.className = 'ciclo-grid';
     Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
       const graves = BLOCKS[num].graves;
       const arr = blockAppearances[num];
+      const cycles = buildFullCycles(arr);
       let bodyHtml;
-      if(arr.length < 2){
-        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones de este bloque en tu calendario guardado).</div>';
+      if(cycles.length < 2){
+        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 vueltas completas —azul y morado vistos— de este bloque en tu calendario guardado).</div>';
       } else {
         const gaps = [];
-        for(let i=1;i<arr.length;i++){
-          if(arr[i-1].color === 'unificado'){ gaps.push(0); continue; }
-          gaps.push(Math.round((arr[i].dateMs - arr[i-1].dateMs)/86400000));
+        for(let i=1;i<cycles.length;i++){
+          gaps.push(Math.round((cycles[i].completeMs - cycles[i-1].completeMs)/86400000));
         }
         const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
-        let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+arr.length+' apariciones registradas</div>';
+        let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+cycles.length+' vueltas completas registradas</div>';
         html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
 
         // Desglose por color: cuánto tarda en volver a tocar el MISMO color de este bloque
