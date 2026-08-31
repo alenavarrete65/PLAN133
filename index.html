@@ -4,6 +4,12 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Operación Baeza</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14211c">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Operación Baeza">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
@@ -1083,14 +1089,27 @@ function normalizeState(){
   // El estado (posiblemente) ha cambiado por completo: descartamos la caché de computePlan().
   invalidatePlan();
 }
+function localCacheKey(){ return 'planning_cache_'+accessCode; }
 async function loadState(){
   if(!firebaseOk || !accessCode) return;
+  let cargadoDeFirebase = false;
   try{
     const snap = await db.collection('plannings').doc(accessCode).get();
     if(snap.exists && snap.data() && snap.data().state){
       state = JSON.parse(snap.data().state);
+      cargadoDeFirebase = true;
+      try{ localStorage.setItem(localCacheKey(), snap.data().state); }catch(e){}
     }
-  }catch(e){ console.error(e); showToast('Error al cargar datos'); }
+  }catch(e){ console.error(e); }
+  if(!cargadoDeFirebase){
+    // Sin conexión o falló Firebase: intenta recuperar la última copia sincronizada
+    // que se guardó en este mismo dispositivo, para no dejar la app vacía.
+    try{
+      const cached = localStorage.getItem(localCacheKey());
+      if(cached){ state = JSON.parse(cached); showToast('Sin conexión: mostrando la última copia guardada en este dispositivo'); }
+      else showToast('Error al cargar datos');
+    }catch(e){ showToast('Error al cargar datos'); }
+  }
   normalizeState();
 }
 
@@ -1115,8 +1134,10 @@ function scheduleSave(){
 async function doSave(){
   if(!firebaseOk || !accessCode) return;
   setSaveStatus('saving');
+  const payload = JSON.stringify(state);
+  try{ localStorage.setItem(localCacheKey(), payload); }catch(e){}
   try{
-    await db.collection('plannings').doc(accessCode).set({state: JSON.stringify(state), updatedAt: Date.now()});
+    await db.collection('plannings').doc(accessCode).set({state: payload, updatedAt: Date.now()});
     saveRetryDelay = 4000;
     clearTimeout(saveRetryTimer);
     setSaveStatus('saved');
@@ -3954,6 +3975,13 @@ function renderAll(){
     if(todayCell) todayCell.scrollIntoView({block:'center', behavior:'auto'});
   });
 })();
+
+/* ===================== PWA: registro del service worker ===================== */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('service-worker.js').catch((e)=> console.error('Service worker no registrado', e));
+  });
+}
 </script>
 </body>
 </html>
