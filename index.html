@@ -689,6 +689,9 @@
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
       <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
+      <div class="save-indicator" id="offlineIndicator" role="status" aria-live="polite" style="display:none;border-color:var(--red-text);color:var(--red-text);">
+        <span class="dot" aria-hidden="true" style="background:var(--red-text);"></span><span>Sin conexión</span>
+      </div>
       <div class="save-indicator" id="saveIndicator" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span><span id="saveIndicatorText">Sin cambios</span>
       </div>
@@ -1090,6 +1093,13 @@ function normalizeState(){
   invalidatePlan();
 }
 function localCacheKey(){ return 'planning_cache_'+accessCode; }
+function pendingSyncKey(){ return 'planning_pending_'+accessCode; }
+// Hay cambios hechos en este dispositivo que aún no se han confirmado guardados en Firebase
+// (por ejemplo, se hicieron sin conexión). Se guarda en localStorage para que sobreviva a
+// que cierres la app o recargues la página antes de recuperar la conexión.
+function markPendingSync(){ try{ localStorage.setItem(pendingSyncKey(), '1'); }catch(e){} }
+function clearPendingSync(){ try{ localStorage.removeItem(pendingSyncKey()); }catch(e){} }
+function hasPendingSync(){ try{ return localStorage.getItem(pendingSyncKey()) === '1'; }catch(e){ return false; } }
 async function loadState(){
   if(!firebaseOk || !accessCode) return;
   let cargadoDeFirebase = false;
@@ -1131,15 +1141,29 @@ function scheduleSave(){
   clearTimeout(saveTimer);
   saveTimer = setTimeout(doSave, 500);
 }
+let savingInFlight = false;
 async function doSave(){
   if(!firebaseOk || !accessCode) return;
-  setSaveStatus('saving');
+  // El cambio se guarda YA en este dispositivo (localStorage), pase lo que pase con la
+  // conexión. Lo marcamos como "pendiente de nube" hasta que confirmemos que Firebase lo
+  // recibió; así, si se cierra la app sin conexión, al reabrirla sabemos que falta sincronizar.
   const payload = JSON.stringify(state);
   try{ localStorage.setItem(localCacheKey(), payload); }catch(e){}
+  markPendingSync();
+  if(!navigator.onLine){
+    // Sin conexión: no lo intentamos siquiera, para no gastar reintentos. En cuanto vuelva
+    // la conexión (evento 'online' o el chequeo periódico) se guardará solo.
+    setSaveStatus('error', 'Sin conexión · se guardará al reconectar');
+    return;
+  }
+  if(savingInFlight) return; // ya hay un intento en curso; el próximo scheduleSave lo recogerá
+  savingInFlight = true;
+  setSaveStatus('saving');
   try{
     await db.collection('plannings').doc(accessCode).set({state: payload, updatedAt: Date.now()});
     saveRetryDelay = 4000;
     clearTimeout(saveRetryTimer);
+    clearPendingSync();
     setSaveStatus('saved');
     showToast('Guardado en la nube');
     setTimeout(()=>{
@@ -1153,17 +1177,36 @@ async function doSave(){
     clearTimeout(saveRetryTimer);
     saveRetryTimer = setTimeout(doSave, saveRetryDelay);
     saveRetryDelay = Math.min(saveRetryDelay*2, 60000);
+  }finally{
+    savingInFlight = false;
   }
 }
-// Si el dispositivo recupera la conexión, reintenta enseguida en vez de esperar el backoff.
-window.addEventListener('online', ()=>{
-  const el = document.getElementById('saveIndicator');
-  if(el && el.classList.contains('state-error')){
-    clearTimeout(saveRetryTimer);
-    saveRetryDelay = 4000;
-    doSave();
-  }
+// Intenta sincronizar cualquier cambio pendiente si hay conexión. Se usa tanto en el evento
+// 'online' como en un chequeo periódico de respaldo (algunos navegadores/móviles no disparan
+// 'online' de forma fiable), y también al arrancar la app por si quedó algo sin subir de una
+// sesión anterior sin conexión.
+function trySyncPending(){
+  if(!firebaseOk || !accessCode) return;
+  if(!navigator.onLine) return;
+  if(!hasPendingSync()) return;
+  clearTimeout(saveRetryTimer);
+  saveRetryDelay = 4000;
+  doSave();
+}
+function refreshOfflineBadge(){
+  const el = document.getElementById('offlineIndicator');
+  if(!el) return;
+  el.style.display = navigator.onLine ? 'none' : 'inline-flex';
+}
+window.addEventListener('online', ()=>{ refreshOfflineBadge(); trySyncPending(); });
+window.addEventListener('offline', ()=>{
+  refreshOfflineBadge();
+  if(hasPendingSync()) setSaveStatus('error', 'Sin conexión · se guardará al reconectar');
 });
+refreshOfflineBadge();
+// Respaldo por si el evento 'online' no llega (frecuente en algunos móviles al volver de segundo plano).
+setInterval(trySyncPending, 15000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) trySyncPending(); });
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -3974,6 +4017,12 @@ function renderAll(){
     const todayCell = document.getElementById('todayCell');
     if(todayCell) todayCell.scrollIntoView({block:'center', behavior:'auto'});
   });
+  // Por si en la última sesión se hicieron cambios sin conexión y la app se cerró antes de
+  // poder subirlos a Firebase: si ahora hay conexión, los sincronizamos de inmediato.
+  if(hasPendingSync()){
+    if(navigator.onLine) trySyncPending();
+    else setSaveStatus('error', 'Sin conexión · se guardará al reconectar');
+  }
 })();
 
 /* ===================== PWA: registro del service worker ===================== */
