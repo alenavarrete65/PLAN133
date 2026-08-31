@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// Reglas para Operación Baeza.
+// Importante: esta app NO usa Firebase Authentication, solo un "código de acceso" elegido
+// por el usuario (que hace de identificador del documento) y un PIN opcional que se
+// comprueba en el propio navegador. Eso significa que la seguridad real es "quien tenga
+// el enlace/código puede editar los datos" — el PIN evita miradas casuales, pero no es una
+// autenticación de verdad. Si algún día quieres protección real, habría que añadir
+// Firebase Auth (aunque sea anónima) y comprobar el PIN en una Cloud Function.
+//
+// Lo que SÍ arreglan estas reglas frente a las de "modo prueba" por defecto de Firebase
+// (que dejan TODA la base de datos abierta a cualquiera):
+//   1) Solo se puede leer/escribir dentro de la colección "plannings".
+//   2) Se bloquea el "list" (nadie puede pedir "dame todos los documentos de plannings"
+//      y enumerar los códigos de acceso de otras personas); solo se puede hacer "get"
+//      de un documento si ya conoces su ID exacto (tu código de acceso).
+//   3] Cualquier otra colección/ruta queda denegada por completo.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /plannings/{accessCode} {
+      allow get: if true;
+      allow list: if false;
+      allow write: if true;
+    }
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
