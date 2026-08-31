@@ -60,6 +60,20 @@
 
   /* ---- bandera de España (decorativa, línea fina bajo el título) ---- */
   .brand-top{display:flex;flex-direction:column;align-items:flex-start;gap:8px;}
+  .brand-title-row{display:flex;align-items:center;gap:14px;}
+  .gc-emblem{
+    width:40px;height:auto;flex:0 0 auto;color:var(--amber);opacity:.62;
+    filter:drop-shadow(0 1px 1px rgba(0,0,0,.4));
+  }
+  .gc-emblem.mirror{transform:scaleX(-1);}
+  .brand-motto{
+    font-family:var(--font-mono);font-size:11px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--amber-dim);margin:4px 0 0;font-style:italic;
+  }
+  @media (max-width:640px){
+    .gc-emblem{width:28px;}
+    .brand-motto{font-size:9.5px;letter-spacing:.08em;}
+  }
   .flag-es{
     display:block;width:100%;max-width:220px;height:5px;flex:0 0 auto;
     border-radius:3px;overflow:hidden;
@@ -625,8 +639,41 @@
     <div class="brand">
       <span class="eyebrow">Planificación de estudio</span>
       <div class="brand-top">
-        <h1>OPERACIÓN BAEZA</h1>
+        <div class="brand-title-row">
+          <svg class="gc-emblem" viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Emblema Guardia Civil" focusable="false">
+            <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 32 L26 16 L36 27 L50 12 L64 27 L74 16 L80 32 L80 38 L20 38 Z"/>
+              <circle cx="50" cy="8" r="4" fill="currentColor" stroke="none"/>
+              <circle cx="26" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+              <circle cx="74" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+              <line x1="18" y1="38" x2="82" y2="38"/>
+              <path d="M28 50 L72 108"/>
+              <path d="M22 44 L34 56 M34 56 L22 68"/>
+              <line x1="72" y1="108" x2="80" y2="116"/>
+              <path d="M72 50 L28 108"/>
+              <path d="M64 42 L80 42 L80 50 L72 58 L64 50 Z"/>
+              <line x1="28" y1="108" x2="20" y2="116"/>
+            </g>
+          </svg>
+          <h1>OPERACIÓN BAEZA</h1>
+          <svg class="gc-emblem mirror" viewBox="0 0 100 130" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Emblema Guardia Civil" focusable="false">
+            <g fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M20 32 L26 16 L36 27 L50 12 L64 27 L74 16 L80 32 L80 38 L20 38 Z"/>
+              <circle cx="50" cy="8" r="4" fill="currentColor" stroke="none"/>
+              <circle cx="26" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+              <circle cx="74" cy="14" r="2.6" fill="currentColor" stroke="none"/>
+              <line x1="18" y1="38" x2="82" y2="38"/>
+              <path d="M28 50 L72 108"/>
+              <path d="M22 44 L34 56 M34 56 L22 68"/>
+              <line x1="72" y1="108" x2="80" y2="116"/>
+              <path d="M72 50 L28 108"/>
+              <path d="M64 42 L80 42 L80 50 L72 58 L64 50 Z"/>
+              <line x1="28" y1="108" x2="20" y2="116"/>
+            </g>
+          </svg>
+        </div>
         <span class="flag-es" role="img" aria-label="Bandera de España"></span>
+        <p class="brand-motto">«El honor ha de ser mi principal divisa»</p>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
