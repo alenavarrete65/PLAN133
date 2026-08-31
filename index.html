@@ -380,8 +380,17 @@
   .sim-card{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px;margin-bottom:12px;
   }
-  .sim-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
+  .sim-card-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;gap:10px;}
   .sim-card-head h4{margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;}
+  .sim-name-input{
+    width:100%;background:transparent;border:none;border-bottom:1px solid transparent;
+    font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;
+    padding:2px 0;
+  }
+  .sim-name-input:hover, .sim-name-input:focus{border-bottom-color:var(--amber-dim);outline:none;}
+  .sim-name-input::placeholder{color:var(--amber);opacity:.7;}
+  .sim-note-row{margin-top:14px;}
+  .sim-note-row label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .sim-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
   .sim-field label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .sim-field input[type=number]{
@@ -2510,7 +2519,7 @@ function renderSimulacrosList(){
   addBtn.className = 'btn';
   addBtn.textContent = '+ Añadir simulacro';
   addBtn.onclick = ()=>{
-    list.push({conocimientos:null, ingles:null, psico:null, orto:null, gram:null});
+    list.push({nombre:'', conocimientos:null, ingles:null, psico:null, orto:null, gram:null, nota:''});
     scheduleSave();
     renderSimulacrosList();
   };
@@ -2528,12 +2537,21 @@ function renderSimulacrosList(){
     const card = document.createElement('div'); card.className='sim-card';
 
     const head = document.createElement('div'); head.className='sim-card-head';
-    head.innerHTML = `<h4>Simulacro ${i+1}</h4>`;
+    const titleWrap = document.createElement('div'); titleWrap.style.cssText='flex:1;min-width:0;';
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text'; nameInput.className='sim-name-input';
+    nameInput.placeholder = 'Simulacro '+(i+1);
+    nameInput.value = sim.nombre || '';
+    nameInput.setAttribute('aria-label', 'Nombre del simulacro '+(i+1));
+    nameInput.oninput = ()=>{ sim.nombre = nameInput.value; scheduleSave(); };
+    titleWrap.appendChild(nameInput);
+    head.appendChild(titleWrap);
     const delBtn = document.createElement('button');
     delBtn.className = 'btn danger small';
     delBtn.textContent = 'Eliminar';
     delBtn.onclick = ()=>{
-      if(confirm('¿Eliminar el Simulacro '+(i+1)+'? Los simulacros posteriores se renumerarán.')){
+      const label = sim.nombre ? sim.nombre : ('Simulacro '+(i+1));
+      if(confirm('¿Eliminar "'+label+'"?')){
         list.splice(i,1);
         scheduleSave();
         renderSimulacrosList();
@@ -2589,6 +2607,16 @@ function renderSimulacrosList(){
     fields.appendChild(mkAptoField('Gramática','gram'));
 
     card.appendChild(fields);
+
+    const notaWrap = document.createElement('div'); notaWrap.className='sim-note-row';
+    notaWrap.innerHTML = '<label>Sensaciones / notas</label>';
+    const notaTa = document.createElement('textarea');
+    notaTa.className = 'note-inline'; notaTa.placeholder = 'Cómo te fue, qué repasar, sensaciones del examen…';
+    notaTa.value = sim.nota || '';
+    notaTa.oninput = ()=>{ sim.nota = notaTa.value; scheduleSave(); };
+    notaWrap.appendChild(notaTa);
+    card.appendChild(notaWrap);
+
     host.appendChild(card);
   });
 }
