@@ -517,6 +517,21 @@
   .marca-status-row{display:flex;justify-content:space-between;align-items:center;margin-top:2px;}
   .marca-status-row .marca-actual{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
 
+  /* ---- biblioteca de entrenos sugeridos ---- */
+  .entreno-sugerencia{background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:2px;padding:14px;margin-top:14px;}
+  .entreno-sugerencia .sug-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+  .entreno-sugerencia .sug-titulo{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--amber);font-size:14px;}
+  .entreno-sugerencia .sug-detalle{font-family:var(--font-mono);font-size:11.5px;color:var(--cream-dim);white-space:pre-line;margin-top:8px;line-height:1.5;}
+  .entreno-sugerencia .sug-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+  .entreno-lib-filtros{display:flex;gap:6px;flex-wrap:wrap;margin-top:18px;}
+  .entreno-lib-filtros button{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;
+    background:transparent;border:1px solid var(--line);color:var(--cream-dim);border-radius:12px;padding:5px 12px;cursor:pointer;}
+  .entreno-lib-filtros button.active{background:var(--amber);border-color:var(--amber);color:#1b2b1f;}
+  .entreno-lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px;}
+  .entreno-lib-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:12px;display:flex;flex-direction:column;gap:6px;}
+  .entreno-lib-card .elc-nivel{align-self:flex-start;}
+  .entreno-lib-card .elc-titulo{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--cream);font-size:13px;}
+  .entreno-lib-card .elc-detalle{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);white-space:pre-line;line-height:1.5;flex:1;}
   /* ---- entrenos manual ---- */
   .entreno-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
   .entreno-item{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
@@ -3164,6 +3179,194 @@ function renderMarcas(){
   host.appendChild(grid);
 }
 
+/* ===================== BIBLIOTECA DE ENTRENOS SUGERIDOS ===================== */
+/* Entrenos orientados a cada prueba física de la oposición, en 3 niveles según
+   lo lejos o cerca que estés del mínimo exigido (ver PRUEBAS_FISICAS). */
+const ENTRENOS_LIBRARY = {
+  flexiones: { nombre:'Flexiones', niveles:{
+    inicial:[
+      {titulo:'Base de fuerza (rodillas/negativas)', detalle:'4 x 8-10 flexiones de rodillas o negativas de 4" bajando\nDescanso 90"\nTerminar con 3 x 20" plancha frontal'},
+      {titulo:'Empuje asistido', detalle:'5 x 6-8 flexiones con manos elevadas (banco/escalón)\nDescanso 90"\n2 x 10 fondos de tríceps en silla'}
+    ],
+    medio:[
+      {titulo:'Volumen progresivo', detalle:'5 x 12-14 flexiones estándar\nDescanso 75"\n3 x 15 flexiones diamante (tríceps)\n3 x 20" plancha'},
+      {titulo:'Piramidal', detalle:'Series ascendentes-descendentes: 6-8-10-12-10-8-6 flexiones\nDescanso 60" entre series\n2 x máx fondos de tríceps'}
+    ],
+    avanzado:[
+      {titulo:'Máximo + explosividad', detalle:'Test: 1 serie al fallo (anota el número)\nDescanso 3\'\n4 x 8 flexiones explosivas (con palmada si controlas la técnica)\n3 x 15 diamante'},
+      {titulo:'Densidad (EMOM)', detalle:'EMOM 10\': 8 flexiones estrictas al inicio de cada minuto\nSi fallas, baja a 6 el resto de rondas\nCierra con 3 x 20 fondos'}
+    ]
+  }},
+  circuito: { nombre:'Circuito de agilidad', niveles:{
+    inicial:[
+      {titulo:'Técnica de cambios de dirección', detalle:'6 x recorrido del circuito a ritmo controlado (70% velocidad), foco en la técnica de giro\nDescanso completo 90" entre repeticiones\nEscalera de agilidad 4 x 2 pasadas'},
+      {titulo:'Base de velocidad', detalle:'8 x 20m sprint progresivo (60-80-100%)\nDescanso 60"\n4 x skipping + talón-glúteo 15m'}
+    ],
+    medio:[
+      {titulo:'Repeticiones cronometradas', detalle:'6 x circuito completo a intensidad alta, cronometrando cada intento\nDescanso 2\' entre repeticiones\nAnota tu mejor tiempo en «Marcas»'},
+      {titulo:'Agilidad + reacción', detalle:'5 x circuito con salida a la señal (silbato/palmada)\nDescanso 2\'\n3 x escalera de agilidad a máxima velocidad'}
+    ],
+    avanzado:[
+      {titulo:'Series al límite', detalle:'8 x circuito completo a máxima intensidad, buscando bajar tu marca\nDescanso 2-3\' (recuperación completa)\nRegistra el mejor tiempo en «Marcas»'},
+      {titulo:'Fatiga controlada', detalle:'4 x circuito nada más terminar 20 burpees (simula llegar cansado)\nDescanso 2\'\nObjetivo: que el tiempo no se dispare respecto a tu marca en fresco'}
+    ]
+  }},
+  carrera: { nombre:'Carrera 2.000 m', niveles:{
+    inicial:[
+      {titulo:'Rodaje base', detalle:'20-25\' carrera continua a ritmo cómodo (puedes hablar mientras corres)\n2x por semana para construir base aeróbica'},
+      {titulo:'Series suaves', detalle:'6 x 400m a ritmo moderado\nRecuperación: 2\' trote suave o caminando\nEnfriamiento 10\' trote suave'}
+    ],
+    medio:[
+      {titulo:'Series a ritmo objetivo', detalle:'5 x 500m al ritmo que necesitas para bajar de 9:25 en 2.000m\nRecuperación 90" trote suave\nCalentamiento 10\' + enfriamiento 10\''},
+      {titulo:'Fartlek', detalle:'25\' alternando 2\' fuerte / 2\' suave\nMantén el tramo fuerte cerca de tu ritmo objetivo de carrera'}
+    ],
+    avanzado:[
+      {titulo:'Test de 2.000 m', detalle:'Calentamiento 10\'\n1 x 2.000m a máxima intensidad, cronometrado\nAnota el resultado en «Marcas»\nEnfriamiento 10\''},
+      {titulo:'Series largas a ritmo', detalle:'4 x 800m justo por debajo de tu ritmo objetivo\nRecuperación 2\' trote suave\nÚltima serie: intenta bajar el tiempo de las anteriores'}
+    ]
+  }},
+  natacion: { nombre:'Natación', niveles:{
+    inicial:[
+      {titulo:'Técnica y respiración', detalle:'8 x 25m suave, foco en técnica y respiración\nDescanso 30-40" entre largos\n5\' de flotación/patada con tabla'},
+      {titulo:'Resistencia suave', detalle:'400-600m continuos a ritmo cómodo, parando si hace falta\nEjercicios de patada 4 x 25m con tabla'}
+    ],
+    medio:[
+      {titulo:'Series a ritmo', detalle:'8 x 50m a un ritmo cercano al objetivo, descanso 30"\n200m suave de vuelta a la calma'},
+      {titulo:'Progresivo', detalle:'6 x 50m progresivos (cada uno un poco más rápido que el anterior)\nDescanso 40" entre series'}
+    ],
+    avanzado:[
+      {titulo:'Test cronometrado', detalle:'Calentamiento 200m suave\n1-2 intentos cronometrados de la distancia de la prueba, descanso completo entre intentos\nAnota tu mejor marca'},
+      {titulo:'Series rápidas', detalle:'10 x 25m a máxima velocidad, descanso 45-60" (recuperación casi completa)\n200m suave de vuelta a la calma'}
+    ]
+  }},
+  general: { nombre:'General / combinado', niveles:{
+    inicial:[
+      {titulo:'Circuito full-body suave', detalle:'3 rondas: 10 flexiones (rodillas si hace falta) + 15 sentadillas + 20" plancha + 10\' de carrera suave\nDescanso 90" entre rondas'}
+    ],
+    medio:[
+      {titulo:'Circuito combinado', detalle:'4 rondas: 12 flexiones + 15 burpees + 20 sentadillas + 400m carrera moderada\nDescanso 2\' entre rondas'}
+    ],
+    avanzado:[
+      {titulo:'Circuito tipo oposición', detalle:'Simula el orden de la prueba: circuito de agilidad + flexiones al fallo + 800m a ritmo fuerte\nDescanso completo entre cada bloque\nÚtil como ensayo general antes de un simulacro físico'}
+    ]
+  }}
+};
+let entrenoLibFiltro = 'flexiones';
+let entrenoSugerenciaActual = null;
+
+/* Calcula, para una prueba física, qué tan cerca está la marca registrada del
+   objetivo (0-100+) y si ya es apta, reutilizando la misma lógica que renderMarcas. */
+function evaluarPrueba(p){
+  const raw = state.marcas[p.id] || '';
+  const val = p.parse(raw);
+  const tieneValor = raw!=='' && !isNaN(val);
+  if(!tieneValor) return { tieneValor:false, apto:false, pct:0 };
+  const apto = (p.tipo==='min') ? (val >= p.objetivo) : (val <= p.objetivo);
+  let pct;
+  if(p.tipo==='min'){ pct = Math.max(0, Math.min(100, (val/p.objetivo)*100)); }
+  else { pct = val<=p.objetivo ? 100 : Math.max(0, Math.min(100, (p.objetivo/val)*100)); }
+  return { tieneValor, apto, pct };
+}
+
+/* Decide un nivel de entreno (inicial/medio/avanzado) para una prueba según su marca actual. */
+function nivelParaPrueba(p){
+  const ev = evaluarPrueba(p);
+  if(!ev.tieneValor) return 'inicial';
+  if(ev.apto) return 'avanzado';
+  if(ev.pct >= 70) return 'medio';
+  return 'inicial';
+}
+
+/* Elige qué prueba conviene entrenar hoy: la que esté más lejos de su objetivo
+   (o, si todas están aptas, una aleatoria para mantenimiento). */
+function elegirPruebaFoco(){
+  const evals = PRUEBAS_FISICAS.map(p=>({p, ev:evaluarPrueba(p)}));
+  const noAptas = evals.filter(x=>!x.ev.apto);
+  let elegido;
+  if(noAptas.length){
+    elegido = noAptas.reduce((peor, actual)=> (actual.ev.tieneValor?actual.ev.pct:0) < (peor.ev.tieneValor?peor.ev.pct:0) ? actual : peor);
+  } else {
+    elegido = evals[Math.floor(Math.random()*evals.length)];
+  }
+  return elegido.p;
+}
+
+function generarSugerenciaEntreno(){
+  const prueba = elegirPruebaFoco();
+  const nivel = nivelParaPrueba(prueba);
+  const opciones = ENTRENOS_LIBRARY[prueba.id].niveles[nivel];
+  const entreno = opciones[Math.floor(Math.random()*opciones.length)];
+  entrenoSugerenciaActual = { pruebaId:prueba.id, pruebaNombre:ENTRENOS_LIBRARY[prueba.id].nombre, nivel, entreno };
+  return entrenoSugerenciaActual;
+}
+
+function nivelLabel(nivel){
+  return nivel==='inicial' ? 'Nivel inicial' : nivel==='medio' ? 'Nivel medio' : 'Nivel avanzado';
+}
+function nivelPillClass(nivel){
+  return nivel==='inicial' ? 'bad' : nivel==='medio' ? 'mid' : 'good';
+}
+
+function anadirEntrenoALog(titulo, detalle){
+  state.entrenosLog.unshift({id:Date.now(), date:todayISO(), tipo:titulo, notas:detalle});
+  scheduleSave();
+  renderEntrenos();
+}
+
+function renderSugerenciaEntreno(container){
+  const box = document.createElement('div'); box.className = 'entreno-sugerencia';
+  if(!entrenoSugerenciaActual) generarSugerenciaEntreno();
+  const s = entrenoSugerenciaActual;
+  box.innerHTML = `
+    <div class="sug-head">
+      <div>
+        <span class="nota-pill ${nivelPillClass(s.nivel)}">${nivelLabel(s.nivel)}</span>
+        <span class="sug-titulo">${s.pruebaNombre}: ${s.entreno.titulo}</span>
+      </div>
+    </div>
+    <div class="sug-detalle">${s.entreno.detalle}</div>
+    <div class="sug-actions">
+      <button class="btn small" id="sugAnadirBtn">+ Añadir a mi registro</button>
+      <button class="btn small ghost" id="sugOtraBtn">Sugerir otro</button>
+    </div>
+  `;
+  box.querySelector('#sugAnadirBtn').onclick = ()=> anadirEntrenoALog(s.pruebaNombre+': '+s.entreno.titulo, s.entreno.detalle);
+  box.querySelector('#sugOtraBtn').onclick = ()=>{ generarSugerenciaEntreno(); renderEntrenos(); };
+  container.appendChild(box);
+}
+
+function renderBibliotecaEntrenos(container){
+  const wrap = document.createElement('div');
+  const filtros = document.createElement('div'); filtros.className = 'entreno-lib-filtros';
+  Object.keys(ENTRENOS_LIBRARY).forEach(key=>{
+    const b = document.createElement('button');
+    b.textContent = ENTRENOS_LIBRARY[key].nombre;
+    if(key===entrenoLibFiltro) b.classList.add('active');
+    b.onclick = ()=>{ entrenoLibFiltro = key; renderEntrenos(); };
+    filtros.appendChild(b);
+  });
+  wrap.appendChild(filtros);
+
+  const grid = document.createElement('div'); grid.className = 'entreno-lib-grid';
+  const lib = ENTRENOS_LIBRARY[entrenoLibFiltro];
+  ['inicial','medio','avanzado'].forEach(nivel=>{
+    lib.niveles[nivel].forEach(entreno=>{
+      const card = document.createElement('div'); card.className = 'entreno-lib-card';
+      card.innerHTML = `
+        <span class="nota-pill elc-nivel ${nivelPillClass(nivel)}">${nivelLabel(nivel)}</span>
+        <div class="elc-titulo">${entreno.titulo}</div>
+        <div class="elc-detalle">${entreno.detalle}</div>
+      `;
+      const addBtn = document.createElement('button'); addBtn.className='btn small ghost'; addBtn.textContent='+ Usar este entreno';
+      addBtn.onclick = ()=> anadirEntrenoALog(lib.nombre+': '+entreno.titulo, entreno.detalle);
+      card.appendChild(addBtn);
+      grid.appendChild(card);
+    });
+  });
+  wrap.appendChild(grid);
+  container.appendChild(wrap);
+}
+
 /* ===================== RENDER: ENTRENOS (registro manual) ===================== */
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
 function renderEntrenos(){
@@ -3181,6 +3384,18 @@ function renderEntrenos(){
   };
   topBar.appendChild(addBtn);
   host.appendChild(topBar);
+
+  const libTitle = document.createElement('h3');
+  libTitle.style.cssText = "margin:20px 0 0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;";
+  libTitle.textContent = '¿No sabes qué entreno hacer hoy?';
+  host.appendChild(libTitle);
+  renderSugerenciaEntreno(host);
+  renderBibliotecaEntrenos(host);
+
+  const logTitle = document.createElement('h3');
+  logTitle.style.cssText = "margin:22px 0 0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;";
+  logTitle.textContent = 'Tu registro';
+  host.appendChild(logTitle);
 
   if(!state.entrenosLog.length){
     const empty = document.createElement('div'); empty.className='empty-state'; empty.style.marginTop='14px';
