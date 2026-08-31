@@ -2984,7 +2984,7 @@ function renderCiclo(){
 
   /* ---------- BLOQUES ---------- */
   appendAccordionSection(host, 'bloques', cicloOpen, 'Vuelta completa por bloque', (body)=>{
-    body.appendChild(cicloIntro('Una "vuelta completa" a un bloque significa que ya se han visto los dos colores, azul y morado, de ese bloque. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos): cada "Vuelta N → Vuelta N+1" es el tiempo desde que se completó una vuelta (viendo el segundo color que le faltaba) hasta que se completa la siguiente. Debajo se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
+    body.appendChild(cicloIntro('Una "vuelta completa" no es ver los dos colores de este bloque en concreto, sino dar la vuelta a toda su familia de bloques (graves 1-5 o menos graves 6-12): empezando en este bloque en azul, pasando por el resto de la familia en azul, luego toda la familia en morado, hasta volver a tocar este mismo bloque otra vez en azul. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos): cada "Vuelta N → Vuelta N+1" es el tiempo desde que este bloque se tocó en azul hasta que se vuelve a tocar en azul (equivale a lo que muestra el desglose "Azul" de abajo). Debajo se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
     const blockAppearances = {};
     for(let b=1;b<=12;b++) blockAppearances[b]=[];
@@ -2997,27 +2997,25 @@ function renderCiclo(){
         arr.push({dateMs, color:e.color});
       }
     });
-    // Agrupa las apariciones (azul, morado, azul, morado…) en VUELTAS COMPLETAS: una vuelta
-    // termina en cuanto se han visto los dos colores del bloque. En modo repaso final, cada
-    // aparición "unificada" ya incluye los dos colores en un solo día, así que cada una es
-    // una vuelta completa por sí misma.
+    // Una VUELTA COMPLETA no es "ver los dos colores de este bloque": es dar la vuelta a
+    // toda la familia de bloques (graves 1-5 o menos graves 6-12) — empezando en este bloque
+    // en azul, pasando por el resto de la familia en azul, luego toda la familia en morado,
+    // hasta volver a tocar ESTE MISMO bloque otra vez en azul. Eso equivale exactamente a
+    // medir de "azul" a "siguiente azul" de este bloque (el mismo cálculo que ya hace el
+    // desglose "Azul" de más abajo), así que anclamos ahí en vez de marcar la vuelta como
+    // completa en cuanto aparecen los dos colores de este bloque en concreto (lo cual puede
+    // ocurrir mucho antes de que la familia entera haya dado la vuelta). En modo repaso
+    // final, cada aparición "unificada" ya cubre azul+morado en un solo día, así que cada
+    // una es una vuelta completa por sí misma.
     function buildFullCycles(arr){
-      const cycles = [];
-      let seenAzul = false, seenMorado = false;
-      arr.forEach(({dateMs, color})=>{
-        if(color === 'unificado'){
-          cycles.push({completeMs:dateMs});
-          seenAzul = false; seenMorado = false;
-          return;
-        }
-        if(color === 'azul') seenAzul = true;
-        if(color === 'morado') seenMorado = true;
-        if(seenAzul && seenMorado){
-          cycles.push({completeMs:dateMs});
-          seenAzul = false; seenMorado = false;
-        }
-      });
-      return cycles;
+      const unificados = arr.filter(a=>a.color==='unificado');
+      if(unificados.length){
+        return unificados.map(a=>({completeMs:a.dateMs}));
+      }
+      // Anclamos en azul (el color con el que arranca cada bloque); si un bloque no
+      // tuviera azul, usamos el único color que tenga.
+      const anchorColor = arr.some(a=>a.color==='azul') ? 'azul' : 'morado';
+      return arr.filter(a=>a.color===anchorColor).map(a=>({completeMs:a.dateMs}));
     }
 
     const blockGrid = document.createElement('div');
@@ -3028,7 +3026,7 @@ function renderCiclo(){
       const cycles = buildFullCycles(arr);
       let bodyHtml;
       if(cycles.length < 2){
-        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 vueltas completas —azul y morado vistos— de este bloque en tu calendario guardado).</div>';
+        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 vueltas completas de este bloque en tu calendario guardado, es decir, 2 veces que este bloque se toque en azul).</div>';
       } else {
         const gaps = [];
         for(let i=1;i<cycles.length;i++){
