@@ -107,7 +107,7 @@
   }
 
   .home-dash{
-    display:grid;grid-template-columns:1fr 1fr 2fr;gap:12px;margin-bottom:18px;
+    display:grid;grid-template-columns:1fr 1fr 1.6fr 1.2fr;gap:12px;margin-bottom:18px;
   }
   .home-card{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:8px;
@@ -132,7 +132,7 @@
   }
   @media (max-width:820px){
     .home-dash{grid-template-columns:1fr 1fr;}
-    .home-card:nth-child(3){grid-column:1 / -1;}
+    .home-card-wide{grid-column:1 / -1;}
   }
   @media (max-width:480px){
     .home-dash{grid-template-columns:1fr;}
@@ -517,6 +517,22 @@
   .marca-status-row{display:flex;justify-content:space-between;align-items:center;margin-top:2px;}
   .marca-status-row .marca-actual{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
 
+  /* ---- desplegable genérico (biblioteca de entrenos, historial de marcas...) ---- */
+  .collapse-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;margin-top:14px;overflow:hidden;}
+  .collapse-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:10px;}
+  .collapse-head:hover{background:var(--bg-panel-2);}
+  .collapse-head h3{margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;}
+  .collapse-head .collapse-sub{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .collapse-body{display:none;padding:0 14px 14px;}
+  .collapse-body.open{display:block;}
+  /* ---- historial de marcas ---- */
+  .marca-hist-toggle{background:transparent;border:none;color:var(--amber);font-family:var(--font-mono);font-size:10.5px;
+    text-transform:uppercase;letter-spacing:.02em;cursor:pointer;padding:4px 0;text-align:left;}
+  .marca-hist-toggle:hover{text-decoration:underline;}
+  .marca-hist-list{display:none;flex-direction:column;gap:4px;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;}
+  .marca-hist-list.open{display:flex;}
+  .marca-hist-row{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
+  .marca-hist-row .mh-date{color:var(--muted);}
   /* ---- biblioteca de entrenos sugeridos ---- */
   .entreno-sugerencia{background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:2px;padding:14px;margin-top:14px;}
   .entreno-sugerencia .sug-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
@@ -1014,7 +1030,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -1038,6 +1054,7 @@ function normalizeState(){
   }
   if(!state.entrenosLog) state.entrenosLog = [];
   if(!state.marcas) state.marcas = {};
+  if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
   if(!state.clases) state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
@@ -1738,6 +1755,7 @@ function renderHomeDash(){
   const racha = computeRacha(plan);
 
   let resumenHtml;
+  let entrenoHoy = false;
   if(todayInfo && todayInfo.status === 'ESTUDIO'){
     const temasTxt = todayInfo.temasDelDia.map(t=> t.clase ? t.clase : t.nombre).join(', ');
     const parts = [
@@ -1745,19 +1763,25 @@ function renderHomeDash(){
       'Leve '+todayInfo.leveNum+': '+todayInfo.leveInfo.nombre,
       'Inglés tema '+todayInfo.inglesNum
     ];
-    if(todayInfo.entreno) parts.push('Entreno físico');
+    if(todayInfo.entreno){ parts.push('Entreno físico'); entrenoHoy = true; }
     if(todayInfo.psico) parts.push('Psicotécnico: '+todayInfo.psico);
     parts.push('Orto-grama');
     const comp = dayCompletionInfo(todayInfo);
     const doneTxt = comp ? (comp.pending===0 ? 'Día completo ✓' : comp.pending+' tarea'+(comp.pending>1?'s':'')+' pendiente'+(comp.pending>1?'s':'')) : '';
     resumenHtml = '<ul class="home-today-list">'+parts.map(p=>'<li>'+p.replace(/</g,'&lt;')+'</li>').join('')+'</ul>'+
-      (doneTxt ? '<div class="home-today-status">'+doneTxt+'</div>' : '');
+      (doneTxt ? '<div class="home-today-status">'+doneTxt+'</div>' : '')+
+      (entrenoHoy ? '<button class="btn small ghost" id="homeEntrenoBtn" style="margin-top:8px;">Ver entreno sugerido →</button>' : '');
   } else if(todayInfo){
     const lbl = todayInfo.status==='DESCANSO' ? 'Descanso' : todayInfo.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
     resumenHtml = '<div class="home-today-status">Hoy: '+lbl+'</div>';
   } else {
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
   }
+
+  const objetivo = objetivoMasCercano();
+  const objetivoHtml = objetivo
+    ? '<div class="home-card-value" style="font-size:18px;">'+objetivo.nombre+'</div><div class="home-card-sub">Te faltan '+objetivo.diffTxt+' para el apto</div>'
+    : '<div class="home-card-sub">'+ (Object.keys(state.marcas||{}).length ? 'Ya cumples todas las marcas registradas 💪' : 'Registra tus marcas físicas para verlo aquí') +'</div>';
 
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
@@ -1766,7 +1790,16 @@ function renderHomeDash(){
     '<div class="home-card"><div class="home-card-label">Racha de estudio</div>'+
       '<div class="home-card-value">'+racha+'</div>'+
       '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div></div>'+
-    '<div class="home-card"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>';
+    '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
+    '<div class="home-card"><div class="home-card-label">Objetivo físico más cercano</div>'+objetivoHtml+'</div>';
+
+  const entrenoBtn = document.getElementById('homeEntrenoBtn');
+  if(entrenoBtn) entrenoBtn.onclick = ()=>{
+    const tabBtn = document.querySelector('.tab-btn[data-tab="entrenos"]');
+    if(tabBtn) tabBtn.click();
+    entrenoAyudaOpen = true;
+    renderEntrenos();
+  };
 }
 /* Indicador visual: ✓ verde si el día está 100% completo, o un número en rojo
    con la cantidad de tareas pendientes, para verlo de un vistazo sin abrir el día. */
@@ -3106,6 +3139,56 @@ const PRUEBAS_FISICAS = [
     minText:'Máximo exigido: 70 segundos', placeholder:'Ej. 65',
     parse:v=>parseFloat(String(v).replace(',','.')), formatActual:v=>v+' s' },
 ];
+/* Guarda (o actualiza si ya hay una entrada de hoy) un punto en el historial de una prueba física. */
+function registrarMarcaHistorial(pruebaId, raw){
+  if(raw==='') return;
+  if(!state.marcasHistory) state.marcasHistory = {};
+  if(!state.marcasHistory[pruebaId]) state.marcasHistory[pruebaId] = [];
+  const hist = state.marcasHistory[pruebaId];
+  const today = todayISO();
+  const todayEntry = hist.find(h=>h.date===today);
+  if(todayEntry) todayEntry.valor = raw;
+  else hist.push({date:today, valor:raw});
+  scheduleSave();
+}
+function fechaCorta(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-');
+  return d+'/'+m+'/'+y.slice(2);
+}
+/* Flecha de tendencia entre dos marcas consecutivas, teniendo en cuenta si en esta
+   prueba "mejor" es un número más alto (tipo min, ej. flexiones) o más bajo (tipo max, ej. tiempos). */
+function marcaDeltaHtml(p, prevRaw, curRaw){
+  const prevVal = p.parse(prevRaw), curVal = p.parse(curRaw);
+  if(isNaN(prevVal) || isNaN(curVal)) return '';
+  const diff = curVal - prevVal;
+  if(diff===0) return '<span style="color:var(--muted);">=</span>';
+  const mejora = p.tipo==='min' ? diff>0 : diff<0;
+  const color = mejora ? 'var(--green)' : 'var(--red-text)';
+  const flecha = diff>0 ? '▲' : '▼';
+  return '<span style="color:'+color+';">'+flecha+'</span>';
+}
+function renderMarcaHistorial(card, p){
+  const hist = (state.marcasHistory && state.marcasHistory[p.id]) || [];
+  if(hist.length < 1) return;
+  const sorted = [...hist].sort((a,b)=> a.date.localeCompare(b.date));
+  const toggle = document.createElement('button'); toggle.className='marca-hist-toggle';
+  toggle.textContent = 'Ver historial ('+sorted.length+') ▾';
+  const list = document.createElement('div'); list.className='marca-hist-list';
+  const rows = [...sorted].reverse().map((entry,i)=>{
+    const idxAsc = sorted.length-1-i;
+    const prev = idxAsc>0 ? sorted[idxAsc-1].valor : null;
+    const delta = prev!=null ? marcaDeltaHtml(p, prev, entry.valor) : '';
+    return '<div class="marca-hist-row"><span class="mh-date">'+fechaCorta(entry.date)+'</span><span>'+p.formatActual(entry.valor)+' '+delta+'</span></div>';
+  }).join('');
+  list.innerHTML = rows;
+  toggle.onclick = ()=>{
+    const open = list.classList.toggle('open');
+    toggle.textContent = 'Ver historial ('+sorted.length+') '+(open?'▴':'▾');
+  };
+  card.appendChild(toggle);
+  card.appendChild(list);
+}
 function renderMarcas(){
   const host = document.getElementById('marcasHost');
   if(!host) return;
@@ -3174,6 +3257,11 @@ function renderMarcas(){
         existingPill.remove();
       }
     };
+    input.onchange = ()=>{
+      registrarMarcaHistorial(p.id, input.value);
+      renderMarcas();
+    };
+    renderMarcaHistorial(card, p);
     grid.appendChild(card);
   });
   host.appendChild(grid);
@@ -3253,6 +3341,7 @@ const ENTRENOS_LIBRARY = {
 };
 let entrenoLibFiltro = 'flexiones';
 let entrenoSugerenciaActual = null;
+let entrenoAyudaOpen = false;
 
 /* Calcula, para una prueba física, qué tan cerca está la marca registrada del
    objetivo (0-100+) y si ya es apta, reutilizando la misma lógica que renderMarcas. */
@@ -3266,6 +3355,29 @@ function evaluarPrueba(p){
   if(p.tipo==='min'){ pct = Math.max(0, Math.min(100, (val/p.objetivo)*100)); }
   else { pct = val<=p.objetivo ? 100 : Math.max(0, Math.min(100, (p.objetivo/val)*100)); }
   return { tieneValor, apto, pct };
+}
+
+/* Para el resumen del día: de las pruebas registradas y aún no aptas, la que está
+   más cerca de cumplir el mínimo, junto con cuánto le falta exactamente. */
+function objetivoMasCercano(){
+  const candidatos = PRUEBAS_FISICAS
+    .map(p=>({p, ev:evaluarPrueba(p)}))
+    .filter(x=>x.ev.tieneValor && !x.ev.apto);
+  if(!candidatos.length) return null;
+  candidatos.sort((a,b)=> b.ev.pct - a.ev.pct);
+  const {p} = candidatos[0];
+  const val = p.parse(state.marcas[p.id]);
+  const diff = p.tipo==='min' ? (p.objetivo - val) : (val - p.objetivo);
+  let diffTxt;
+  if(p.id==='carrera'){
+    const mm = Math.floor(diff/60), ss = Math.round(diff%60);
+    diffTxt = (mm>0 ? mm+'m ' : '')+ss+'s';
+  } else if(p.unidad==='seg'){
+    diffTxt = (Math.round(diff*100)/100)+'s';
+  } else {
+    diffTxt = Math.ceil(diff)+' '+p.unidad;
+  }
+  return { nombre:p.nombre, diffTxt };
 }
 
 /* Decide un nivel de entreno (inicial/medio/avanzado) para una prueba según su marca actual. */
@@ -3385,12 +3497,20 @@ function renderEntrenos(){
   topBar.appendChild(addBtn);
   host.appendChild(topBar);
 
-  const libTitle = document.createElement('h3');
-  libTitle.style.cssText = "margin:20px 0 0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;";
-  libTitle.textContent = '¿No sabes qué entreno hacer hoy?';
-  host.appendChild(libTitle);
-  renderSugerenciaEntreno(host);
-  renderBibliotecaEntrenos(host);
+  let entrenoAyudaOpenLocal = entrenoAyudaOpen;
+  const helpCard = document.createElement('div'); helpCard.className = 'collapse-card';
+  const helpHead = document.createElement('div'); helpHead.className = 'collapse-head';
+  helpHead.innerHTML = '<div><h3>¿No sabes qué entreno hacer hoy?</h3><div class="collapse-sub">Sugerencia automática + biblioteca por prueba</div></div><div class="chev">'+(entrenoAyudaOpenLocal?'▴':'▾')+'</div>';
+  const helpBody = document.createElement('div'); helpBody.className = 'collapse-body'+(entrenoAyudaOpenLocal?' open':'');
+  renderSugerenciaEntreno(helpBody);
+  renderBibliotecaEntrenos(helpBody);
+  helpHead.onclick = ()=>{
+    entrenoAyudaOpen = !entrenoAyudaOpen;
+    helpBody.classList.toggle('open', entrenoAyudaOpen);
+    helpHead.querySelector('.chev').textContent = entrenoAyudaOpen ? '▴' : '▾';
+  };
+  helpCard.appendChild(helpHead); helpCard.appendChild(helpBody);
+  host.appendChild(helpCard);
 
   const logTitle = document.createElement('h3');
   logTitle.style.cssText = "margin:22px 0 0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;";
@@ -3725,7 +3845,7 @@ document.getElementById('resetBtn').onclick = ()=>{
     // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
     // no debería dejar el planning sin protección.
     const keepPin = state.settings ? state.settings.pinHash : null;
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
     currentMonthKey = null;
     invalidatePlan();
     scheduleSave();
