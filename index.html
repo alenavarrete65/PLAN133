@@ -215,6 +215,8 @@
   .grupo-tag.g-psico{background:#8b6fae;color:#fff;}
   .tag-orto{background:var(--muted);color:#fff;}
   .tag-entreno{background:#c0672f;color:#fff;}
+  .tag-nota{background:transparent;border:1px solid var(--line);color:var(--cream-dim);}
+  .task-row.day-note-preview .task-txt{color:var(--cream-dim);font-style:italic;}
   .colorpill{
     font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;
     padding:1px 5px;border-radius:8px;margin-left:6px;text-transform:uppercase;
@@ -857,6 +859,8 @@ let saveTimer = null;
 function pad2(n){ return String(n).padStart(2,'0'); }
 function monthKey(y,m){ return y+'-'+pad2(m); } // m: 1-12
 function dayKey(mKey,d){ return mKey+'-'+pad2(d); } // clave única por día, p.ej. "2026-09-01"
+function dayNoteKey(mKey,d){ return 'daynota-'+mKey+'-'+pad2(d); }
+function simNoteKey(mKey,d){ return 'simnota-'+mKey+'-'+pad2(d); }
 function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
 function sortedMonthKeys(){ return Object.keys(state.months).sort(); }
 
@@ -1501,6 +1505,14 @@ function buildTasksBlock(d, info){
   if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
   if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
   tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
+  const noteTxt = state.notes[dayNoteKey(currentMonthKey, d)];
+  if(noteTxt){
+    const noteRow = document.createElement('div');
+    noteRow.className = 'task-row day-note-preview';
+    const preview = noteTxt.length>34 ? noteTxt.slice(0,34)+'…' : noteTxt;
+    noteRow.innerHTML = '<span class="tag tag-nota">NOTA</span><span class="task-txt">'+preview.replace(/</g,'&lt;')+'</span>';
+    tasks.appendChild(noteRow);
+  }
   return tasks;
 }
 /* Calcula cuántas tareas del día están pendientes (tick = NO completado).
@@ -1535,8 +1547,8 @@ function dayCompletionBadge(info){
 /* Firma corta y barata de calcular que identifica el contenido visible de un día.
    Se usa para saber si hace falta reconstruir su nodo DOM o si podemos dejarlo tal
    cual estaba (evita repintar los ~28-31 días del mes por cada tick que se marca). */
-function dayRenderSig(info, dayStatusRaw, isToday){
-  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0);
+function dayRenderSig(info, dayStatusRaw, isToday, noteTxt){
+  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20);
 }
 function buildCalGridCell(y, m, d, info, daysData, isToday){
   const cell = document.createElement('div');
@@ -1630,7 +1642,7 @@ function renderCalendarGrid(){
   for(let d=1; d<=nDays; d++){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const isToday = isCurrentMonth && d===now.getDate();
-    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday);
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)]);
     if(reuse && _calGridCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
     const cell = buildCalGridCell(y, m, d, info, daysData, isToday);
     const prevEl = _calGridCache.cellEls[d];
@@ -1725,7 +1737,7 @@ function renderCalendarList(){
   for(let d=1; d<=nDays; d++){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const isToday = isCurrentMonth && d===now.getDate();
-    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday);
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)]);
     if(reuse && _calListCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
     const item = buildCalListItem(y, m, d, info, daysData, isToday);
     const prevEl = _calListCache.itemEls[d];
@@ -1789,6 +1801,14 @@ function openDayModal(d, info){
   if(info.entreno) addModalRow(body, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
   if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico});
   addModalRow(body, 'tag-orto', 'ORTO-GRAMA', 'Ortografía y gramática diaria', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
+
+  const notaRow = document.createElement('div'); notaRow.className='modal-row'; notaRow.style.flexDirection='column'; notaRow.style.alignItems='stretch';
+  notaRow.innerHTML = '<label for="dayNotaTa" style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;display:block;">Notas del día</label>';
+  const notaTa = buildNoteBox(dayNoteKey(currentMonthKey, d), 'Apuntes, dudas, pendientes de este día…');
+  notaTa.id = 'dayNotaTa';
+  notaTa.onblur = ()=> renderCalendar();
+  notaRow.appendChild(notaTa);
+  body.appendChild(notaRow);
 
   document.getElementById('dayModal').classList.add('open');
 }
@@ -2657,6 +2677,11 @@ function renderSimCalendar(){
     } else {
       pills.innerHTML = '<span class="cclase-empty">Sin simulacro</span>';
     }
+    const simNoteTxt = state.notes[simNoteKey(currentMonthKey, d)];
+    if(simNoteTxt){
+      const preview = simNoteTxt.length>28 ? simNoteTxt.slice(0,28)+'…' : simNoteTxt;
+      pills.innerHTML += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>';
+    }
     cell.appendChild(pills);
 
     cell.onclick = ()=> openSimDayModal(d, jsDow);
@@ -2687,6 +2712,14 @@ function openSimDayModal(d, jsDow){
   };
   row.appendChild(sel);
   body.appendChild(row);
+
+  const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
+  notaRow.innerHTML = '<label for="simNotaTa">Notas del día</label>';
+  const notaTa = buildNoteBox(simNoteKey(currentMonthKey, d), 'Sensaciones, aciertos, fallos a repasar…');
+  notaTa.id = 'simNotaTa';
+  notaTa.onblur = ()=> renderSimCalendar();
+  notaRow.appendChild(notaTa);
+  body.appendChild(notaRow);
 
   document.getElementById('simDayModal').classList.add('open');
 }
