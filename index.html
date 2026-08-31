@@ -362,7 +362,10 @@
   .cclase-pill.p-psi{background:#8b6fae;}
   .cclase-pill.p-orto{background:var(--muted);}
   .cclase-pill.p-gram{background:var(--green);color:#12241a;}
+  .cclase-pill.p-nota{background:transparent;color:var(--cream-dim);border:1px solid var(--line);}
   .cclase-empty{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;}
+  .clase-note-row{margin-top:4px;}
+  .clase-note-row label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .clase-select-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
   .clase-select-row label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
   .clase-select-row select{
@@ -2335,7 +2338,8 @@ function renderClasesCalMonthBar(){
 }
 function ensureClaseCalDay(monthKey, day){
   if(!state.claseCal[monthKey]) state.claseCal[monthKey] = {};
-  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:null, ingles:null, psico:null, orto:false, gram:false};
+  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:null, ingles:null, psico:null, orto:false, gram:false, nota:''};
+  if(state.claseCal[monthKey][day].nota === undefined) state.claseCal[monthKey][day].nota = '';
   return state.claseCal[monthKey][day];
 }
 function renderClaseCalendar(){
@@ -2391,6 +2395,10 @@ function renderClaseCalendar(){
     if(entry.psico!=null){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+PSICO_ITEMS[entry.psico]+'</span>'; any=true; }
     if(entry.orto){ pills.innerHTML += '<span class="cclase-pill p-orto">ORTOGRAFÍA</span>'; any=true; }
     if(entry.gram){ pills.innerHTML += '<span class="cclase-pill p-gram">GRAMÁTICA</span>'; any=true; }
+    if(entry.nota){
+      const preview = entry.nota.length>28 ? entry.nota.slice(0,28)+'…' : entry.nota;
+      pills.innerHTML += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>'; any=true;
+    }
     if(!any){ pills.innerHTML = '<span class="cclase-empty">Sin clase</span>'; }
     cell.appendChild(pills);
 
@@ -2451,6 +2459,17 @@ function openClaseDayModal(d, jsDow){
   gramCb.onchange = ()=>{ entry.gram = gramCb.checked; scheduleSave(); renderClaseCalendar(); };
   gramLbl.appendChild(gramCb); gramLbl.appendChild(document.createTextNode('Clase de gramática'));
   body.appendChild(gramLbl);
+
+  const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
+  notaRow.innerHTML = '<label for="claseNotaTa">Notas del día</label>';
+  const notaTa = document.createElement('textarea');
+  notaTa.id = 'claseNotaTa'; notaTa.className='note-inline';
+  notaTa.placeholder = 'Apuntes de la clase, dudas, deberes…';
+  notaTa.value = entry.nota || '';
+  notaTa.oninput = ()=>{ entry.nota = notaTa.value; scheduleSave(); };
+  notaTa.onblur = ()=> renderClaseCalendar();
+  notaRow.appendChild(notaTa);
+  body.appendChild(notaRow);
 
   document.getElementById('claseDayModal').classList.add('open');
 }
