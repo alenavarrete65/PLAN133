@@ -497,6 +497,7 @@
     border-bottom:1px solid var(--line);padding-bottom:6px;font-size:17px;letter-spacing:.03em;margin-bottom:12px;}
   .chart-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:16px;margin-bottom:18px;}
   .chart-card canvas{max-width:100%;}
+  .nota-sparkline{display:block;}
   .nota-table{width:100%;border-collapse:collapse;font-size:12px;}
   .nota-table th{text-align:left;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);
     border-bottom:1px solid var(--line);padding:6px 8px;}
@@ -3107,6 +3108,49 @@ function notaPillClass(n, max){
   max = max || 10;
   return n >= max*0.7 ? 'good' : (n >= max*0.5 ? 'mid' : 'bad');
 }
+/* Dibuja un mini-gráfico de líneas (sparkline) con la evolución de las notas de un tema a
+   través de sus vueltas. Se usa en la pestaña «Progreso» en vez del texto ▲/▼ de antes. */
+function drawSparkline(canvas, notas, max, color){
+  const cssW = canvas.width, cssH = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width = cssW+'px';
+  canvas.style.height = cssH+'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const padX = 5, padY = 4;
+  const w = cssW - padX*2, h = cssH - padY*2;
+  const n = notas.length;
+  const xAt = i => n>1 ? padX + (w*i/(n-1)) : padX + w/2;
+  const yAt = v => padY + h*(1 - Math.max(0, Math.min(1, v/max)));
+
+  // Línea de referencia en el 70% (umbral que la propia app usa como nota "buena").
+  ctx.strokeStyle = 'rgba(236,228,211,0.14)';
+  ctx.lineWidth = 1;
+  const goodY = yAt(max*0.7);
+  ctx.beginPath(); ctx.moveTo(padX, goodY); ctx.lineTo(padX+w, goodY); ctx.stroke();
+
+  // Línea de la evolución.
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.6;
+  ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.beginPath();
+  notas.forEach((v,i)=>{ const x=xAt(i), y=yAt(v); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+  ctx.stroke();
+
+  // Puntos: el último resaltado en el color del grupo, el resto en tono neutro.
+  notas.forEach((v,i)=>{
+    const x = xAt(i), y = yAt(v);
+    const isLast = i === n-1;
+    ctx.beginPath();
+    ctx.fillStyle = isLast ? color : 'rgba(236,228,211,0.55)';
+    ctx.arc(x, y, isLast ? 2.6 : 1.7, 0, Math.PI*2);
+    ctx.fill();
+  });
+}
 function renderProgreso(){
   const host = document.getElementById('progresoHost');
   if(!host) return;
@@ -3122,7 +3166,7 @@ function renderProgreso(){
   const s4 = document.createElement('div');
   appendAccordionSection(s4, 'detalleTema', progresoOpen, 'Detalle por tema', (body)=>{
     const table = document.createElement('table'); table.className='nota-table';
-    table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th><th>Tendencia</th></tr></thead>';
+    table.innerHTML = '<thead><tr><th>Grupo</th><th>Tema</th><th>Notas (por vuelta)</th><th>Media</th><th>Evolución</th></tr></thead>';
     const tbody = document.createElement('tbody');
     const grupoTagClass = {
       'Bloques':'g-bloques',
@@ -3134,6 +3178,15 @@ function renderProgreso(){
       'Bloques':'var(--amber)',
       'Leves':'var(--green)',
       'Inglés':'var(--blue)',
+      'Psicotécnicos':'#8b6fae'
+    };
+    // Mismos colores que arriba pero en hex literal: el contexto 2D del <canvas> no resuelve
+    // variables CSS (var(--amber)) como sí hace el resto de la app, así que para dibujar el
+    // sparkline necesitamos el valor final.
+    const GRUPO_HEX_COLOR = {
+      'Bloques':'#d99a3c',
+      'Leves':'#6f9a6a',
+      'Inglés':'#5c8a99',
       'Psicotécnicos':'#8b6fae'
     };
     grupos.forEach(grupo=>{
@@ -3155,25 +3208,44 @@ function renderProgreso(){
           return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
         }).join(' ');
 
-        // Tendencia general: última nota frente a la anterior.
-        let tendencia = '<span style="color:var(--muted);">—</span>';
+        // Tendencia general: última nota frente a la anterior (se usa como texto accesible
+        // del gráfico, para quien use lector de pantalla o quiera el dato exacto).
+        let tendenciaTxt = 'Sin datos suficientes para ver tendencia';
         if(notas.length>1){
           const diff = Math.round((notas[notas.length-1]-notas[notas.length-2])*10)/10;
-          if(diff>0) tendencia = '<span style="color:var(--green);">▲ Mejorando (+'+diff+')</span>';
-          else if(diff<0) tendencia = '<span style="color:var(--red-text);">▼ Empeorando ('+diff+')</span>';
-          else tendencia = '<span style="color:var(--cream-dim);">▬ Igual</span>';
+          if(diff>0) tendenciaTxt = 'Mejorando, +'+diff+' respecto a la vuelta anterior';
+          else if(diff<0) tendenciaTxt = 'Empeorando, '+diff+' respecto a la vuelta anterior';
+          else tendenciaTxt = 'Igual que la vuelta anterior';
         }
 
         const tr = document.createElement('tr');
         tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
           `<td>${notasHtml}</td>`+
           `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
-          `<td style="font-family:var(--font-mono);font-size:11px;white-space:nowrap;">${tendencia}</td>`;
+          `<td></td>`;
+        const sparkTd = tr.lastElementChild;
+        sparkTd.title = tendenciaTxt;
+        if(notas.length>1){
+          const canvas = document.createElement('canvas');
+          canvas.className = 'nota-sparkline';
+          canvas.width = 90; canvas.height = 28;
+          canvas.setAttribute('aria-label', tendenciaTxt);
+          canvas.setAttribute('role', 'img');
+          sparkTd.appendChild(canvas);
+          drawSparkline(canvas, notas, max, GRUPO_HEX_COLOR[grupo] || '#d99a3c');
+        } else {
+          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— hace falta otra vuelta —</span>';
+        }
         tbody.appendChild(tr);
       });
     });
     table.appendChild(tbody);
-    body.appendChild(table);
+    // Con la columna del gráfico, la tabla puede quedarse justa en pantallas muy estrechas;
+    // este envoltorio permite hacer scroll horizontal ahí en vez de que se rompa el diseño.
+    const tableWrap = document.createElement('div');
+    tableWrap.style.overflowX = 'auto';
+    tableWrap.appendChild(table);
+    body.appendChild(tableWrap);
   });
   host.appendChild(s4);
 }
