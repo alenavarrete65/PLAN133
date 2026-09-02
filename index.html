@@ -77,8 +77,8 @@
     --shadow-soft: 0 1px 3px rgba(43,38,32,0.15);
   }
   /* Botón .btn usa texto oscuro fijo sobre ámbar; en claro seguimos queriendo contraste correcto */
-  html[data-theme="light"] .btn{ color:#fff8ec; }
-  html[data-theme="light"] .btn:hover{ background:#8f5c15; }
+  html[data-theme="light"] .btn:not(.ghost):not(.danger){ color:#fff8ec; }
+  html[data-theme="light"] .btn:not(.ghost):not(.danger):hover{ background:#8f5c15; }
   html[data-theme="light"] .view-toggle-btn.active{ color:#fff8ec; }
   html[data-theme="light"] .day-status-badge.complete{ color:#f2fbf1; }
   html[data-theme="light"] .day-status-badge.pending{ color:#fff3ef; }
@@ -124,11 +124,12 @@
     filter:drop-shadow(0 1px 1px rgba(0,0,0,.4));
     border-radius:4px;
   }
-  /* En modo claro el escudo trae su propio fondo verde oscuro "de fábrica";
-     le añadimos un marco/sombra para que no parezca un recorte suelto sobre
-     el nuevo fondo claro, y quede como una miniatura enmarcada a propósito. */
+  /* El escudo es un dibujo blanco sobre fondo transparente: en modo oscuro
+     se ve bien tal cual, pero en modo claro queda casi invisible sobre el
+     fondo crema. Lo invertimos a negro (brightness(0)) SOLO en modo claro;
+     en modo oscuro no se toca y sigue blanco. */
   html[data-theme="light"] .gc-emblem{
-    box-shadow: 0 0 0 1px var(--line), var(--shadow-soft);
+    filter: brightness(0) drop-shadow(0 1px 1px rgba(0,0,0,.25));
   }
   .brand-motto{
     font-family:var(--font-display);font-weight:400;font-size:15px;letter-spacing:.02em;text-transform:uppercase;
