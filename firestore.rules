@@ -1,28 +1,50 @@
 rules_version = '2';
 
 // Reglas para Operación Baeza.
-// Desde que se activó Firebase Authentication (login anónimo, sin email ni contraseña:
-// cada dispositivo recibe un identificador anónimo estable la primera vez que abre la app
-// con conexión), exigimos "request.auth != null" para leer o escribir. Esto NO ata los
-// datos a un usuario/UID concreto — sigue siendo el "código de acceso" el que identifica
-// tu planning — pero sí bloquea que alguien llame directamente a la API REST de Firestore
-// sin pasar antes por la app (que es quien hace el login anónimo). Es una capa extra, no
-// sustituye al PIN de la app ni a una autenticación real por usuario.
+// Desde que se activó Firebase Authentication de verdad (correo/contraseña, con aprobación
+// manual por parte del administrador), solo puede leer o escribir en "plannings" quien tenga
+// una sesión iniciada Y cuya cuenta esté aprobada. Antes de esto, cualquiera con el enlace y
+// login anónimo podía leer/escribir cualquier código de acceso que adivinara; ahora, además,
+// hace falta tener una cuenta aprobada por el administrador.
 //
 // Lo que arreglan estas reglas:
-//   1) Solo se puede leer/escribir dentro de la colección "plannings", y solo si la
-//      petición viene de un cliente autenticado (aunque sea de forma anónima).
+//   1) Solo se puede leer/escribir dentro de "plannings", y solo si la cuenta que hace la
+//      petición está aprobada (users/{uid}.aprobado == true).
 //   2) Se bloquea el "list" del documento principal (nadie puede pedir "dame todos los
 //      documentos de plannings" y enumerar los códigos de acceso de otras personas); solo
 //      se puede hacer "get" de un documento si ya conoces su ID exacto (tu código de acceso).
-//   3) Cualquier otra colección/ruta queda denegada por completo.
+//   3) users/{uid} guarda el perfil de cada cuenta: email, si está aprobada ("aprobado") y si
+//      es la cuenta administradora ("esAdmin"). Nadie puede auto-aprobarse ni auto-nombrarse
+//      administrador desde la app: esos campos solo los puede cambiar quien YA es admin.
+//   4) Cualquier otra colección/ruta queda denegada por completo.
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /plannings/{accessCode} {
-      allow get: if request.auth != null;
-      allow list: if false;
-      allow write: if request.auth != null;
+
+    function esAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.esAdmin == true;
     }
+    function estaAprobado() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.aprobado == true;
+    }
+
+    match /users/{uid} {
+      allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
+      allow create: if request.auth != null && request.auth.uid == uid
+        && request.resource.data.aprobado == false
+        && request.resource.data.esAdmin == false;
+      allow update, delete: if esAdmin();
+    }
+
+    match /plannings/{accessCode} {
+      allow get: if estaAprobado();
+      allow list: if false;
+      allow write: if estaAprobado();
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

@@ -30,32 +30,44 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 > la app, pero no se han borrado automáticamente de la base de datos — puedes borrarlas
 > a mano desde la consola de Firebase si quieres liberar espacio.
 
-## Autenticación (login anónimo)
+## Autenticación (cuentas reales, aprobadas por el administrador)
 
-La app ahora hace login anónimo en Firebase nada más abrirse, antes de leer o guardar
-nada en Firestore. No pide ni email ni contraseña — a cada dispositivo se le asigna un
-identificador anónimo estable la primera vez que abre la app con conexión, y ese login
-se queda guardado en el propio navegador (no hay que volver a "iniciar sesión" cada vez).
+La app ya **no** usa login anónimo. Ahora, para entrar, cada persona crea su propia cuenta
+con correo y contraseña (pantalla "Crear cuenta nueva"). Esa cuenta queda **pendiente de
+aprobación** — solo ve la pantalla "Cuenta pendiente de aprobación" — hasta que tú, como
+administrador, la apruebas desde el **Panel de administración** (pestaña **Ajustes**, dentro
+de la app). Esto lo garantizan las reglas de `firestore.rules`, no solo la interfaz: una
+cuenta sin aprobar no puede leer ni escribir ningún planning aunque conozca el código de
+acceso.
 
-Esto es una capa extra de seguridad: las reglas de `firestore.rules` ahora exigen que la
-petición venga de un cliente autenticado (`request.auth != null`), así que ya no se puede
-llamar directamente a la API de Firestore desde fuera de la app. **No sustituye** al PIN
-de la app ni ata los datos a un usuario/UID concreto — sigue siendo el "código de acceso"
-el que identifica tu planning.
+El sistema de "código de acceso" + PIN que ya tenía la app se mantiene exactamente igual por
+encima de esto: una vez tu cuenta está aprobada, sigues introduciendo (o generando) tu código
+de acceso como siempre, y puedes seguir protegiéndolo con PIN si quieres. Son dos capas
+independientes: la cuenta controla quién puede usar la app en absoluto: el código de acceso
++ PIN controla qué planning ve cada quien.
 
-**⚠️ Acción necesaria una sola vez:**
-1. En la consola de Firebase → **Authentication** → pestaña **Sign-in method**, comprueba
-   que el proveedor **Anónimo** está activado (si ya lo activaste tú, con esto vale).
-2. Vuelve a pegar el `firestore.rules` de este proyecto en la consola de Firebase
-   (Firestore Database → Reglas → Publicar), como se explica más abajo — ahora exige
-   `request.auth != null` para leer y escribir.
-3. Si no haces el paso 2, la app dejará de poder leer/guardar datos aunque el login
-   anónimo funcione bien, porque las reglas antiguas no comprueban la autenticación.
+**⚠️ Acción necesaria una sola vez — conviértete en administrador:**
+1. **Pega las reglas nuevas**: Firebase Console → tu proyecto → **Firestore Database** →
+   pestaña **Reglas** → copia el contenido de `firestore.rules` de este proyecto → pega →
+   **Publicar**.
+2. **Entra en la app** con tu correo y contraseña habituales (créala si no la tienes; si ya
+   usabas la app, con solo iniciar sesión se crea tu perfil automáticamente). Verás la
+   pantalla "Cuenta pendiente de aprobación" — es normal, sigue al paso 3.
+3. Ve a Firebase Console → **Firestore Database** → pestaña **Datos** → colección **`users`**
+   → busca el documento cuyo ID es tu `uid` (verás tu correo dentro). Cambia a mano los
+   campos `aprobado` y `esAdmin` de `false` a `true`, y guarda.
+4. Vuelve a la app y recarga la página. Ya deberías entrar con normalidad y ver el **Panel de
+   administración** dentro de la pestaña Ajustes.
 
-Si abres la app por primera vez en un dispositivo sin conexión, el login anónimo no puede
-completarse (hace falta red la primera vez); en ese caso la app espera unos segundos y
-sigue abriendo igualmente, para no dejarte bloqueado sin internet — pero no podrá
-guardar/sincronizar hasta que haya conexión y se pueda completar el login.
+**Aprobar gente nueva a partir de ahora:** cuando alguien cree una cuenta, aparecerá sola en
+el bloque "Pendientes" del Panel de administración la próxima vez que entres. Pulsa
+**Aprobar** junto a su correo para darle acceso, o **Revocar acceso** para quitárselo más
+adelante. El rol de administrador (`esAdmin`) solo se puede cambiar a mano desde la consola
+de Firebase, nunca desde la app, para que nadie pueda dárselo a sí mismo.
+
+Si tenías cuentas o accesos configurados con el sistema anónimo anterior, no hace falta que
+hagas nada con ellos: dejan de tener permisos en cuanto publiques las reglas nuevas, y cada
+persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación.
 
 ## Cómo publicar un cambio
 
@@ -115,9 +127,9 @@ local.
 
 ## Cosas pendientes / ideas para más adelante
 
-- [ ] Firebase Authentication real (ahora mismo la seguridad depende de que nadie
-      adivine tu código de acceso; las reglas de Firestore ya bloquean que se pueda
-      "listar" todos los códigos, pero no hay autenticación de verdad).
+- [x] Firebase Authentication real con cuentas de correo/contraseña y aprobación manual
+      por parte del administrador (implementada: ver apartado "Autenticación (cuentas
+      reales, aprobadas por el administrador)").
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).

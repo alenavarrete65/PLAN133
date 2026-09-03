@@ -884,6 +884,8 @@
   <!-- AJUSTES -->
   <div class="view" id="view-ajustes">
     <div class="empty-state" id="syncBox" style="text-align:left;margin-bottom:18px;"></div>
+    <div class="empty-state" id="accountBox" style="text-align:left;margin-bottom:18px;"></div>
+    <div class="empty-state" id="adminBox" style="display:none;text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="securityBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="backupBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="stat-grid" id="statGrid"></div>
@@ -1140,29 +1142,51 @@ try{
   }
 }catch(e){ console.error('Error iniciando Firebase', e); firebaseOk = false; }
 
-// ---- Autenticación anónima ----
-// Se dispara nada más cargar la app (antes de leer/guardar nada en Firestore). No pide ni
-// email ni contraseña: Firebase le asigna a este navegador un identificador anónimo estable,
-// que se queda guardado en el propio dispositivo. Esto es lo que permite que las reglas de
-// Firestore exijan "request.auth != null" y así bloqueen que cualquiera llame a la API sin
-// pasar antes por la app. Si no hay conexión la primera vez que se abre la app en un
-// dispositivo nuevo, el inicio de sesión no puede completarse (hace falta red la primera
-// vez); por eso ponemos un límite de espera para que la app no se quede colgada offline.
+// ---- Autenticación (Firebase Auth: correo/contraseña + aprobación por administrador) ----
+// Cada persona crea su propia cuenta (correo/contraseña). Hasta que el administrador la
+// apruebe desde el panel de administración (dentro de Ajustes), esa cuenta no puede leer ni
+// escribir ningún planning: las reglas de Firestore lo exigen a nivel de servidor, no solo
+// en esta interfaz. El sistema de "código de acceso" + PIN de más abajo se mantiene tal cual,
+// como una capa extra por encima de esto.
+const auth = firebaseOk ? firebase.auth() : null;
 let firebaseUser = null;
+let userProfile = null; // datos de users/{uid}: {email, aprobado, esAdmin, creadoEn}
+let isAdmin = false;
+async function fetchOrCreateUserProfile(user){
+  const ref = db.collection('users').doc(user.uid);
+  let snap;
+  try{ snap = await ref.get(); }catch(e){ console.error(e); return null; }
+  if(snap.exists) return snap.data();
+  // Perfil no existente todavía (primera vez que entra esta cuenta tras instalar esta
+  // función). Se crea sin aprobar. Si esta es tu propia cuenta de administrador, ve a la
+  // consola de Firebase → Firestore → users/{tu uid} y cambia "aprobado" y "esAdmin" a
+  // true a mano (ver README.md).
+  try{
+    await ref.set({
+      email: user.email || '',
+      aprobado: false,
+      esAdmin: false,
+      creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+    });
+  }catch(e){ console.error(e); }
+  return {email:user.email||'', aprobado:false, esAdmin:false};
+}
+// Resuelve cuando sabemos si hay sesión iniciada, y si está aprobada, antes de tocar el
+// resto de Firestore (plannings). Null si no hay firebase, no hay sesión, o no está aprobada.
 const firebaseAuthReady = (async ()=>{
   if(!firebaseOk) return null;
   try{
-    const user = await Promise.race([
-      new Promise((resolve, reject)=>{
-        firebase.auth().onAuthStateChanged((u)=>{ if(u) resolve(u); }, reject);
-        firebase.auth().signInAnonymously().catch(reject);
-      }),
-      new Promise((resolve)=> setTimeout(()=> resolve(null), 6000)) // sin conexión: no bloquear la app
-    ]);
+    const user = await new Promise((resolve)=>{
+      auth.onAuthStateChanged((u)=> resolve(u));
+    });
+    if(!user) return null;
     firebaseUser = user;
-    return user;
+    userProfile = await fetchOrCreateUserProfile(user);
+    isAdmin = !!(userProfile && userProfile.esAdmin);
+    const aprobado = !!(userProfile && userProfile.aprobado);
+    return (aprobado || isAdmin) ? user : null;
   }catch(e){
-    console.error('Error de autenticación anónima', e);
+    console.error('Error de autenticación', e);
     return null;
   }
 })();
@@ -1409,6 +1433,16 @@ async function attemptPinUnlock(){
     document.getElementById('pinGateError').textContent = 'PIN incorrecto.';
   }
 }
+function renderAccountBox(){
+  const host = document.getElementById('accountBox');
+  if(!host || !firebaseUser) return;
+  host.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Cuenta</div>
+    <div style="font-size:13px;margin-bottom:8px;word-break:break-all;">${firebaseUser.email || ''}</div>
+    <button class="btn ghost small" id="accountLogoutBtn">Cerrar sesión</button>
+  `;
+  document.getElementById('accountLogoutBtn').onclick = ()=>{ auth.signOut().then(()=> location.reload()); };
+}
 function renderSecurity(){
   const host = document.getElementById('securityBox');
   if(!host) return;
@@ -1517,6 +1551,181 @@ function renderConfigNeeded(){
       y sustituye los valores de <code>FIREBASE_CONFIG</code> (cerca del principio del &lt;script&gt;) por los datos de
       tu proyecto de Firebase (gratis en console.firebase.google.com). Después vuelve a subir el archivo.</p>
     </div>`;
+}
+function traduceErrorAuth(code){
+  const map = {
+    'auth/invalid-email':'Correo electrónico no válido.',
+    'auth/user-not-found':'No existe ninguna cuenta con ese correo.',
+    'auth/wrong-password':'Contraseña incorrecta.',
+    'auth/invalid-credential':'Correo o contraseña incorrectos.',
+    'auth/email-already-in-use':'Ya existe una cuenta con ese correo.',
+    'auth/weak-password':'La contraseña debe tener al menos 6 caracteres.',
+    'auth/too-many-requests':'Demasiados intentos. Prueba de nuevo en unos minutos.'
+  };
+  return map[code] || 'No se pudo completar la operación. Inténtalo de nuevo.';
+}
+let authMode = 'login'; // 'login' | 'register'
+function renderAuthScreen(){
+  document.querySelector('.wrap').innerHTML = `
+    <div class="empty-state" style="text-align:left;max-width:420px;margin:40px auto;">
+      <h3 id="authTitle" style="color:var(--amber);font-family:var(--font-display);margin-top:0;">Iniciar sesión</h3>
+      <label for="authEmail" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Correo electrónico</label>
+      <input id="authEmail" type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" style="width:100%;padding:10px;font-family:var(--font-mono);
+        background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
+      <label for="authPassword" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Contraseña</label>
+      <input id="authPassword" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres" style="width:100%;padding:10px;font-family:var(--font-mono);
+        background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
+      <div id="authError" role="alert" style="color:var(--red-text);font-family:var(--font-mono);font-size:12px;margin-bottom:10px;min-height:14px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" id="authSubmitBtn">Entrar</button>
+        <button class="btn ghost" id="authToggleModeBtn">Crear cuenta nueva</button>
+      </div>
+      <div style="margin-top:12px;">
+        <button class="btn ghost small" id="authForgotBtn" style="font-size:11px;">¿Olvidaste tu contraseña?</button>
+      </div>
+    </div>`;
+  const authTitleEl = document.getElementById('authTitle');
+  const authSubmitBtnEl = document.getElementById('authSubmitBtn');
+  const authToggleModeBtnEl = document.getElementById('authToggleModeBtn');
+  const authEmailEl = document.getElementById('authEmail');
+  const authPasswordEl = document.getElementById('authPassword');
+  const authErrorEl = document.getElementById('authError');
+  function showAuthError(msg){ authErrorEl.textContent = msg; }
+  authToggleModeBtnEl.onclick = ()=>{
+    authMode = authMode==='login' ? 'register' : 'login';
+    authTitleEl.textContent = authMode==='login' ? 'Iniciar sesión' : 'Crear cuenta';
+    authSubmitBtnEl.textContent = authMode==='login' ? 'Entrar' : 'Crear cuenta';
+    authToggleModeBtnEl.textContent = authMode==='login' ? 'Crear cuenta nueva' : 'Ya tengo cuenta';
+    showAuthError('');
+  };
+  authSubmitBtnEl.onclick = async ()=>{
+    const email = authEmailEl.value.trim();
+    const password = authPasswordEl.value;
+    if(!email || !password){ showAuthError('Rellena correo y contraseña.'); return; }
+    authSubmitBtnEl.disabled = true;
+    showAuthError('');
+    try{
+      if(authMode==='login'){
+        await auth.signInWithEmailAndPassword(email, password);
+      } else {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await db.collection('users').doc(cred.user.uid).set({
+          email: email, aprobado:false, esAdmin:false,
+          creadoEn: firebase.firestore.FieldValue.serverTimestamp()
+        });
+      }
+      location.reload();
+    }catch(e){
+      console.error(e);
+      showAuthError(traduceErrorAuth(e.code));
+    }finally{
+      authSubmitBtnEl.disabled = false;
+    }
+  };
+  document.getElementById('authForgotBtn').onclick = async ()=>{
+    const email = authEmailEl.value.trim();
+    if(!email){ showAuthError('Escribe tu correo arriba y vuelve a pulsar.'); return; }
+    try{
+      await auth.sendPasswordResetEmail(email);
+      showAuthError('');
+      showToast('Te hemos enviado un correo para restablecer la contraseña.');
+    }catch(e){
+      console.error(e);
+      showAuthError(traduceErrorAuth(e.code));
+    }
+  };
+}
+function renderPendingScreen(){
+  document.querySelector('.wrap').innerHTML = `
+    <div class="empty-state" style="text-align:left;max-width:460px;margin:40px auto;">
+      <h3 style="color:var(--amber);font-family:var(--font-display);margin-top:0;">Cuenta pendiente de aprobación</h3>
+      <p>Tu cuenta (${(firebaseUser&&firebaseUser.email)||''}) se ha creado correctamente, pero el administrador todavía no
+      te ha dado acceso. En cuanto lo haga podrás entrar con este mismo correo y contraseña.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px;">
+        <button class="btn ghost small" id="pendingRefreshBtn">Comprobar de nuevo</button>
+        <button class="btn ghost small" id="pendingLogoutBtn">Cerrar sesión</button>
+      </div>
+    </div>`;
+  document.getElementById('pendingRefreshBtn').onclick = ()=> location.reload();
+  document.getElementById('pendingLogoutBtn').onclick = ()=>{ auth.signOut().then(()=> location.reload()); };
+}
+/* ===================== PANEL DE ADMINISTRACIÓN (aprobar cuentas nuevas) ===================== */
+async function renderAdminBox(){
+  const host = document.getElementById('adminBox');
+  if(!host || !isAdmin) return;
+  host.style.display = 'block';
+  const titleHtml = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Panel de administración</div>';
+  host.innerHTML = titleHtml + '<div style="font-size:12px;color:var(--cream-dim);">Cargando cuentas…</div>';
+  let snap;
+  try{
+    snap = await db.collection('users').get();
+  }catch(e){
+    console.error(e);
+    host.innerHTML = titleHtml + '<div style="font-size:12px;color:var(--red-text);">No se pudieron cargar las cuentas.</div>';
+    return;
+  }
+  const cuentas = [];
+  snap.forEach((doc)=> cuentas.push(Object.assign({uid:doc.id}, doc.data())));
+  cuentas.sort((a,b)=> (a.email||'').localeCompare(b.email||''));
+  const pendientes = cuentas.filter((c)=> !c.aprobado);
+  const aprobadas = cuentas.filter((c)=> c.aprobado);
+  host.innerHTML = titleHtml +
+    '<div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Aprueba aquí las cuentas nuevas que se registren para darles acceso a la app.</div>' +
+    '<div id="adminPendList"></div><div id="adminOkList"></div>';
+  function filaCuenta(c, esPendiente){
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);';
+    const info = document.createElement('div');
+    info.style.cssText = 'font-size:12px;word-break:break-all;';
+    info.textContent = c.email || '(sin correo)';
+    if(c.esAdmin){
+      const tag = document.createElement('span');
+      tag.textContent = 'ADMIN';
+      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;background:var(--green);color:#12241a;border-radius:8px;padding:1px 5px;';
+      info.appendChild(tag);
+    }
+    row.appendChild(info);
+    if(c.uid !== firebaseUser.uid){
+      const btn = document.createElement('button');
+      btn.className = esPendiente ? 'btn small' : 'btn ghost small';
+      btn.textContent = esPendiente ? 'Aprobar' : 'Revocar acceso';
+      btn.onclick = async ()=>{
+        btn.disabled = true;
+        try{
+          await db.collection('users').doc(c.uid).update({aprobado: esPendiente});
+          showToast(esPendiente ? 'Cuenta aprobada ✓' : 'Acceso revocado');
+          renderAdminBox();
+        }catch(err){
+          console.error(err);
+          showToast('No se pudo actualizar la cuenta.');
+          btn.disabled = false;
+        }
+      };
+      row.appendChild(btn);
+    }
+    return row;
+  }
+  const pendHost = document.getElementById('adminPendList');
+  if(pendientes.length){
+    const label = document.createElement('div');
+    label.textContent = 'Pendientes (' + pendientes.length + ')';
+    label.style.cssText = 'font-size:11px;color:var(--red-text);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;';
+    pendHost.appendChild(label);
+    pendientes.forEach((c)=> pendHost.appendChild(filaCuenta(c, true)));
+  } else {
+    const none = document.createElement('div');
+    none.textContent = 'No hay cuentas pendientes.';
+    none.style.cssText = 'font-size:12px;color:var(--cream-dim);';
+    pendHost.appendChild(none);
+  }
+  const okHost = document.getElementById('adminOkList');
+  if(aprobadas.length){
+    const label = document.createElement('div');
+    label.textContent = 'Con acceso (' + aprobadas.length + ')';
+    label.style.cssText = 'font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px;';
+    okHost.appendChild(label);
+    aprobadas.forEach((c)=> okHost.appendChild(filaCuenta(c, false)));
+  }
 }
 function renderCodeGate(){
   document.querySelector('.wrap').innerHTML = `
@@ -4288,12 +4497,16 @@ function renderAll(){
   renderEntrenos();
   renderAjustes();
   renderSyncBox();
+  renderAccountBox();
+  if(isAdmin) renderAdminBox();
   renderSecurity();
   renderBackupBox();
 }
 (async function init(){
   if(!firebaseOk){ renderConfigNeeded(); return; }
-  await firebaseAuthReady; // esperamos a que termine el login anónimo (o al timeout offline) antes de tocar Firestore
+  const approvedUser = await firebaseAuthReady;
+  if(!firebaseUser){ renderAuthScreen(); return; }
+  if(!approvedUser){ renderPendingScreen(); return; }
   if(!accessCode){ renderCodeGate(); return; }
   await loadState();
   if(state.settings.pinHash){
