@@ -1402,6 +1402,11 @@ async function sha256Hex(str){
   return 'fallback-'+Math.abs(h).toString(16);
 }
 function unlockKeyName(){ return 'planning_unlock_'+accessCode; }
+// El PIN se guarda con una "sal" fija de la app, NO con accessCode: si dependiera de
+// accessCode (como ocurría antes), cualquier cambio en cómo se identifica el planning
+// (p.ej. al migrar de un código de acceso antiguo al sistema por cuenta) invalidaría el PIN
+// ya guardado sin posibilidad de volver a introducirlo correctamente.
+function pinHashFor(val){ return sha256Hex('ob-pin-v1:'+val); }
 function rememberUnlock(hash){
   try{ localStorage.setItem(unlockKeyName(), hash); }catch(e){}
 }
@@ -1419,14 +1424,35 @@ function renderPinGate(){
         Este PIN evita que cualquiera con el enlace pueda editar tus datos desde esta app. Recuerda que, para una
         protección completa, conviene además restringir las reglas de seguridad de tu proyecto de Firebase.
       </p>
+      <button class="btn ghost small" id="pinGateForgotBtn" style="margin-top:8px;">¿Has olvidado el PIN? Quitarlo</button>
     </div>`;
   document.getElementById('pinGateBtn').onclick = attemptPinUnlock;
   document.getElementById('pinGateInput').addEventListener('keydown', e=>{ if(e.key==='Enter') attemptPinUnlock(); });
   document.getElementById('pinGateInput').focus();
+  // Vía de emergencia: como ya estamos autenticados y aprobados en este punto (solo falta el
+  // PIN de este dispositivo), podemos quitar el PIN directamente contra Firestore sin
+  // necesidad de conocerlo. Útil sobre todo justo después de migrar datos de un código de
+  // acceso antiguo, donde el PIN guardado ya no puede volver a coincidir nunca (ver nota en
+  // renderMigrationChoice / doSave).
+  document.getElementById('pinGateForgotBtn').onclick = async ()=>{
+    if(!confirm('Esto quita el PIN de este planning (podrás poner uno nuevo después, desde Ajustes). ¿Continuar?')) return;
+    const btn = document.getElementById('pinGateForgotBtn');
+    btn.disabled = true;
+    try{
+      state.settings.pinHash = null;
+      await doSave();
+      try{ localStorage.removeItem(unlockKeyName()); }catch(e){}
+      location.reload();
+    }catch(e){
+      console.error(e);
+      document.getElementById('pinGateError').textContent = 'No se pudo quitar el PIN. Comprueba tu conexión e inténtalo de nuevo.';
+      btn.disabled = false;
+    }
+  };
 }
 async function attemptPinUnlock(){
   const val = document.getElementById('pinGateInput').value;
-  const hash = await sha256Hex(accessCode+':'+val);
+  const hash = await pinHashFor(val);
   if(hash === state.settings.pinHash){
     unlocked = true;
     rememberUnlock(hash);
@@ -1469,7 +1495,7 @@ function renderSecurity(){
   document.getElementById('setPinBtn').onclick = async ()=>{
     const val = document.getElementById('newPinInput').value;
     if(val.length < 4){ showToast('El PIN debe tener al menos 4 caracteres'); return; }
-    state.settings.pinHash = await sha256Hex(accessCode+':'+val);
+    state.settings.pinHash = await pinHashFor(val);
     rememberUnlock(state.settings.pinHash);
     scheduleSave();
     renderSecurity();
@@ -1780,9 +1806,15 @@ function renderMigrationChoice(){
       }
       state = JSON.parse(snap.data().state);
       normalizeState();
+      // El PIN del planning antiguo (si tenía) se guardó ligado a ese código de acceso; en el
+      // nuevo sistema por cuenta ya no puede volver a coincidir aunque se escriba bien, así
+      // que lo quitamos aquí para no dejar a nadie bloqueado justo después de migrar. Si
+      // quiere, puede volver a activar un PIN nuevo desde Ajustes → Seguridad.
+      const teniaPin = !!state.settings.pinHash;
+      state.settings.pinHash = null;
       state.settings.onboarded = true;
       await doSave();
-      showToast('Datos importados correctamente');
+      showToast(teniaPin ? 'Datos importados. El PIN antiguo se ha quitado: puedes crear uno nuevo en Ajustes.' : 'Datos importados correctamente');
       startApp();
     }catch(e){
       console.error(e);
