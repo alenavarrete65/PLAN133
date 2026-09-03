@@ -3009,7 +3009,9 @@ function renderTestsBanco(body){
     list.innerHTML = '';
     if(!filtered.length){ list.innerHTML = '<div class="test-empty">No hay preguntas guardadas con este filtro todavía.</div>'; return; }
     filtered.forEach(q=>{
-      const card = document.createElement('div'); card.className='test-card';
+      const card = document.createElement('div'); card.className='test-card'; card.style.cursor='pointer';
+      card.title = 'Pulsa para ver la pregunta completa';
+      card.onclick = ()=> openTestPreviewModal(q);
       const head = document.createElement('div'); head.className='tc-head';
       head.innerHTML = `<span>${(q.enunciado||'(sin enunciado)').slice(0,140)}</span>
         <span class="tc-tag">${testCatLabel(q.categoria)}${q.tema?' · Tema '+q.tema:''}</span>`;
@@ -3019,10 +3021,11 @@ function renderTestsBanco(body){
       card.appendChild(stat);
       const actions = document.createElement('div'); actions.className='tc-actions';
       const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.textContent='Editar';
-      editBtn.onclick = ()=>{ openTestEditModal(q); };
+      editBtn.onclick = (e)=>{ e.stopPropagation(); openTestEditModal(q); };
       actions.appendChild(editBtn);
       const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.textContent='Eliminar';
-      delBtn.onclick = ()=>{
+      delBtn.onclick = (e)=>{
+        e.stopPropagation();
         if(!confirm('¿Eliminar esta pregunta del banco?')) return;
         const idx = state.testBank.questions.findIndex(x=>x.id===q.id);
         if(idx>=0){ state.testBank.questions.splice(idx,1); scheduleSave(); renderTests(); }
@@ -3035,6 +3038,52 @@ function renderTestsBanco(body){
   paintList();
 }
 
+function openTestPreviewModal(q){
+  const overlay = document.createElement('div');
+  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';
+  overlay.onclick = (e)=>{ if(e.target===overlay) document.body.removeChild(overlay); };
+  const box = document.createElement('div');
+  box.style.cssText = 'background:var(--bg-panel);border:1px solid var(--line);border-radius:4px;padding:18px;max-width:560px;width:100%;';
+  overlay.appendChild(box);
+
+  const headRow = document.createElement('div'); headRow.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;';
+  headRow.innerHTML = `<h3 style="font-family:var(--font-display);color:var(--amber);text-transform:uppercase;margin:0;">Vista previa</h3>
+    <span class="tc-tag">${testCatLabel(q.categoria)}${q.tema?' · Tema '+q.tema:''}</span>`;
+  box.appendChild(headRow);
+
+  const card = document.createElement('div'); card.className='test-quiz-q corregida';
+  const enun = document.createElement('div'); enun.className='tq-enun'; enun.textContent = q.enunciado;
+  card.appendChild(enun);
+  q.opciones.forEach((op,oi)=>{
+    const optRow = document.createElement('div'); optRow.className='tq-opt'+(oi===q.correcta?' correcta':'');
+    const marker = document.createElement('span'); marker.style.cssText='flex-shrink:0;width:16px;';
+    marker.textContent = oi===q.correcta ? '✓' : '';
+    optRow.appendChild(marker);
+    const span = document.createElement('span'); span.textContent = op;
+    optRow.appendChild(span);
+    card.appendChild(optRow);
+  });
+  if(q.explicacion){
+    const ex = document.createElement('div'); ex.className='tq-explic'; ex.textContent = q.explicacion;
+    card.appendChild(ex);
+  }
+  box.appendChild(card);
+
+  const stat = document.createElement('div'); stat.className='tc-stat'; stat.style.margin='10px 0';
+  stat.textContent = q.stats.veces ? `Practicada ${q.stats.veces} vez(es) · ${q.stats.aciertos} acierto(s)` : 'Sin practicar todavía';
+  box.appendChild(stat);
+
+  const btnRow = document.createElement('div'); btnRow.style.cssText='display:flex;gap:8px;margin-top:6px;';
+  const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.className='btn small'; editBtn.textContent='Editar';
+  editBtn.onclick = ()=>{ document.body.removeChild(overlay); openTestEditModal(q); };
+  btnRow.appendChild(editBtn);
+  const closeBtn = document.createElement('button'); closeBtn.type='button'; closeBtn.className='btn small ghost'; closeBtn.textContent='Cerrar';
+  closeBtn.onclick = ()=> document.body.removeChild(overlay);
+  btnRow.appendChild(closeBtn);
+  box.appendChild(btnRow);
+
+  document.body.appendChild(overlay);
+}
 function openTestEditModal(q){
   const overlay = document.createElement('div');
   overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';

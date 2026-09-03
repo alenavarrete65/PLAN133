@@ -24,6 +24,16 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 | `firestore.rules`      | Reglas de seguridad de la base de datos (se pegan en la consola de Firebase, no en GitHub Pages) |
 | `firebase.json` / `.firebaserc` | Solo necesarios si algún día despliegas con Firebase Hosting en vez de (o además de) GitHub Pages |
 
+## Banco de Tests (pestaña "Tests")
+
+Añadida una pestaña para ir guardando tus propias preguntas de test (sacadas de fotos de tests ya hechos) y practicar con ellas más adelante, organizadas por Temario (1-23), Inglés, Psicotécnicos, Ortografía y Gramática.
+
+- Los datos de las preguntas se guardan en el mismo Firebase que el resto de la app (dentro de `testBank`), así que se sincronizan igual entre dispositivos.
+- Para transcribir fotos automáticamente con IA usa Google Gemini (modelo `gemini-3.6-flash` por defecto). Necesitas tu propia clave API gratuita de https://aistudio.google.com/apikey.
+- Esa clave **se guarda solo en el navegador de cada dispositivo** (no viaja a Firebase, no es compartida), así que hay que volver a pegarla si usas la app desde el móvil y el ordenador.
+- Si algún día Google cambia otra vez el nombre del modelo y da error 404 "no longer available", solo hay que cambiar el nombre en el campo "Modelo" de esa pestaña (comprobar el nombre vigente en https://ai.google.dev/gemini-api/docs/models).
+- También puedes escribir las preguntas a mano sin usar ninguna IA (botón "Escribir manualmente"), sin coste ni clave API.
+
 ## Cómo publicar un cambio
 
 1. Edita los archivos que necesites (normalmente `index.html`).
