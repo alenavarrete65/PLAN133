@@ -1226,10 +1226,6 @@ function normalizeState(){
   if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
-  // Marca si esta cuenta ya pasó por la pantalla de bienvenida/migración (ver
-  // renderMigrationChoice). Evita volver a preguntar en cada dispositivo nuevo, porque viaja
-  // dentro del propio state guardado en Firebase.
-  if(state.settings.onboarded === undefined) state.settings.onboarded = false;
   if(!state.clases) state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
   if(!state.clases.conocimientos) state.clases.conocimientos = {};
   if(!state.clases.ingles) state.clases.ingles = {};
@@ -1431,9 +1427,7 @@ function renderPinGate(){
   document.getElementById('pinGateInput').focus();
   // Vía de emergencia: como ya estamos autenticados y aprobados en este punto (solo falta el
   // PIN de este dispositivo), podemos quitar el PIN directamente contra Firestore sin
-  // necesidad de conocerlo. Útil sobre todo justo después de migrar datos de un código de
-  // acceso antiguo, donde el PIN guardado ya no puede volver a coincidir nunca (ver nota en
-  // renderMigrationChoice / doSave).
+  // necesidad de conocerlo. Útil si alguien olvida su PIN.
   document.getElementById('pinGateForgotBtn').onclick = async ()=>{
     if(!confirm('Esto quita el PIN de este planning (podrás poner uno nuevo después, desde Ajustes). ¿Continuar?')) return;
     const btn = document.getElementById('pinGateForgotBtn');
@@ -1758,73 +1752,7 @@ async function renderAdminBox(){
     aprobadas.forEach((c)=> okHost.appendChild(filaCuenta(c, false)));
   }
 }
-// Se muestra una sola vez por cuenta, justo cuando esa cuenta todavía no tiene ningún
-// planning propio guardado (plannings/{uid} no existe / está vacío). Dos caminos:
-//   1) Empezar de cero: cuenta nueva, sin datos previos.
-//   2) Importar desde un código de acceso anterior: para cuentas que ya usaban la app con
-//      el antiguo sistema de "código de acceso" compartido. Se copian esos datos, una sola
-//      vez, al planning propio y aislado de esta cuenta (ligado a su uid). El documento
-//      antiguo no se borra ni se modifica, así que es seguro repetir la operación o dejarlo
-//      como copia de respaldo.
-function renderMigrationChoice(){
-  document.querySelector('.wrap').innerHTML = `
-    <div class="empty-state" style="text-align:left;max-width:520px;margin:40px auto;">
-      <h3 style="color:var(--amber);font-family:var(--font-display);margin-top:0;">Bienvenido/a</h3>
-      <p>Tu cuenta (<strong>${firebaseUser && firebaseUser.email ? firebaseUser.email : ''}</strong>) todavía no
-      tiene ningún planning guardado en este nuevo sistema, donde cada cuenta tiene su propio calendario
-      privado.</p>
-      <p>Si ya usabas la app antes con un código de acceso compartido, escríbelo aquí abajo para traer esos
-      datos a tu cuenta (solo hace falta hacerlo una vez). Si es la primera vez que usas la app, pulsa
-      directamente "Empezar de cero".</p>
-      <label for="migCodeInput" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Código de acceso anterior (opcional)</label>
-      <input id="migCodeInput" type="text" placeholder="Ej: MARIA-GC-2026" style="width:100%;padding:10px;font-family:var(--font-mono);
-        background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
-      <div id="migError" role="alert" style="color:var(--red-text);font-family:var(--font-mono);font-size:12px;margin-bottom:10px;min-height:14px;"></div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;">
-        <button class="btn" id="migImportBtn">Importar datos de ese código</button>
-        <button class="btn ghost" id="migSkipBtn">Empezar de cero</button>
-      </div>
-    </div>`;
-  document.getElementById('migSkipBtn').onclick = async ()=>{
-    state.settings.onboarded = true;
-    await doSave();
-    // Recargamos en vez de "continuar" en la misma página: esta pantalla sustituyó toda la
-    // estructura de la app (pestañas, calendario, etc.), así que hace falta relanzar init()
-    // desde cero para reconstruirla correctamente.
-    location.reload();
-  };
-  document.getElementById('migImportBtn').onclick = async ()=>{
-    const btn = document.getElementById('migImportBtn');
-    const oldCode = document.getElementById('migCodeInput').value.trim();
-    const errEl = document.getElementById('migError');
-    errEl.textContent = '';
-    if(!oldCode){ errEl.textContent = 'Escribe el código de acceso anterior, o pulsa "Empezar de cero".'; return; }
-    btn.disabled = true;
-    try{
-      const snap = await db.collection('plannings').doc(oldCode).get();
-      if(!snap.exists || !snap.data() || !snap.data().state){
-        errEl.textContent = 'No se ha encontrado ningún planning con ese código.';
-        btn.disabled = false;
-        return;
-      }
-      state = JSON.parse(snap.data().state);
-      normalizeState();
-      // El PIN del planning antiguo (si tenía) se guardó ligado a ese código de acceso; en el
-      // nuevo sistema por cuenta ya no puede volver a coincidir aunque se escriba bien, así
-      // que lo quitamos aquí para no dejar a nadie bloqueado justo después de migrar. Si
-      // quiere, puede volver a activar un PIN nuevo desde Ajustes → Seguridad.
-      state.settings.pinHash = null;
-      state.settings.onboarded = true;
-      await doSave();
-      // Recargamos (ver comentario en migSkipBtn) para reconstruir toda la interfaz desde cero.
-      location.reload();
-    }catch(e){
-      console.error(e);
-      errEl.textContent = 'Error al importar. Comprueba el código e inténtalo de nuevo.';
-      btn.disabled = false;
-    }
-  };
-}
+
 
 /* ===================== MOTOR DE CÁLCULO ===================== */
 // Recorre TODOS los meses guardados en orden cronológico y genera la asignación
@@ -4572,9 +4500,8 @@ function renderAll(){
   renderSecurity();
   renderBackupBox();
 }
-// Segunda mitad del arranque: se llama tanto justo tras loadState() (caso normal) como al
-// terminar renderMigrationChoice() (cuenta nueva que acaba de elegir "empezar de cero" o
-// terminó de importar sus datos antiguos).
+// Segunda mitad del arranque: construye la interfaz normal una vez sabemos qué mostrar
+// (usuario aprobado, datos cargados y, si tenía PIN, ya desbloqueado).
 function startApp(){
   const keys = sortedMonthKeys();
   const now = new Date();
@@ -4604,7 +4531,6 @@ function startApp(){
   // cuentas que puedan compartir ni pisarse los datos, ni falta ningún código manual.
   accessCode = firebaseUser.uid;
   await loadState();
-  if(!state.settings.onboarded && sortedMonthKeys().length === 0){ renderMigrationChoice(); return; }
   if(state.settings.pinHash){
     let localHash = null;
     try{ localHash = localStorage.getItem(unlockKeyName()); }catch(e){}

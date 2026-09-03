@@ -44,40 +44,24 @@ cuenta sin aprobar no puede leer ni escribir ningún planning.
 Desde este cambio, **cada cuenta ve únicamente su propio planning** — ya no existe un código
 de acceso compartido que todo el mundo tenga que teclear o repetir. En cuanto una cuenta está
 aprobada, su planning queda ligado automáticamente a esa cuenta (por dentro, al `uid` de
-Firebase Auth), tanto en la interfaz como en `firestore.rules`: nadie puede leer ni escribir
-en el planning de otra persona, aunque conociera su antiguo código.
+Firebase Auth), tanto en la interfaz como en `firestore.rules`: una cuenta no puede leer ni
+escribir en el planning de otra persona bajo ningún concepto (salvo el administrador, para
+labores de mantenimiento).
 
 El PIN opcional (pestaña Ajustes → Seguridad) se mantiene igual que antes, como una capa extra
-de protección a nivel de dispositivo, pero ahora es "tu PIN de tu cuenta", no de un código
-compartido.
+de protección a nivel de dispositivo. Si alguna vez alguien olvida su PIN, en la propia
+pantalla de bloqueo hay un botón "¿Has olvidado el PIN? Quitarlo" que lo retira sin necesidad
+de conocerlo (siempre que la sesión ya esté iniciada y aprobada).
 
-### Migrar los datos antiguos a la cuenta correspondiente (una sola vez)
-
-Como antes todo el mundo compartía calendario a través de un código de acceso, la primera vez
-que cada cuenta entre en la app con este cambio ya publicado, verá una pantalla de
-**bienvenida** con dos opciones:
-
-- **Empezar de cero** — para cuentas nuevas que nunca han usado la app.
-- **Importar datos de ese código** — escribiendo el código de acceso antiguo que se usaba
-  para ver el calendario compartido, copia esos datos (una sola vez) al planning propio y
-  aislado de esa cuenta. El documento antiguo no se borra ni se toca, así que si te
-  equivocas puedes repetir la operación.
-
-**Para dejar el planning actual (el que ya existía) en la única cuenta activa,
-`alenavarrete65@gmail.com`:**
-
-1. Publica primero las reglas nuevas de `firestore.rules` (ver más abajo) y despliega este
-   `index.html` actualizado.
-2. Entra en la app con la cuenta `alenavarrete65@gmail.com` (si ya estaba aprobada, entra
-   directo; si no, apruébala primero desde el Panel de administración).
-3. Verás la pantalla de bienvenida. Pulsa **"Importar datos de ese código"** y escribe el
-   código de acceso que se usaba hasta ahora para el calendario compartido.
-4. Listo: a partir de ahí, esa cuenta tiene su propio planning con todos los datos que ya
-   había, y ninguna otra cuenta puede verlo ni tocarlo.
-
-Si en el futuro se aprueban más cuentas, cada una pasará por la misma pantalla de bienvenida
-y, si no tienen datos antiguos que importar, simplemente pulsarán "Empezar de cero" para
-tener su propio calendario en blanco.
+> **Nota histórica:** el antiguo sistema de "código de acceso" compartido (donde todo el
+> mundo veía el mismo calendario tecleando el mismo código) ya se migró por completo a este
+> modelo por cuenta — la única cuenta que tenía datos (`alenavarrete65@gmail.com`) los importó
+> una sola vez a través de una pantalla de bienvenida que existió temporalmente para ese fin.
+> Esa pantalla y el permiso de leer plannings ajenos por su código ya se han retirado de la
+> app y de `firestore.rules`, así que ahora mismo ninguna cuenta puede leer el planning de
+> otra bajo ningún concepto. Si en algún momento excepcional hiciera falta traer datos de un
+> documento antiguo a una cuenta nueva, el administrador puede copiarlos a mano desde la
+> consola de Firebase (Firestore Database → Datos → colección `plannings`).
 
 **⚠️ Acción necesaria una sola vez — conviértete en administrador:**
 1. **Pega las reglas nuevas**: Firebase Console → tu proyecto → **Firestore Database** →
@@ -163,6 +147,11 @@ local.
 - [x] Firebase Authentication real con cuentas de correo/contraseña y aprobación manual
       por parte del administrador (implementada: ver apartado "Autenticación (cuentas
       reales, aprobadas por el administrador)").
+- [x] Cada cuenta con su propio planning aislado, en vez de un código de acceso compartido
+      (implementado: ver apartado "Cada cuenta tiene su propio calendario").
+- [ ] Borrar a mano, desde la consola de Firebase, el documento antiguo de `plannings` que
+      usaba el código de acceso compartido (ya no lo usa la app ni es accesible por ninguna
+      cuenta, pero sigue ocupando espacio si no lo borras tú mismo).
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).
