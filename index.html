@@ -2712,7 +2712,7 @@ let testsQuiz = null; // {items:[...], corregido:false}
 
 function getGeminiKey(){ try{ return localStorage.getItem('ob-gemini-key') || ''; }catch(e){ return ''; } }
 function setGeminiKey(v){ try{ localStorage.setItem('ob-gemini-key', v); }catch(e){} }
-function getGeminiModel(){ try{ return localStorage.getItem('ob-gemini-model') || 'gemini-2.5-flash'; }catch(e){ return 'gemini-2.5-flash'; } }
+function getGeminiModel(){ try{ return localStorage.getItem('ob-gemini-model') || 'gemini-3.6-flash'; }catch(e){ return 'gemini-3.6-flash'; } }
 function setGeminiModel(v){ try{ localStorage.setItem('ob-gemini-model', v); }catch(e){} }
 
 function fileToBase64(file){
@@ -2815,7 +2815,7 @@ function renderTestsAnadir(body){
   const modelField = document.createElement('div'); modelField.className='test-field';
   modelField.innerHTML = `<label>Modelo</label>`;
   const modelInput = document.createElement('input'); modelInput.type='text'; modelInput.value = getGeminiModel();
-  modelInput.onchange = ()=> setGeminiModel(modelInput.value.trim() || 'gemini-2.5-flash');
+  modelInput.onchange = ()=> setGeminiModel(modelInput.value.trim() || 'gemini-3.6-flash');
   modelField.appendChild(modelInput);
   row.appendChild(modelField);
   apiPanel.appendChild(row);
