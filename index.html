@@ -1912,7 +1912,7 @@ async function renderAdminBox(){
     '<div id="adminPendList"></div><div id="adminOkList"></div>';
   function filaCuenta(c, esPendiente){
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 0;border-bottom:1px solid var(--line);';
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:8px 0;border-bottom:1px solid var(--line);';
     const info = document.createElement('div');
     info.style.cssText = 'font-size:12px;word-break:break-all;';
     info.textContent = c.email || '(sin correo)';
@@ -1935,6 +1935,8 @@ async function renderAdminBox(){
     }
     row.appendChild(info);
     if(c.uid !== firebaseUser.uid){
+      const btnGroup = document.createElement('div');
+      btnGroup.style.cssText = 'display:flex;gap:6px;flex-shrink:0;';
       const btn = document.createElement('button');
       btn.className = esPendiente ? 'btn small' : 'btn ghost small';
       btn.textContent = esPendiente ? 'Aprobar' : 'Revocar acceso';
@@ -1950,7 +1952,34 @@ async function renderAdminBox(){
           btn.disabled = false;
         }
       };
-      row.appendChild(btn);
+      btnGroup.appendChild(btn);
+      if(esPendiente){
+        // Solo para solicitudes pendientes: borra el perfil (users/{uid}) para que deje de
+        // aparecer en esta lista. IMPORTANTE: esto NO borra la cuenta de Firebase Auth en sí
+        // (eso solo se puede hacer desde la consola de Firebase o con el SDK de administración,
+        // no desde aquí), así que si esa persona vuelve a iniciar sesión con ese correo,
+        // aparecerá de nuevo como pendiente. Sirve para limpiar solicitudes que no quieres
+        // aprobar (duplicadas, de prueba, o que no reconoces), no para bloquear a alguien de
+        // forma permanente.
+        const delBtn = document.createElement('button');
+        delBtn.className = 'btn ghost small';
+        delBtn.textContent = 'Eliminar solicitud';
+        delBtn.onclick = async ()=>{
+          if(!confirm('Esto borra la solicitud de "'+(c.email||'(sin correo)')+'" de esta lista.\n\nOjo: si esa persona vuelve a entrar con ese correo, se le creará una solicitud pendiente nueva otra vez (esto no bloquea su cuenta de Firebase, solo quita esta entrada). ¿Continuar?')) return;
+          delBtn.disabled = true;
+          try{
+            await db.collection('users').doc(c.uid).delete();
+            showToast('Solicitud eliminada');
+            renderAdminBox();
+          }catch(err){
+            console.error(err);
+            showToast('No se pudo eliminar la solicitud.');
+            delBtn.disabled = false;
+          }
+        };
+        btnGroup.appendChild(delBtn);
+      }
+      row.appendChild(btnGroup);
     }
     return row;
   }
