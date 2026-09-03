@@ -7,16 +7,27 @@ rules_version = '2';
 // login anónimo podía leer/escribir cualquier código de acceso que adivinara; ahora, además,
 // hace falta tener una cuenta aprobada por el administrador.
 //
+// Cada cuenta tiene su propio planning, aislado de las demás: el ID del documento en
+// "plannings" es el uid de la cuenta (accessCode == request.auth.uid), así que nadie puede
+// escribir en el planning de otra persona aunque adivinara su uid. La app solo deja "get" por
+// ID exacto (nunca "list"), lo que además permite el flujo de migración de una sola vez desde
+// el antiguo sistema de código de acceso compartido: una cuenta aprobada puede leer un
+// documento antiguo si conoce su código, para copiar esos datos a su propio planning; pero
+// nunca podría escribir ahí, ni enumerar códigos de otras personas.
+//
 // Lo que arreglan estas reglas:
 //   1) Solo se puede leer/escribir dentro de "plannings", y solo si la cuenta que hace la
 //      petición está aprobada (users/{uid}.aprobado == true).
 //   2) Se bloquea el "list" del documento principal (nadie puede pedir "dame todos los
-//      documentos de plannings" y enumerar los códigos de acceso de otras personas); solo
-//      se puede hacer "get" de un documento si ya conoces su ID exacto (tu código de acceso).
-//   3) users/{uid} guarda el perfil de cada cuenta: email, si está aprobada ("aprobado") y si
+//      documentos de plannings" y enumerar los códigos/uids de otras personas); solo se puede
+//      hacer "get" de un documento si ya conoces su ID exacto.
+//   3) Solo se puede ESCRIBIR en el documento cuyo ID es tu propio uid (o, para labores de
+//      mantenimiento, si eres administrador). Así cada cuenta tiene su propio calendario y no
+//      puede pisar el de otra, aunque antes ambas compartieran el mismo código de acceso.
+//   4) users/{uid} guarda el perfil de cada cuenta: email, si está aprobada ("aprobado") y si
 //      es la cuenta administradora ("esAdmin"). Nadie puede auto-aprobarse ni auto-nombrarse
 //      administrador desde la app: esos campos solo los puede cambiar quien YA es admin.
-//   4) Cualquier otra colección/ruta queda denegada por completo.
+//   5) Cualquier otra colección/ruta queda denegada por completo.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -40,9 +51,14 @@ service cloud.firestore {
     }
 
     match /plannings/{accessCode} {
+      // Leer por ID exacto: hace falta estar aprobado. Se permite leer CUALQUIER ID (no solo
+      // el propio) para que el flujo de migración desde un código de acceso antiguo funcione;
+      // como "list" está bloqueado, esto no permite enumerar ni descubrir códigos ajenos, solo
+      // consultar uno si ya lo conoces de antemano.
       allow get: if estaAprobado();
       allow list: if false;
-      allow write: if estaAprobado();
+      // Escribir: solo en tu propio documento (el ID debe ser tu uid), o si eres admin.
+      allow write: if estaAprobado() && (accessCode == request.auth.uid || esAdmin());
     }
 
     match /{document=**} {

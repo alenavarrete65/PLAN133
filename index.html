@@ -1146,8 +1146,9 @@ try{
 // Cada persona crea su propia cuenta (correo/contraseña). Hasta que el administrador la
 // apruebe desde el panel de administración (dentro de Ajustes), esa cuenta no puede leer ni
 // escribir ningún planning: las reglas de Firestore lo exigen a nivel de servidor, no solo
-// en esta interfaz. El sistema de "código de acceso" + PIN de más abajo se mantiene tal cual,
-// como una capa extra por encima de esto.
+// en esta interfaz. Cada cuenta aprobada tiene su propio planning privado (identificado por
+// su uid, ver accessCode más abajo); el PIN opcional de la sección Ajustes sigue existiendo
+// como una capa extra por encima de esto, a nivel de dispositivo.
 const auth = firebaseOk ? firebase.auth() : null;
 let firebaseUser = null;
 let userProfile = null; // datos de users/{uid}: {email, aprobado, esAdmin, creadoEn}
@@ -1191,12 +1192,11 @@ const firebaseAuthReady = (async ()=>{
   }
 })();
 
-function getCodeFromUrl(){
-  const params = new URLSearchParams(window.location.search);
-  const c = params.get('code');
-  return c ? c.trim() : null;
-}
-let accessCode = getCodeFromUrl();
+// Desde que cada cuenta tiene su propio planning, "accessCode" ya no es un código que la
+// persona escribe a mano: es simplemente el uid de su cuenta de Firebase Auth (se asigna en
+// init(), en cuanto sabemos qué cuenta ha iniciado sesión). Así, cada correo aprobado ve
+// siempre y solo su propio calendario, tanto en la interfaz como a nivel de reglas de Firestore.
+let accessCode = null;
 
 /* ===================== ESTADO ===================== */
 let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
@@ -1226,6 +1226,10 @@ function normalizeState(){
   if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
+  // Marca si esta cuenta ya pasó por la pantalla de bienvenida/migración (ver
+  // renderMigrationChoice). Evita volver a preguntar en cada dispositivo nuevo, porque viaja
+  // dentro del propio state guardado en Firebase.
+  if(state.settings.onboarded === undefined) state.settings.onboarded = false;
   if(!state.clases) state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
   if(!state.clases.conocimientos) state.clases.conocimientos = {};
   if(!state.clases.ingles) state.clases.ingles = {};
@@ -1490,7 +1494,7 @@ function renderBackupBox(){
   if(!host) return;
   host.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copia de seguridad</div>
-    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Descarga tus datos en un archivo JSON, o restáuralos si falla Firebase o pierdes el código de acceso.</div>
+    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Descarga tus datos en un archivo JSON, o restáuralos si falla Firebase o pierdes el acceso a tu cuenta.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn ghost small" id="exportJsonBtn">Exportar copia (JSON)</button>
       <button class="btn ghost small" id="importJsonBtn">Importar copia (JSON)</button>
@@ -1502,12 +1506,13 @@ function renderBackupBox(){
   document.getElementById('importJsonFile').onchange = importBackup;
 }
 function exportBackup(){
-  const payload = {app:'planning-oposicion', version:3, accessCode, exportedAt:new Date().toISOString(), state};
+  const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
+  const payload = {app:'planning-oposicion', version:3, account: email, exportedAt:new Date().toISOString(), state};
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   const today = new Date().toISOString().slice(0,10);
-  a.href = url; a.download = 'planning-backup-'+(accessCode||'sin-codigo')+'-'+today+'.json';
+  a.href = url; a.download = 'planning-backup-'+(email||'sin-cuenta')+'-'+today+'.json';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
   showToast('Copia exportada');
@@ -1727,22 +1732,63 @@ async function renderAdminBox(){
     aprobadas.forEach((c)=> okHost.appendChild(filaCuenta(c, false)));
   }
 }
-function renderCodeGate(){
+// Se muestra una sola vez por cuenta, justo cuando esa cuenta todavía no tiene ningún
+// planning propio guardado (plannings/{uid} no existe / está vacío). Dos caminos:
+//   1) Empezar de cero: cuenta nueva, sin datos previos.
+//   2) Importar desde un código de acceso anterior: para cuentas que ya usaban la app con
+//      el antiguo sistema de "código de acceso" compartido. Se copian esos datos, una sola
+//      vez, al planning propio y aislado de esta cuenta (ligado a su uid). El documento
+//      antiguo no se borra ni se modifica, así que es seguro repetir la operación o dejarlo
+//      como copia de respaldo.
+function renderMigrationChoice(){
   document.querySelector('.wrap').innerHTML = `
     <div class="empty-state" style="text-align:left;max-width:520px;margin:40px auto;">
-      <h3 style="color:var(--amber);font-family:var(--font-display);margin-top:0;">Tu código de acceso</h3>
-      <p>Elige un código personal (solo tú lo necesitas). Con el mismo código podrás abrir tu planning
-      desde cualquier dispositivo, usando el mismo enlace.</p>
-      <input id="gateCodeInput" type="text" placeholder="Ej: MARIA-GC-2026" style="width:100%;padding:10px;font-family:var(--font-mono);
+      <h3 style="color:var(--amber);font-family:var(--font-display);margin-top:0;">Bienvenido/a</h3>
+      <p>Tu cuenta (<strong>${firebaseUser && firebaseUser.email ? firebaseUser.email : ''}</strong>) todavía no
+      tiene ningún planning guardado en este nuevo sistema, donde cada cuenta tiene su propio calendario
+      privado.</p>
+      <p>Si ya usabas la app antes con un código de acceso compartido, escríbelo aquí abajo para traer esos
+      datos a tu cuenta (solo hace falta hacerlo una vez). Si es la primera vez que usas la app, pulsa
+      directamente "Empezar de cero".</p>
+      <label for="migCodeInput" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Código de acceso anterior (opcional)</label>
+      <input id="migCodeInput" type="text" placeholder="Ej: MARIA-GC-2026" style="width:100%;padding:10px;font-family:var(--font-mono);
         background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
-      <button class="btn" id="gateCodeBtn">Entrar</button>
+      <div id="migError" role="alert" style="color:var(--red-text);font-family:var(--font-mono);font-size:12px;margin-bottom:10px;min-height:14px;"></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn" id="migImportBtn">Importar datos de ese código</button>
+        <button class="btn ghost" id="migSkipBtn">Empezar de cero</button>
+      </div>
     </div>`;
-  document.getElementById('gateCodeBtn').onclick = ()=>{
-    const val = document.getElementById('gateCodeInput').value.trim();
-    if(!val) return;
-    const url = new URL(window.location.href);
-    url.searchParams.set('code', val);
-    window.location.href = url.toString();
+  document.getElementById('migSkipBtn').onclick = async ()=>{
+    state.settings.onboarded = true;
+    await doSave();
+    startApp();
+  };
+  document.getElementById('migImportBtn').onclick = async ()=>{
+    const btn = document.getElementById('migImportBtn');
+    const oldCode = document.getElementById('migCodeInput').value.trim();
+    const errEl = document.getElementById('migError');
+    errEl.textContent = '';
+    if(!oldCode){ errEl.textContent = 'Escribe el código de acceso anterior, o pulsa "Empezar de cero".'; return; }
+    btn.disabled = true;
+    try{
+      const snap = await db.collection('plannings').doc(oldCode).get();
+      if(!snap.exists || !snap.data() || !snap.data().state){
+        errEl.textContent = 'No se ha encontrado ningún planning con ese código.';
+        btn.disabled = false;
+        return;
+      }
+      state = JSON.parse(snap.data().state);
+      normalizeState();
+      state.settings.onboarded = true;
+      await doSave();
+      showToast('Datos importados correctamente');
+      startApp();
+    }catch(e){
+      console.error(e);
+      errEl.textContent = 'Error al importar. Comprueba el código e inténtalo de nuevo.';
+      btn.disabled = false;
+    }
   };
 }
 
@@ -4303,23 +4349,13 @@ function renderCiclo(){
 function renderSyncBox(){
   const host = document.getElementById('syncBox');
   if(!host) return;
-  const url = new URL(window.location.href);
-  url.searchParams.set('code', accessCode);
-  const link = url.toString();
+  const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
   host.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Sincronización</div>
-    <div style="font-size:13px;margin-bottom:8px;">Tu código de acceso: <strong>${accessCode}</strong></div>
-    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Abre este mismo enlace en cualquier otro dispositivo (móvil, tablet, ordenador) para ver el mismo planning, con los mismos meses y notas. Guárdalo como marcador/acceso directo.</div>
-    <input readonly value="${link}" style="width:100%;padding:8px;font-family:var(--font-mono);font-size:11px;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:8px;" onclick="this.select()">
-    <button class="btn ghost small" id="copyLinkBtn">Copiar enlace</button>
+    <div style="font-size:13px;">Tu planning es privado y está ligado a tu cuenta<strong>${email ? ' ('+email+')' : ''}</strong>.
+    Para verlo en otro dispositivo (móvil, tablet, ordenador), simplemente abre la app e inicia sesión ahí con
+    el mismo correo y contraseña: no hace falta ningún código ni enlace especial.</div>
   `;
-  const copyBtn = document.getElementById('copyLinkBtn');
-  if(copyBtn){
-    copyBtn.onclick = async ()=>{
-      try{ await navigator.clipboard.writeText(link); showToast('Enlace copiado'); }
-      catch(e){ showToast('Copia el enlace manualmente'); }
-    };
-  }
 }
 
 document.getElementById('resetBtn').onclick = ()=>{
@@ -4502,21 +4538,10 @@ function renderAll(){
   renderSecurity();
   renderBackupBox();
 }
-(async function init(){
-  if(!firebaseOk){ renderConfigNeeded(); return; }
-  const approvedUser = await firebaseAuthReady;
-  if(!firebaseUser){ renderAuthScreen(); return; }
-  if(!approvedUser){ renderPendingScreen(); return; }
-  if(!accessCode){ renderCodeGate(); return; }
-  await loadState();
-  if(state.settings.pinHash){
-    let localHash = null;
-    try{ localHash = localStorage.getItem(unlockKeyName()); }catch(e){}
-    unlocked = (localHash === state.settings.pinHash);
-  } else {
-    unlocked = true;
-  }
-  if(!unlocked){ renderPinGate(); return; }
+// Segunda mitad del arranque: se llama tanto justo tras loadState() (caso normal) como al
+// terminar renderMigrationChoice() (cuenta nueva que acaba de elegir "empezar de cero" o
+// terminó de importar sus datos antiguos).
+function startApp(){
   const keys = sortedMonthKeys();
   const now = new Date();
   const todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
@@ -4535,6 +4560,26 @@ function renderAll(){
     if(navigator.onLine) trySyncPending();
     else setSaveStatus('error', 'Sin conexión · se guardará al reconectar');
   }
+}
+(async function init(){
+  if(!firebaseOk){ renderConfigNeeded(); return; }
+  const approvedUser = await firebaseAuthReady;
+  if(!firebaseUser){ renderAuthScreen(); return; }
+  if(!approvedUser){ renderPendingScreen(); return; }
+  // Cada cuenta aprobada tiene su propio planning, identificado por su uid: no hay dos
+  // cuentas que puedan compartir ni pisarse los datos, ni falta ningún código manual.
+  accessCode = firebaseUser.uid;
+  await loadState();
+  if(!state.settings.onboarded && sortedMonthKeys().length === 0){ renderMigrationChoice(); return; }
+  if(state.settings.pinHash){
+    let localHash = null;
+    try{ localHash = localStorage.getItem(unlockKeyName()); }catch(e){}
+    unlocked = (localHash === state.settings.pinHash);
+  } else {
+    unlocked = true;
+  }
+  if(!unlocked){ renderPinGate(); return; }
+  startApp();
 })();
 
 /* ===================== PWA: registro del service worker ===================== */
