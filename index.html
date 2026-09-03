@@ -772,6 +772,7 @@
       <div class="save-indicator" id="saveIndicator" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span><span id="saveIndicatorText">Sin cambios</span>
       </div>
+      <button type="button" class="btn ghost small" id="headerLogoutBtn" title="Cerrar sesión">Cerrar sesión</button>
     </div>
   </header>
 
@@ -984,6 +985,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
+/* ===================== BOTÓN "CERRAR SESIÓN" DE LA CABECERA ===================== */
+// Se engancha pronto (no espera a que sepamos si hay sesión) porque el botón vive en la
+// cabecera estática del HTML; si no hay sesión iniciada, las pantallas de acceso sustituyen
+// todo el contenido de .wrap (incluida la cabecera) antes de que esto llegue a importar.
+(function initHeaderLogout(){
+  const btn = document.getElementById('headerLogoutBtn');
+  if(!btn) return;
+  btn.onclick = ()=>{
+    if(typeof auth === 'undefined' || !auth){ return; }
+    auth.signOut().then(()=> location.reload());
+  };
+})();
+
 /* ===================== TEMA CLARO / OSCURO ===================== */
 (function initTheme(){
   const btn = document.getElementById('themeToggleBtn');
