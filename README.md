@@ -28,7 +28,9 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 
 Añadida una pestaña para ir guardando tus propias preguntas de test (sacadas de fotos de tests ya hechos) y practicar con ellas más adelante, organizadas por Temario (1-23), Inglés, Psicotécnicos, Ortografía y Gramática.
 
-- Los datos de las preguntas se guardan en el mismo Firebase que el resto de la app (dentro de `testBank`), así que se sincronizan igual entre dispositivos.
+- **Almacenamiento**: cada pregunta se guarda como un documento independiente en Firestore (dentro de `plannings/{tu código}/testQuestions/`), NO dentro del documento principal de la planificación. Esto es importante porque Firestore limita cada documento a 1 MB — guardando cada pregunta por separado, el banco puede crecer a miles de preguntas sin problema, dentro del 1 GB total gratuito del plan Spark.
+- **⚠️ Acción necesaria una sola vez**: al añadir esta función también cambié `firestore.rules` para permitir esa subcolección nueva. Tienes que volver a pegar el contenido de `firestore.rules` en la consola de Firebase (Firestore Database → Reglas → Publicar), igual que se explica más abajo. Si no lo haces, la app no podrá guardar preguntas nuevas (dará error de permisos).
+- Si ya tenías preguntas guardadas de antes de este cambio, la app las migra automáticamente la primera vez que abras la app tras actualizar (verás un aviso "Banco de tests migrado ✓").
 - Para transcribir fotos automáticamente con IA usa Google Gemini (modelo `gemini-3.6-flash` por defecto). Necesitas tu propia clave API gratuita de https://aistudio.google.com/apikey.
 - Esa clave **se guarda solo en el navegador de cada dispositivo** (no viaja a Firebase, no es compartida), así que hay que volver a pegarla si usas la app desde el móvil y el ordenador.
 - Si algún día Google cambia otra vez el nombre del modelo y da error 404 "no longer available", solo hay que cambiar el nombre en el campo "Modelo" de esa pestaña (comprobar el nombre vigente en https://ai.google.dev/gemini-api/docs/models).
