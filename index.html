@@ -102,8 +102,8 @@
   .wrap{max-width:980px;margin:0 auto;padding:20px 16px 40px;}
 
   header.app-head{
-    display:flex;align-items:baseline;justify-content:space-between;
-    padding-bottom:14px;margin-bottom:18px;flex-wrap:wrap;gap:8px;
+    display:flex;flex-direction:column;align-items:center;text-align:center;
+    padding-bottom:14px;margin-bottom:18px;gap:12px;
   }
   .brand{display:flex;flex-direction:column;gap:2px;}
   .brand .eyebrow{
@@ -763,7 +763,7 @@
         <p class="brand-motto">«El honor ha de ser mi principal divisa»</p>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+    <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
       <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
       <button type="button" class="icon-btn" id="themeToggleBtn" title="Cambiar a tema claro/oscuro" aria-label="Cambiar tema" style="font-size:14px;">🌙</button>
       <div class="save-indicator" id="offlineIndicator" role="status" aria-live="polite" style="display:none;border-color:var(--red-text);color:var(--red-text);">
