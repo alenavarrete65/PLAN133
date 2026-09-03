@@ -1788,7 +1788,10 @@ function renderMigrationChoice(){
   document.getElementById('migSkipBtn').onclick = async ()=>{
     state.settings.onboarded = true;
     await doSave();
-    startApp();
+    // Recargamos en vez de "continuar" en la misma página: esta pantalla sustituyó toda la
+    // estructura de la app (pestañas, calendario, etc.), así que hace falta relanzar init()
+    // desde cero para reconstruirla correctamente.
+    location.reload();
   };
   document.getElementById('migImportBtn').onclick = async ()=>{
     const btn = document.getElementById('migImportBtn');
@@ -1810,12 +1813,11 @@ function renderMigrationChoice(){
       // nuevo sistema por cuenta ya no puede volver a coincidir aunque se escriba bien, así
       // que lo quitamos aquí para no dejar a nadie bloqueado justo después de migrar. Si
       // quiere, puede volver a activar un PIN nuevo desde Ajustes → Seguridad.
-      const teniaPin = !!state.settings.pinHash;
       state.settings.pinHash = null;
       state.settings.onboarded = true;
       await doSave();
-      showToast(teniaPin ? 'Datos importados. El PIN antiguo se ha quitado: puedes crear uno nuevo en Ajustes.' : 'Datos importados correctamente');
-      startApp();
+      // Recargamos (ver comentario en migSkipBtn) para reconstruir toda la interfaz desde cero.
+      location.reload();
     }catch(e){
       console.error(e);
       errEl.textContent = 'Error al importar. Comprueba el código e inténtalo de nuevo.';
