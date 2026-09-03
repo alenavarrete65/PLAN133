@@ -10,13 +10,10 @@ rules_version = '2';
 //
 // Lo que SÍ arreglan estas reglas frente a las de "modo prueba" por defecto de Firebase
 // (que dejan TODA la base de datos abierta a cualquiera):
-//   1) Solo se puede leer/escribir dentro de la colección "plannings" (y su subcolección
-//      "testQuestions", donde vive el banco de preguntas de test de cada código de acceso).
+//   1) Solo se puede leer/escribir dentro de la colección "plannings".
 //   2) Se bloquea el "list" del documento principal (nadie puede pedir "dame todos los
 //      documentos de plannings" y enumerar los códigos de acceso de otras personas); solo
 //      se puede hacer "get" de un documento si ya conoces su ID exacto (tu código de acceso).
-//      El "list" de la subcolección "testQuestions" SÍ se permite, porque solo lista las
-//      preguntas DENTRO de un código de acceso que ya conoces (no expone otros códigos).
 //   3) Cualquier otra colección/ruta queda denegada por completo.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -24,10 +21,6 @@ service cloud.firestore {
       allow get: if true;
       allow list: if false;
       allow write: if true;
-
-      match /testQuestions/{questionId} {
-        allow read, write: if true;
-      }
     }
     match /{document=**} {
       allow read, write: if false;

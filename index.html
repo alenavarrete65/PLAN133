@@ -682,48 +682,6 @@
   .modal-add label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
   .modal-add select{width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-mono);}
 
-  /* ---- TESTS (banco de preguntas) ---- */
-  .test-subnav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px;}
-  .test-subnav button{background:var(--bg-panel);border:1px solid var(--line);color:var(--cream-dim);padding:8px 14px;border-radius:2px;font-family:var(--font-mono);font-size:12px;cursor:pointer;text-transform:uppercase;letter-spacing:.02em;}
-  .test-subnav button.active{border-color:var(--amber);color:var(--amber);}
-  .test-panel{background:var(--bg-panel);border:1px solid var(--line);border-radius:3px;padding:16px;margin-bottom:16px;}
-  .test-panel h4{font-family:var(--font-display);text-transform:uppercase;color:var(--amber);margin:0 0 10px;font-size:15px;letter-spacing:.03em;}
-  .test-field{margin-bottom:12px;}
-  .test-field label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
-  .test-field input[type="text"], .test-field input[type="password"], .test-field input[type="number"], .test-field select, .test-field textarea{
-    width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-body);font-size:14px;
-  }
-  .test-field textarea{min-height:64px;resize:vertical;font-family:var(--font-body);}
-  .test-row{display:flex;gap:10px;flex-wrap:wrap;}
-  .test-row .test-field{flex:1;min-width:140px;}
-  .test-opt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
-  .test-opt-row input[type="radio"]{flex-shrink:0;width:16px;height:16px;accent-color:var(--amber);}
-  .test-opt-row input[type="text"]{flex:1;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:7px 8px;border-radius:2px;font-family:var(--font-body);font-size:14px;}
-  .test-opt-del{background:none;border:none;color:var(--red-text);cursor:pointer;font-size:14px;flex-shrink:0;}
-  .test-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;}
-  .test-thumbs .thumb{position:relative;width:74px;height:74px;border:1px solid var(--line);border-radius:2px;overflow:hidden;}
-  .test-thumbs .thumb img{width:100%;height:100%;object-fit:cover;display:block;}
-  .test-thumbs .thumb button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border:none;border-radius:50%;width:18px;height:18px;font-size:11px;cursor:pointer;line-height:1;}
-  .test-list{display:flex;flex-direction:column;gap:8px;margin-top:12px;}
-  .test-card{background:var(--bg-panel-2);border:1px solid var(--line);border-radius:3px;padding:10px 12px;}
-  .test-card .tc-head{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:4px;}
-  .test-card .tc-tag{font-family:var(--font-mono);font-size:10px;color:var(--muted);white-space:nowrap;}
-  .test-card .tc-stat{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:4px;}
-  .test-card .tc-actions{display:flex;gap:6px;margin-top:8px;}
-  .test-card .tc-actions button{font-family:var(--font-mono);font-size:11px;background:transparent;border:1px solid var(--line);color:var(--cream-dim);padding:4px 9px;border-radius:2px;cursor:pointer;}
-  .test-card .tc-actions button:hover{border-color:var(--amber);color:var(--amber);}
-  .test-quiz-q{background:var(--bg-panel-2);border:1px solid var(--line);border-radius:3px;padding:12px 14px;margin-bottom:12px;}
-  .test-quiz-q .tq-enun{font-weight:600;margin-bottom:10px;line-height:1.4;}
-  .test-quiz-q .tq-opt{display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:2px;margin-bottom:4px;cursor:pointer;}
-  .test-quiz-q .tq-opt:hover{background:var(--bg-panel);}
-  .test-quiz-q .tq-opt input{margin-top:3px;accent-color:var(--amber);}
-  .test-quiz-q.corregida .tq-opt.correcta{background:rgba(111,154,106,0.18);border:1px solid var(--green);}
-  .test-quiz-q.corregida .tq-opt.incorrecta-elegida{background:rgba(182,84,63,0.18);border:1px solid var(--red);}
-  .test-quiz-q .tq-explic{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);}
-  .test-score-banner{text-align:center;padding:16px;background:var(--bg-panel-2);border:1px solid var(--amber-dim);border-radius:3px;margin-bottom:16px;}
-  .test-score-banner .num{font-family:var(--font-display);font-size:32px;color:var(--amber);}
-  .test-empty{font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:10px 0;}
-
   .toast{
     position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
     background:var(--amber);color:#1b2b1f;font-family:var(--font-mono);font-size:12px;
@@ -837,7 +795,6 @@
         <span class="tabs-group-label">Contenido</span>
         <button class="tab-btn" data-tab="temario">Temario y notas</button>
         <button class="tab-btn" data-tab="simulacros">Simulacros</button>
-        <button class="tab-btn" data-tab="tests">Tests</button>
       </div>
       <div class="tabs-group">
         <span class="tabs-group-label">Seguimiento</span>
@@ -906,11 +863,6 @@
       <div class="month-bar" id="simCalMonthBar"></div>
       <div id="simCalHost"></div>
     </section>
-  </div>
-
-  <!-- TESTS (banco propio de preguntas, transcritas desde fotos, organizadas por tema) -->
-  <div class="view" id="view-tests">
-    <div id="testsHost"></div>
   </div>
 
   <!-- ENTRENOS FÍSICOS (registro manual) -->
@@ -1195,7 +1147,7 @@ function getCodeFromUrl(){
 let accessCode = getCodeFromUrl();
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, testBank:{questions:[]} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 
@@ -1237,7 +1189,7 @@ function normalizeState(){
   }
   delete state.settings.unifyFromKey;
   delete state.orto; // sustituido por los tests APTO/NO APTO de ortoTests
-  if(!state.testBank || !Array.isArray(state.testBank.questions)){ state.testBank = {questions:[]}; }
+  delete state.testBank; // función "Tests" (banco de preguntas) eliminada
   // Migración: las "vueltas" antes eran un array de booleans (hecho/no hecho).
   // Ahora cada vuelta es un objeto {mode, nota} para poder guardar notas de test.
   Object.keys(state.ticks).forEach(key=>{
@@ -1304,7 +1256,7 @@ async function doSave(){
   // El cambio se guarda YA en este dispositivo (localStorage), pase lo que pase con la
   // conexión. Lo marcamos como "pendiente de nube" hasta que confirmemos que Firebase lo
   // recibió; así, si se cierra la app sin conexión, al reabrirla sabemos que falta sincronizar.
-  const payload = JSON.stringify(Object.assign({}, state, {testBank:{questions:[]}}));
+  const payload = JSON.stringify(state);
   try{ localStorage.setItem(localCacheKey(), payload); }catch(e){}
   markPendingSync();
   if(!navigator.onLine){
@@ -1365,90 +1317,6 @@ refreshOfflineBadge();
 setInterval(trySyncPending, 15000);
 document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) trySyncPending(); });
 
-/* ===================== BANCO DE TESTS: documentos independientes ===================== */
-// Las preguntas del banco de tests NO se guardan dentro del documento principal de
-// `plannings/{accessCode}` (ese documento tiene un límite de 1 MB en Firestore, y podría
-// llenarse con cientos de preguntas). En su lugar, cada pregunta es su propio documento
-// dentro de la subcolección `plannings/{accessCode}/testQuestions`, así el banco puede
-// crecer a miles de preguntas sin tocar ese límite (el límite real pasa a ser 1 GB en
-// total, del plan gratuito de Firebase).
-function testBankCacheKey(){ return 'planning_testbank_'+accessCode; }
-function testBankPendingKey(){ return 'planning_testbank_pending_'+accessCode; }
-function getTestBankPending(){ try{ return JSON.parse(localStorage.getItem(testBankPendingKey())||'[]'); }catch(e){ return []; } }
-function setTestBankPending(arr){ try{ localStorage.setItem(testBankPendingKey(), JSON.stringify(arr)); }catch(e){} }
-function queueTestBankPending(op){
-  const arr = getTestBankPending().filter(o=>o.id!==op.id);
-  arr.push(op);
-  setTestBankPending(arr);
-}
-function cacheTestBankLocally(){ try{ localStorage.setItem(testBankCacheKey(), JSON.stringify(state.testBank.questions)); }catch(e){} }
-
-async function loadTestBank(){
-  if(!firebaseOk || !accessCode) return;
-  try{
-    const snap = await db.collection('plannings').doc(accessCode).collection('testQuestions').get();
-    const qs = [];
-    snap.forEach(doc=> qs.push(doc.data()));
-    state.testBank.questions = qs;
-    cacheTestBankLocally();
-  }catch(e){
-    console.error(e);
-    try{
-      const cached = localStorage.getItem(testBankCacheKey());
-      if(cached) state.testBank.questions = JSON.parse(cached);
-    }catch(e2){}
-  }
-}
-async function saveTestQuestionRemote(q){
-  cacheTestBankLocally();
-  if(!firebaseOk || !accessCode) return;
-  try{
-    await db.collection('plannings').doc(accessCode).collection('testQuestions').doc(q.id).set(q);
-  }catch(e){
-    console.error(e);
-    queueTestBankPending({type:'set', id:q.id, data:q});
-    showToast('Sin conexión: la pregunta se guardó en este dispositivo y se sincronizará después.');
-  }
-}
-async function deleteTestQuestionRemote(id){
-  cacheTestBankLocally();
-  if(!firebaseOk || !accessCode) return;
-  try{
-    await db.collection('plannings').doc(accessCode).collection('testQuestions').doc(id).delete();
-  }catch(e){
-    console.error(e);
-    queueTestBankPending({type:'delete', id});
-    showToast('Sin conexión: se borró en este dispositivo y se sincronizará después.');
-  }
-}
-async function trySyncTestBankPending(){
-  if(!firebaseOk || !accessCode || !navigator.onLine) return;
-  const arr = getTestBankPending();
-  if(!arr.length) return;
-  const remaining = [];
-  for(const op of arr){
-    try{
-      const ref = db.collection('plannings').doc(accessCode).collection('testQuestions').doc(op.id);
-      if(op.type==='delete') await ref.delete();
-      else await ref.set(op.data);
-    }catch(e){ remaining.push(op); }
-  }
-  setTestBankPending(remaining);
-}
-window.addEventListener('online', trySyncTestBankPending);
-setInterval(trySyncTestBankPending, 15000);
-
-// Migración de una sola vez: si venías de una versión anterior donde las preguntas iban
-// dentro del documento principal, las traslada a la subcolección independiente.
-async function initTestBank(){
-  const legacy = (state.testBank && Array.isArray(state.testBank.questions)) ? state.testBank.questions.slice() : [];
-  await loadTestBank();
-  if(!state.testBank.questions.length && legacy.length){
-    state.testBank.questions = legacy;
-    for(const q of legacy){ await saveTestQuestionRemote(q); }
-    showToast('Banco de tests migrado a almacenamiento independiente ✓');
-  }
-}
 function showToast(msg){
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -1598,7 +1466,6 @@ function importBackup(e){
       state = incoming;
       normalizeState();
       scheduleSave();
-      if(state.testBank.questions.length){ state.testBank.questions.forEach(q=> saveTestQuestionRemote(q)); }
       currentMonthKey = null;
       const keys = sortedMonthKeys();
       currentMonthKey = keys.length ? keys[keys.length-1] : null;
@@ -2779,599 +2646,6 @@ function renderOrto(){
   mk('Ortografía','ortografia'); mk('Gramática','gramatica');
   body.appendChild(grid);
   });
-}
-
-/* ===================== TESTS: banco de preguntas desde fotos ===================== */
-const TEST_CATEGORIAS = [
-  {key:'conocimientos', label:'Temario general (1–23)', temas:23},
-  {key:'ingles', label:'Inglés (1–32)', temas:32},
-  {key:'psico', label:'Psicotécnicos', temas:23},
-  {key:'ortografia', label:'Ortografía', temas:0},
-  {key:'gramatica', label:'Gramática', temas:0}
-];
-function testCatLabel(key){ const c = TEST_CATEGORIAS.find(c=>c.key===key); return c ? c.label : key; }
-function testCatTemas(key){ const c = TEST_CATEGORIAS.find(c=>c.key===key); return c ? c.temas : 0; }
-
-let testsActiveSubtab = 'practicar';
-let testsAddState = { files:[], parsed:null, categoria:'conocimientos', tema:null, origen:'', enunciado:'', opciones:['',''], correcta:0, explicacion:'' };
-let testsQuiz = null; // {items:[...], corregido:false}
-
-function getGeminiKey(){ try{ return localStorage.getItem('ob-gemini-key') || ''; }catch(e){ return ''; } }
-function setGeminiKey(v){ try{ localStorage.setItem('ob-gemini-key', v); }catch(e){} }
-function getGeminiModel(){ try{ return localStorage.getItem('ob-gemini-model') || 'gemini-3.6-flash'; }catch(e){ return 'gemini-3.6-flash'; } }
-function setGeminiModel(v){ try{ localStorage.setItem('ob-gemini-model', v); }catch(e){} }
-
-function fileToBase64(file){
-  return new Promise((res, rej)=>{
-    const r = new FileReader();
-    r.onload = ()=> res(r.result.split(',')[1]);
-    r.onerror = ()=> rej(new Error('No se pudo leer la imagen'));
-    r.readAsDataURL(file);
-  });
-}
-
-async function callClaudeVisionTranscribe(files){
-  const apiKey = getGeminiKey();
-  if(!apiKey) throw new Error('Falta la clave API de Google Gemini (configúrala arriba).');
-  const model = getGeminiModel();
-  const imageParts = [];
-  for(const f of files){
-    const b64 = await fileToBase64(f);
-    imageParts.push({ inline_data:{ mime_type: f.type || 'image/jpeg', data:b64 } });
-  }
-  const prompt = `Estas imágenes son capturas de pantalla de UNA pregunta de un test de oposición ya respondido (puede estar acertada, fallada o en blanco), a veces con la retroalimentación/corrección visible.
-Transcribe la pregunta y devuelve SOLO un objeto JSON válido, sin texto adicional, sin explicaciones, sin backticks, con esta forma exacta:
-{"enunciado":"texto literal de la pregunta","opciones":["opción A","opción B","opción C","opción D"],"correcta":0,"explicacion":"resumen breve de la retroalimentación si aparece, si no cadena vacía","categoria_sugerida":"conocimientos|ingles|psico|ortografia|gramatica","tema_sugerido":null}
-Reglas: "correcta" es el índice (empezando en 0) de la opción correcta, dedúcelo de la retroalimentación o marca de corrección aunque el usuario la haya fallado o dejado en blanco; si no puedes saber cuál es la correcta pon null. "tema_sugerido" es un número si se menciona o se puede inferir el tema, si no null.`;
-  const resp = await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+model+':generateContent?key='+encodeURIComponent(apiKey), {
-    method:'POST',
-    headers:{ 'content-type':'application/json' },
-    body: JSON.stringify({
-      contents:[{ parts:[...imageParts, {text:prompt}] }],
-      generationConfig:{ temperature:0.1, maxOutputTokens:1500 }
-    })
-  });
-  if(!resp.ok){
-    const errTxt = await resp.text().catch(()=> '');
-    throw new Error('Error de la API ('+resp.status+'): '+errTxt.slice(0,200));
-  }
-  const data = await resp.json();
-  const cand = (data.candidates||[])[0];
-  const textPart = cand && cand.content && (cand.content.parts||[]).find(p=>typeof p.text==='string');
-  if(!textPart) throw new Error('La API no devolvió texto.');
-  let clean = textPart.text.trim().replace(/^```json/i,'').replace(/^```/,'').replace(/```$/,'').trim();
-  let parsed;
-  try{ parsed = JSON.parse(clean); }catch(e){ throw new Error('No se pudo interpretar la respuesta de la IA. Revisa/rellena manualmente.'); }
-  return parsed;
-}
-
-function newTestQuestionFromState(){
-  const opciones = testsAddState.opciones.map(o=>o.trim()).filter(o=>o.length);
-  return {
-    id: 'q_'+Date.now()+'_'+Math.random().toString(36).slice(2,7),
-    categoria: testsAddState.categoria,
-    tema: testsAddState.tema,
-    enunciado: testsAddState.enunciado.trim(),
-    opciones,
-    correcta: testsAddState.correcta,
-    explicacion: (testsAddState.explicacion||'').trim(),
-    origen: testsAddState.origen || null,
-    creado: Date.now(),
-    stats: {veces:0, aciertos:0}
-  };
-}
-function resetTestsAddState(){
-  testsAddState = { files:[], parsed:null, categoria: testsAddState.categoria, tema:null, origen:'', enunciado:'', opciones:['',''], correcta:0, explicacion:'' };
-}
-
-function renderTests(){
-  const host = document.getElementById('testsHost');
-  if(!host) return;
-  host.innerHTML = '';
-  const nav = document.createElement('div'); nav.className='test-subnav';
-  [['practicar','Practicar'],['banco','Banco de preguntas'],['anadir','Añadir desde foto']].forEach(([key,label])=>{
-    const b = document.createElement('button'); b.type='button'; b.textContent=label;
-    if(testsActiveSubtab===key) b.classList.add('active');
-    b.onclick = ()=>{ testsActiveSubtab = key; if(key!=='practicar') testsQuiz=null; renderTests(); };
-    nav.appendChild(b);
-  });
-  host.appendChild(nav);
-  const body = document.createElement('div');
-  host.appendChild(body);
-  if(testsActiveSubtab==='practicar') renderTestsPracticar(body);
-  else if(testsActiveSubtab==='banco') renderTestsBanco(body);
-  else renderTestsAnadir(body);
-}
-
-/* ---- Sub-vista: Añadir desde foto ---- */
-function renderTestsAnadir(body){
-  const apiPanel = document.createElement('div'); apiPanel.className='test-panel';
-  apiPanel.innerHTML = `<h4>Clave API (Google Gemini)</h4>
-    <p style="font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);line-height:1.5;">
-      Necesaria para que la IA lea la foto y transcriba la pregunta. Se guarda solo en este dispositivo (no viaja a Firebase).
-      La puedes crear gratis en <span style="color:var(--amber);">aistudio.google.com/apikey</span> (Google AI Studio).
-    </p>`;
-  const row = document.createElement('div'); row.className='test-row';
-  const keyField = document.createElement('div'); keyField.className='test-field'; keyField.style.flex='2';
-  keyField.innerHTML = `<label>Clave API</label>`;
-  const keyInput = document.createElement('input'); keyInput.type='password'; keyInput.placeholder='AIzaSy...'; keyInput.value = getGeminiKey();
-  keyInput.onchange = ()=> setGeminiKey(keyInput.value.trim());
-  keyField.appendChild(keyInput);
-  row.appendChild(keyField);
-  const modelField = document.createElement('div'); modelField.className='test-field';
-  modelField.innerHTML = `<label>Modelo</label>`;
-  const modelInput = document.createElement('input'); modelInput.type='text'; modelInput.value = getGeminiModel();
-  modelInput.onchange = ()=> setGeminiModel(modelInput.value.trim() || 'gemini-3.6-flash');
-  modelField.appendChild(modelInput);
-  row.appendChild(modelField);
-  apiPanel.appendChild(row);
-  body.appendChild(apiPanel);
-
-  const panel = document.createElement('div'); panel.className='test-panel';
-  panel.innerHTML = `<h4>1. Sube la(s) foto(s) de la pregunta</h4>
-    <p style="font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);">
-      Puedes subir varias imágenes si la pregunta y su corrección/retroalimentación están en capturas distintas: todas se tratan como UNA sola pregunta.
-    </p>`;
-  const fileInput = document.createElement('input'); fileInput.type='file'; fileInput.accept='image/*'; fileInput.multiple = true;
-  fileInput.onchange = (e)=>{
-    testsAddState.files = Array.from(e.target.files||[]);
-    paintThumbs();
-  };
-  panel.appendChild(fileInput);
-  const thumbs = document.createElement('div'); thumbs.className='test-thumbs';
-  panel.appendChild(thumbs);
-  function paintThumbs(){
-    thumbs.innerHTML = '';
-    testsAddState.files.forEach((f,i)=>{
-      const t = document.createElement('div'); t.className='thumb';
-      const img = document.createElement('img'); img.src = URL.createObjectURL(f);
-      t.appendChild(img);
-      const del = document.createElement('button'); del.type='button'; del.textContent='✕';
-      del.onclick = ()=>{ testsAddState.files.splice(i,1); paintThumbs(); };
-      t.appendChild(del);
-      thumbs.appendChild(t);
-    });
-  }
-  const btnRow = document.createElement('div'); btnRow.style.marginTop='10px'; btnRow.style.display='flex'; btnRow.style.gap='8px'; btnRow.style.flexWrap='wrap';
-  const transcribeBtn = document.createElement('button'); transcribeBtn.type='button'; transcribeBtn.className='btn small';
-  transcribeBtn.textContent='Transcribir con IA';
-  transcribeBtn.onclick = async ()=>{
-    if(!testsAddState.files.length){ showToast('Selecciona al menos una foto.'); return; }
-    transcribeBtn.disabled = true; transcribeBtn.textContent = 'Transcribiendo…';
-    try{
-      const parsed = await callClaudeVisionTranscribe(testsAddState.files);
-      testsAddState.enunciado = parsed.enunciado || '';
-      testsAddState.opciones = (Array.isArray(parsed.opciones) && parsed.opciones.length) ? parsed.opciones : ['',''];
-      testsAddState.correcta = (typeof parsed.correcta === 'number') ? parsed.correcta : 0;
-      testsAddState.explicacion = parsed.explicacion || '';
-      if(parsed.categoria_sugerida && TEST_CATEGORIAS.some(c=>c.key===parsed.categoria_sugerida)) testsAddState.categoria = parsed.categoria_sugerida;
-      testsAddState.tema = (typeof parsed.tema_sugerido === 'number') ? parsed.tema_sugerido : null;
-      showToast('Transcripción lista, revísala abajo ✓');
-      renderTests();
-    }catch(err){
-      console.error(err);
-      showToast(err.message || 'No se pudo transcribir la imagen.');
-    }finally{
-      transcribeBtn.disabled = false; transcribeBtn.textContent = 'Transcribir con IA';
-    }
-  };
-  btnRow.appendChild(transcribeBtn);
-  const manualBtn = document.createElement('button'); manualBtn.type='button'; manualBtn.className='btn small ghost';
-  manualBtn.textContent = 'Escribir manualmente (sin IA)';
-  manualBtn.onclick = ()=>{ if(!testsAddState.enunciado) testsAddState.opciones = ['','']; renderTests(); document.getElementById('testReviewAnchor')?.scrollIntoView({behavior:'smooth'}); };
-  btnRow.appendChild(manualBtn);
-  panel.appendChild(btnRow);
-  body.appendChild(panel);
-  paintThumbs();
-
-  // Panel de revisión / edición (siempre visible para permitir edición manual o tras la IA)
-  const reviewPanel = document.createElement('div'); reviewPanel.className='test-panel'; reviewPanel.id='testReviewAnchor';
-  reviewPanel.innerHTML = `<h4>2. Revisa y corrige antes de guardar</h4>`;
-
-  const catRow = document.createElement('div'); catRow.className='test-row';
-  const catField = document.createElement('div'); catField.className='test-field';
-  catField.innerHTML = '<label>Categoría</label>';
-  const catSel = document.createElement('select');
-  TEST_CATEGORIAS.forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=c.label; if(c.key===testsAddState.categoria) o.selected=true; catSel.appendChild(o); });
-  catSel.onchange = ()=>{ testsAddState.categoria = catSel.value; testsAddState.tema=null; renderTests(); };
-  catField.appendChild(catSel);
-  catRow.appendChild(catField);
-
-  const temaMax = testCatTemas(testsAddState.categoria);
-  if(temaMax>0){
-    const temaField = document.createElement('div'); temaField.className='test-field';
-    temaField.innerHTML = '<label>Tema</label>';
-    const temaSel = document.createElement('select');
-    const optSin = document.createElement('option'); optSin.value=''; optSin.textContent='Sin especificar'; temaSel.appendChild(optSin);
-    for(let i=1;i<=temaMax;i++){ const o=document.createElement('option'); o.value=i; o.textContent='Tema '+i; if(testsAddState.tema===i) o.selected=true; temaSel.appendChild(o); }
-    temaSel.onchange = ()=>{ testsAddState.tema = temaSel.value ? Number(temaSel.value) : null; };
-    temaField.appendChild(temaSel);
-    catRow.appendChild(temaField);
-  }
-  const origField = document.createElement('div'); origField.className='test-field';
-  origField.innerHTML = '<label>Resultado original (informativo)</label>';
-  const origSel = document.createElement('select');
-  [['','—'],['acertada','La acerté'],['fallada','La fallé'],['blanco','La dejé en blanco']].forEach(([val,txt])=>{
-    const o=document.createElement('option'); o.value=val; o.textContent=txt; if(testsAddState.origen===val) o.selected=true; origSel.appendChild(o);
-  });
-  origSel.onchange = ()=>{ testsAddState.origen = origSel.value; };
-  origField.appendChild(origSel);
-  catRow.appendChild(origField);
-  reviewPanel.appendChild(catRow);
-
-  const enunField = document.createElement('div'); enunField.className='test-field';
-  enunField.innerHTML = '<label>Enunciado</label>';
-  const enunTa = document.createElement('textarea'); enunTa.value = testsAddState.enunciado; enunTa.placeholder='Texto de la pregunta…';
-  enunTa.oninput = ()=>{ testsAddState.enunciado = enunTa.value; };
-  enunField.appendChild(enunTa);
-  reviewPanel.appendChild(enunField);
-
-  const optsWrap = document.createElement('div'); optsWrap.className='test-field';
-  optsWrap.innerHTML = '<label>Opciones (marca la correcta)</label>';
-  const optsList = document.createElement('div');
-  function paintOpts(){
-    optsList.innerHTML = '';
-    testsAddState.opciones.forEach((op,i)=>{
-      const r = document.createElement('div'); r.className='test-opt-row';
-      const radio = document.createElement('input'); radio.type='radio'; radio.name='correctaRadio'; radio.checked = testsAddState.correcta===i;
-      radio.onchange = ()=>{ testsAddState.correcta = i; };
-      r.appendChild(radio);
-      const inp = document.createElement('input'); inp.type='text'; inp.value = op; inp.placeholder='Opción '+(i+1);
-      inp.oninput = ()=>{ testsAddState.opciones[i] = inp.value; };
-      r.appendChild(inp);
-      const del = document.createElement('button'); del.type='button'; del.className='test-opt-del'; del.textContent='✕';
-      del.onclick = ()=>{ testsAddState.opciones.splice(i,1); if(testsAddState.correcta>=testsAddState.opciones.length) testsAddState.correcta=0; paintOpts(); };
-      r.appendChild(del);
-      optsList.appendChild(r);
-    });
-  }
-  paintOpts();
-  optsWrap.appendChild(optsList);
-  const addOptBtn = document.createElement('button'); addOptBtn.type='button'; addOptBtn.className='tick-add'; addOptBtn.textContent='+ Añadir opción';
-  addOptBtn.onclick = ()=>{ testsAddState.opciones.push(''); paintOpts(); };
-  optsWrap.appendChild(addOptBtn);
-  reviewPanel.appendChild(optsWrap);
-
-  const explField = document.createElement('div'); explField.className='test-field';
-  explField.innerHTML = '<label>Explicación / retroalimentación (opcional)</label>';
-  const explTa = document.createElement('textarea'); explTa.value = testsAddState.explicacion; explTa.placeholder='Por qué es correcta esta opción…';
-  explTa.oninput = ()=>{ testsAddState.explicacion = explTa.value; };
-  explField.appendChild(explTa);
-  reviewPanel.appendChild(explField);
-
-  const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn small';
-  saveBtn.textContent = 'Guardar pregunta en el banco';
-  saveBtn.onclick = ()=>{
-    const opciones = testsAddState.opciones.map(o=>o.trim()).filter(o=>o.length);
-    if(!testsAddState.enunciado.trim() || opciones.length<2){ showToast('Falta el enunciado o hay menos de 2 opciones.'); return; }
-    const q = newTestQuestionFromState();
-    state.testBank.questions.push(q);
-    saveTestQuestionRemote(q);
-    showToast('Pregunta guardada ✓');
-    resetTestsAddState();
-    renderTests();
-  };
-  reviewPanel.appendChild(saveBtn);
-  body.appendChild(reviewPanel);
-}
-
-/* ---- Sub-vista: Banco de preguntas ---- */
-let testsBancoFiltro = {categoria:'', tema:'', q:''};
-function renderTestsBanco(body){
-  const questions = state.testBank.questions;
-  const panel = document.createElement('div'); panel.className='test-panel';
-  const total = questions.length;
-  const porCat = TEST_CATEGORIAS.map(c=>({c, n:questions.filter(q=>q.categoria===c.key).length}));
-  panel.innerHTML = `<h4>Banco de preguntas (${total})</h4>
-    <p style="font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);">
-      ${porCat.map(x=>x.c.label+': '+x.n).join(' · ')}
-    </p>`;
-  const row = document.createElement('div'); row.className='test-row';
-  const catField = document.createElement('div'); catField.className='test-field';
-  catField.innerHTML = '<label>Categoría</label>';
-  const catSel = document.createElement('select');
-  const optAll = document.createElement('option'); optAll.value=''; optAll.textContent='Todas'; catSel.appendChild(optAll);
-  TEST_CATEGORIAS.forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=c.label; if(testsBancoFiltro.categoria===c.key) o.selected=true; catSel.appendChild(o); });
-  catSel.onchange = ()=>{ testsBancoFiltro.categoria = catSel.value; testsBancoFiltro.tema=''; renderTests(); };
-  catField.appendChild(catSel);
-  row.appendChild(catField);
-  const searchField = document.createElement('div'); searchField.className='test-field'; searchField.style.flex='2';
-  searchField.innerHTML = '<label>Buscar</label>';
-  const searchInp = document.createElement('input'); searchInp.type='text'; searchInp.value = testsBancoFiltro.q; searchInp.placeholder='Buscar en el enunciado…';
-  searchInp.oninput = ()=>{ testsBancoFiltro.q = searchInp.value; paintList(); };
-  searchField.appendChild(searchInp);
-  row.appendChild(searchField);
-  panel.appendChild(row);
-  const list = document.createElement('div'); list.className='test-list';
-  panel.appendChild(list);
-  body.appendChild(panel);
-
-  function paintList(){
-    let filtered = questions.filter(q=>{
-      if(testsBancoFiltro.categoria && q.categoria!==testsBancoFiltro.categoria) return false;
-      if(testsBancoFiltro.q && !q.enunciado.toLowerCase().includes(testsBancoFiltro.q.toLowerCase())) return false;
-      return true;
-    }).sort((a,b)=>b.creado-a.creado);
-    list.innerHTML = '';
-    if(!filtered.length){ list.innerHTML = '<div class="test-empty">No hay preguntas guardadas con este filtro todavía.</div>'; return; }
-    filtered.forEach(q=>{
-      const card = document.createElement('div'); card.className='test-card'; card.style.cursor='pointer';
-      card.title = 'Pulsa para ver la pregunta completa';
-      card.onclick = ()=> openTestPreviewModal(q);
-      const head = document.createElement('div'); head.className='tc-head';
-      head.innerHTML = `<span>${(q.enunciado||'(sin enunciado)').slice(0,140)}</span>
-        <span class="tc-tag">${testCatLabel(q.categoria)}${q.tema?' · Tema '+q.tema:''}</span>`;
-      card.appendChild(head);
-      const stat = document.createElement('div'); stat.className='tc-stat';
-      stat.textContent = q.stats.veces ? `Practicada ${q.stats.veces} vez(es) · ${q.stats.aciertos} acierto(s)` : 'Sin practicar todavía';
-      card.appendChild(stat);
-      const actions = document.createElement('div'); actions.className='tc-actions';
-      const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.textContent='Editar';
-      editBtn.onclick = (e)=>{ e.stopPropagation(); openTestEditModal(q); };
-      actions.appendChild(editBtn);
-      const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.textContent='Eliminar';
-      delBtn.onclick = (e)=>{
-        e.stopPropagation();
-        if(!confirm('¿Eliminar esta pregunta del banco?')) return;
-        const idx = state.testBank.questions.findIndex(x=>x.id===q.id);
-        if(idx>=0){ state.testBank.questions.splice(idx,1); deleteTestQuestionRemote(q.id); renderTests(); }
-      };
-      actions.appendChild(delBtn);
-      card.appendChild(actions);
-      list.appendChild(card);
-    });
-  }
-  paintList();
-}
-
-function openTestPreviewModal(q){
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';
-  overlay.onclick = (e)=>{ if(e.target===overlay) document.body.removeChild(overlay); };
-  const box = document.createElement('div');
-  box.style.cssText = 'background:var(--bg-panel);border:1px solid var(--line);border-radius:4px;padding:18px;max-width:560px;width:100%;';
-  overlay.appendChild(box);
-
-  const headRow = document.createElement('div'); headRow.style.cssText='display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:12px;';
-  headRow.innerHTML = `<h3 style="font-family:var(--font-display);color:var(--amber);text-transform:uppercase;margin:0;">Vista previa</h3>
-    <span class="tc-tag">${testCatLabel(q.categoria)}${q.tema?' · Tema '+q.tema:''}</span>`;
-  box.appendChild(headRow);
-
-  const card = document.createElement('div'); card.className='test-quiz-q corregida';
-  const enun = document.createElement('div'); enun.className='tq-enun'; enun.textContent = q.enunciado;
-  card.appendChild(enun);
-  q.opciones.forEach((op,oi)=>{
-    const optRow = document.createElement('div'); optRow.className='tq-opt'+(oi===q.correcta?' correcta':'');
-    const marker = document.createElement('span'); marker.style.cssText='flex-shrink:0;width:16px;';
-    marker.textContent = oi===q.correcta ? '✓' : '';
-    optRow.appendChild(marker);
-    const span = document.createElement('span'); span.textContent = op;
-    optRow.appendChild(span);
-    card.appendChild(optRow);
-  });
-  if(q.explicacion){
-    const ex = document.createElement('div'); ex.className='tq-explic'; ex.textContent = q.explicacion;
-    card.appendChild(ex);
-  }
-  box.appendChild(card);
-
-  const stat = document.createElement('div'); stat.className='tc-stat'; stat.style.margin='10px 0';
-  stat.textContent = q.stats.veces ? `Practicada ${q.stats.veces} vez(es) · ${q.stats.aciertos} acierto(s)` : 'Sin practicar todavía';
-  box.appendChild(stat);
-
-  const btnRow = document.createElement('div'); btnRow.style.cssText='display:flex;gap:8px;margin-top:6px;';
-  const editBtn = document.createElement('button'); editBtn.type='button'; editBtn.className='btn small'; editBtn.textContent='Editar';
-  editBtn.onclick = ()=>{ document.body.removeChild(overlay); openTestEditModal(q); };
-  btnRow.appendChild(editBtn);
-  const closeBtn = document.createElement('button'); closeBtn.type='button'; closeBtn.className='btn small ghost'; closeBtn.textContent='Cerrar';
-  closeBtn.onclick = ()=> document.body.removeChild(overlay);
-  btnRow.appendChild(closeBtn);
-  box.appendChild(btnRow);
-
-  document.body.appendChild(overlay);
-}
-function openTestEditModal(q){
-  const overlay = document.createElement('div');
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:999;display:flex;align-items:flex-start;justify-content:center;overflow:auto;padding:24px 12px;';
-  const box = document.createElement('div');
-  box.style.cssText = 'background:var(--bg-panel);border:1px solid var(--line);border-radius:4px;padding:18px;max-width:560px;width:100%;';
-  overlay.appendChild(box);
-  box.innerHTML = `<h3 style="font-family:var(--font-display);color:var(--amber);text-transform:uppercase;margin:0 0 12px;">Editar pregunta</h3>`;
-
-  const enunField = document.createElement('div'); enunField.className='test-field';
-  enunField.innerHTML = '<label>Enunciado</label>';
-  const enunTa = document.createElement('textarea'); enunTa.value = q.enunciado;
-  enunField.appendChild(enunTa);
-  box.appendChild(enunField);
-
-  const optsWrap = document.createElement('div'); optsWrap.className='test-field';
-  optsWrap.innerHTML = '<label>Opciones (marca la correcta)</label>';
-  const optsList = document.createElement('div');
-  let localOpts = q.opciones.slice();
-  let localCorrecta = q.correcta;
-  function paintOpts(){
-    optsList.innerHTML = '';
-    localOpts.forEach((op,i)=>{
-      const r = document.createElement('div'); r.className='test-opt-row';
-      const radio = document.createElement('input'); radio.type='radio'; radio.name='editCorrectaRadio'; radio.checked = localCorrecta===i;
-      radio.onchange = ()=>{ localCorrecta = i; };
-      r.appendChild(radio);
-      const inp = document.createElement('input'); inp.type='text'; inp.value = op;
-      inp.oninput = ()=>{ localOpts[i] = inp.value; };
-      r.appendChild(inp);
-      const del = document.createElement('button'); del.type='button'; del.className='test-opt-del'; del.textContent='✕';
-      del.onclick = ()=>{ localOpts.splice(i,1); if(localCorrecta>=localOpts.length) localCorrecta=0; paintOpts(); };
-      r.appendChild(del);
-      optsList.appendChild(r);
-    });
-  }
-  paintOpts();
-  optsWrap.appendChild(optsList);
-  const addOptBtn = document.createElement('button'); addOptBtn.type='button'; addOptBtn.className='tick-add'; addOptBtn.textContent='+ Añadir opción';
-  addOptBtn.onclick = ()=>{ localOpts.push(''); paintOpts(); };
-  optsWrap.appendChild(addOptBtn);
-  box.appendChild(optsWrap);
-
-  const row = document.createElement('div'); row.className='test-row';
-  const catField = document.createElement('div'); catField.className='test-field';
-  catField.innerHTML = '<label>Categoría</label>';
-  const catSel = document.createElement('select');
-  TEST_CATEGORIAS.forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=c.label; if(c.key===q.categoria) o.selected=true; catSel.appendChild(o); });
-  catField.appendChild(catSel);
-  row.appendChild(catField);
-  const temaField = document.createElement('div'); temaField.className='test-field';
-  temaField.innerHTML = '<label>Tema</label>';
-  const temaInput = document.createElement('input'); temaInput.type='number'; temaInput.min='1'; temaInput.value = q.tema || '';
-  temaField.appendChild(temaInput);
-  row.appendChild(temaField);
-  box.appendChild(row);
-
-  const explField = document.createElement('div'); explField.className='test-field';
-  explField.innerHTML = '<label>Explicación</label>';
-  const explTa = document.createElement('textarea'); explTa.value = q.explicacion || '';
-  explField.appendChild(explTa);
-  box.appendChild(explField);
-
-  const btnRow = document.createElement('div'); btnRow.style.cssText='display:flex;gap:8px;margin-top:10px;';
-  const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn small'; saveBtn.textContent='Guardar cambios';
-  saveBtn.onclick = ()=>{
-    const opciones = localOpts.map(o=>o.trim()).filter(o=>o.length);
-    if(!enunTa.value.trim() || opciones.length<2){ showToast('Falta el enunciado o hay menos de 2 opciones.'); return; }
-    q.enunciado = enunTa.value.trim();
-    q.opciones = opciones;
-    q.correcta = localCorrecta;
-    q.categoria = catSel.value;
-    q.tema = temaInput.value ? Number(temaInput.value) : null;
-    q.explicacion = explTa.value.trim();
-    saveTestQuestionRemote(q);
-    document.body.removeChild(overlay);
-    renderTests();
-    showToast('Cambios guardados ✓');
-  };
-  btnRow.appendChild(saveBtn);
-  const cancelBtn = document.createElement('button'); cancelBtn.type='button'; cancelBtn.className='btn small ghost'; cancelBtn.textContent='Cancelar';
-  cancelBtn.onclick = ()=> document.body.removeChild(overlay);
-  btnRow.appendChild(cancelBtn);
-  box.appendChild(btnRow);
-
-  document.body.appendChild(overlay);
-}
-
-/* ---- Sub-vista: Practicar ---- */
-function shuffleArr(arr){
-  const a = arr.slice();
-  for(let i=a.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
-  return a;
-}
-function renderTestsPracticar(body){
-  if(testsQuiz){ renderTestsQuizUI(body); return; }
-  const questions = state.testBank.questions;
-  const panel = document.createElement('div'); panel.className='test-panel';
-  panel.innerHTML = `<h4>Configura tu test de práctica</h4>`;
-  const row = document.createElement('div'); row.className='test-row';
-  let filtCat = '', filtTema = '';
-  const catField = document.createElement('div'); catField.className='test-field';
-  catField.innerHTML = '<label>Categoría</label>';
-  const catSel = document.createElement('select');
-  const optAll = document.createElement('option'); optAll.value=''; optAll.textContent='Todas'; catSel.appendChild(optAll);
-  TEST_CATEGORIAS.forEach(c=>{ const o=document.createElement('option'); o.value=c.key; o.textContent=c.label; catSel.appendChild(o); });
-  catField.appendChild(catSel);
-  row.appendChild(catField);
-  const temaField = document.createElement('div'); temaField.className='test-field';
-  temaField.innerHTML = '<label>Tema</label>';
-  const temaSel = document.createElement('select');
-  temaSel.innerHTML = '<option value="">Todos</option>';
-  temaField.appendChild(temaSel);
-  row.appendChild(temaField);
-  catSel.onchange = ()=>{
-    filtCat = catSel.value; filtTema='';
-    const max = testCatTemas(filtCat);
-    temaSel.innerHTML = '<option value="">Todos</option>';
-    for(let i=1;i<=max;i++){ const o=document.createElement('option'); o.value=i; o.textContent='Tema '+i; temaSel.appendChild(o); }
-  };
-  temaSel.onchange = ()=>{ filtTema = temaSel.value; };
-  const nField = document.createElement('div'); nField.className='test-field';
-  nField.innerHTML = '<label>Nº de preguntas</label>';
-  const nInput = document.createElement('input'); nInput.type='number'; nInput.min='1'; nInput.value='10';
-  nField.appendChild(nInput);
-  row.appendChild(nField);
-  panel.appendChild(row);
-  const disponibles = document.createElement('div'); disponibles.className='test-empty';
-  panel.appendChild(disponibles);
-  function updateCount(){
-    const filtered = questions.filter(q=> (!filtCat || q.categoria===filtCat) && (!filtTema || q.tema===Number(filtTema)) );
-    disponibles.textContent = filtered.length + ' pregunta(s) disponibles con este filtro.';
-  }
-  catSel.addEventListener('change', updateCount);
-  temaSel.addEventListener('change', updateCount);
-  updateCount();
-  const startBtn = document.createElement('button'); startBtn.type='button'; startBtn.className='btn small'; startBtn.style.marginTop='10px';
-  startBtn.textContent = 'Empezar test';
-  startBtn.onclick = ()=>{
-    const filtered = questions.filter(q=> (!filtCat || q.categoria===filtCat) && (!filtTema || q.tema===Number(filtTema)) );
-    if(!filtered.length){ showToast('No hay preguntas guardadas con ese filtro todavía.'); return; }
-    const n = Math.max(1, Math.min(Number(nInput.value)||10, filtered.length));
-    const chosen = shuffleArr(filtered).slice(0,n);
-    testsQuiz = { items: chosen.map(q=>({q, respuesta:null})), corregido:false };
-    renderTests();
-  };
-  panel.appendChild(startBtn);
-  body.appendChild(panel);
-}
-function renderTestsQuizUI(body){
-  const panel = document.createElement('div');
-  if(testsQuiz.corregido){
-    const correctas = testsQuiz.items.filter(it=>it.respuesta===it.q.correcta).length;
-    const totalN = testsQuiz.items.length;
-    const banner = document.createElement('div'); banner.className='test-score-banner';
-    banner.innerHTML = `<div class="num">${correctas}/${totalN}</div><div style="font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);">${Math.round(100*correctas/totalN)}% correctas</div>`;
-    panel.appendChild(banner);
-  }
-  testsQuiz.items.forEach((it,i)=>{
-    const q = it.q;
-    const card = document.createElement('div'); card.className='test-quiz-q'+(testsQuiz.corregido?' corregida':'');
-    const enun = document.createElement('div'); enun.className='tq-enun'; enun.textContent = (i+1)+'. '+q.enunciado;
-    card.appendChild(enun);
-    q.opciones.forEach((op,oi)=>{
-      const optRow = document.createElement('label'); optRow.className='tq-opt';
-      if(testsQuiz.corregido){
-        if(oi===q.correcta) optRow.classList.add('correcta');
-        else if(oi===it.respuesta) optRow.classList.add('incorrecta-elegida');
-      }
-      const radio = document.createElement('input'); radio.type='radio'; radio.name='quiz-q-'+i; radio.disabled = testsQuiz.corregido;
-      radio.checked = it.respuesta===oi;
-      radio.onchange = ()=>{ it.respuesta = oi; };
-      optRow.appendChild(radio);
-      const span = document.createElement('span'); span.textContent = op;
-      optRow.appendChild(span);
-      card.appendChild(optRow);
-    });
-    if(testsQuiz.corregido && q.explicacion){
-      const ex = document.createElement('div'); ex.className='tq-explic'; ex.textContent = q.explicacion;
-      card.appendChild(ex);
-    }
-    panel.appendChild(card);
-  });
-  const btnRow = document.createElement('div'); btnRow.style.cssText='display:flex;gap:8px;margin-top:6px;';
-  if(!testsQuiz.corregido){
-    const corrBtn = document.createElement('button'); corrBtn.type='button'; corrBtn.className='btn small'; corrBtn.textContent='Corregir test';
-    corrBtn.onclick = ()=>{
-      testsQuiz.corregido = true;
-      testsQuiz.items.forEach(it=>{
-        it.q.stats.veces = (it.q.stats.veces||0)+1;
-        if(it.respuesta===it.q.correcta) it.q.stats.aciertos = (it.q.stats.aciertos||0)+1;
-        saveTestQuestionRemote(it.q);
-      });
-      renderTests();
-    };
-    btnRow.appendChild(corrBtn);
-  } else {
-    const newBtn = document.createElement('button'); newBtn.type='button'; newBtn.className='btn small'; newBtn.textContent='Nuevo test';
-    newBtn.onclick = ()=>{ testsQuiz = null; renderTests(); };
-    btnRow.appendChild(newBtn);
-  }
-  panel.appendChild(btnRow);
-  body.appendChild(panel);
 }
 
 /* ===================== RENDER: CLASES (visualización de clases) ===================== */
@@ -4816,8 +4090,7 @@ document.getElementById('resetBtn').onclick = ()=>{
     // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
     // no debería dejar el planning sin protección.
     const keepPin = state.settings ? state.settings.pinHash : null;
-    const keepTestBank = state.testBank; // el banco de tests vive en documentos propios; este botón no lo borra
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, testBank:keepTestBank };
+    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
     currentMonthKey = null;
     invalidatePlan();
     scheduleSave();
@@ -4981,7 +4254,6 @@ function renderAll(){
   renderSimulacrosList();
   renderSimCalMonthBar();
   renderSimCalendar();
-  renderTests();
   renderCiclo();
   renderProgreso();
   renderMarcas();
@@ -4995,7 +4267,6 @@ function renderAll(){
   if(!firebaseOk){ renderConfigNeeded(); return; }
   if(!accessCode){ renderCodeGate(); return; }
   await loadState();
-  await initTestBank();
   if(state.settings.pinHash){
     let localHash = null;
     try{ localHash = localStorage.getItem(unlockKeyName()); }catch(e){}
