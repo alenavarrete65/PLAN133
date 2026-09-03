@@ -804,7 +804,7 @@
       </div>
       <div class="tabs-group">
         <span class="tabs-group-label">Sistema</span>
-        <button class="tab-btn" data-tab="ajustes">Ajustes</button>
+        <button class="tab-btn" data-tab="ajustes">Ajustes<span id="ajustesPendBadge" style="display:none;margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;background:var(--red-text,#b23b3b);color:#fff;border-radius:8px;padding:1px 6px;"></span></button>
       </div>
     </div>
   </nav>
@@ -1168,10 +1168,11 @@ async function fetchOrCreateUserProfile(user){
       email: user.email || '',
       aprobado: false,
       esAdmin: false,
+      emailVerificado: !!user.emailVerified,
       creadoEn: firebase.firestore.FieldValue.serverTimestamp()
     });
   }catch(e){ console.error(e); }
-  return {email:user.email||'', aprobado:false, esAdmin:false};
+  return {email:user.email||'', aprobado:false, esAdmin:false, emailVerificado: !!user.emailVerified};
 }
 // Resuelve cuando sabemos si hay sesión iniciada, y si está aprobada, antes de tocar el
 // resto de Firestore (plannings). Null si no hay firebase, no hay sesión, o no está aprobada.
@@ -1503,6 +1504,20 @@ async function sha256Hex(str){
   for(let i=0;i<str.length;i++){ h = ((h<<5)-h+str.charCodeAt(i))|0; }
   return 'fallback-'+Math.abs(h).toString(16);
 }
+// Cada vez que se entra, refrescamos el estado de verificación del correo (por si se acaba
+// de pulsar el enlace del correo) y lo reflejamos en users/{uid} para que el administrador lo
+// vea en el Panel de administración. Las reglas de Firestore solo dejan a cada cuenta tocar
+// este campo suyo, nada más (ver firestore.rules).
+async function syncEmailVerifiedFlag(){
+  if(!firebaseUser) return;
+  try{ await firebaseUser.reload(); }catch(e){}
+  const verificado = !!firebaseUser.emailVerified;
+  if(userProfile && userProfile.emailVerificado === verificado) return;
+  try{
+    await db.collection('users').doc(firebaseUser.uid).update({emailVerificado: verificado});
+    if(userProfile) userProfile.emailVerificado = verificado;
+  }catch(e){ console.error('No se pudo actualizar el estado de verificación del correo', e); }
+}
 function unlockKeyName(){ return 'planning_unlock_'+accessCode; }
 // El PIN se guarda con una "sal" fija de la app, NO con accessCode: si dependiera de
 // accessCode (como ocurría antes), cualquier cambio en cómo se identifica el planning
@@ -1574,12 +1589,32 @@ async function attemptPinUnlock(){
 function renderAccountBox(){
   const host = document.getElementById('accountBox');
   if(!host || !firebaseUser) return;
+  const verificado = !!firebaseUser.emailVerified;
   host.innerHTML = `
     <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Cuenta</div>
     <div style="font-size:13px;margin-bottom:8px;word-break:break-all;">${firebaseUser.email || ''}</div>
-    <button class="btn ghost small" id="accountLogoutBtn">Cerrar sesión</button>
+    <div style="font-size:12px;margin-bottom:8px;color:${verificado?'var(--green)':'var(--cream-dim)'};">
+      ${verificado ? '✓ Correo verificado' : 'Correo sin verificar todavía (revisa tu bandeja de entrada, incluida la de spam)'}
+    </div>
+    ${verificado ? '' : '<button class="btn ghost small" id="resendVerifyBtn" style="margin-bottom:8px;">Reenviar correo de verificación</button><div id="resendVerifyMsg" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);min-height:14px;margin-bottom:8px;"></div>'}
+    <div><button class="btn ghost small" id="accountLogoutBtn">Cerrar sesión</button></div>
   `;
   document.getElementById('accountLogoutBtn').onclick = ()=>{ auth.signOut().then(()=> location.reload()); };
+  const resendBtn = document.getElementById('resendVerifyBtn');
+  if(resendBtn){
+    resendBtn.onclick = async ()=>{
+      resendBtn.disabled = true;
+      const msg = document.getElementById('resendVerifyMsg');
+      try{
+        await firebaseUser.sendEmailVerification();
+        msg.textContent = 'Correo enviado. Cuando lo confirmes, vuelve a entrar en la app y se actualizará solo.';
+      }catch(e){
+        console.error(e);
+        msg.textContent = 'No se pudo enviar el correo, inténtalo de nuevo en un rato.';
+      }
+      resendBtn.disabled = false;
+    };
+  }
 }
 function renderSecurity(){
   const host = document.getElementById('securityBox');
@@ -1802,9 +1837,13 @@ function renderAuthScreen(){
       } else {
         const cred = await auth.createUserWithEmailAndPassword(email, password);
         await db.collection('users').doc(cred.user.uid).set({
-          email: email, aprobado:false, esAdmin:false,
+          email: email, aprobado:false, esAdmin:false, emailVerificado:false,
           creadoEn: firebase.firestore.FieldValue.serverTimestamp()
         });
+        // Enviamos el correo de verificación, pero NO bloqueamos el acceso a la app por esto
+        // (eso lo sigue decidiendo el administrador al aprobar la cuenta). Es solo una señal
+        // extra: el administrador verá en el Panel si el correo ya se verificó o no.
+        try{ await cred.user.sendEmailVerification(); }catch(e){ console.error(e); }
       }
       location.reload();
     }catch(e){
@@ -1861,6 +1900,13 @@ async function renderAdminBox(){
   cuentas.sort((a,b)=> (a.email||'').localeCompare(b.email||''));
   const pendientes = cuentas.filter((c)=> !c.aprobado);
   const aprobadas = cuentas.filter((c)=> c.aprobado);
+  // Aviso visual en la pestaña Ajustes, para no depender de acordarte de entrar a mirar el
+  // Panel de administración cada vez.
+  const badge = document.getElementById('ajustesPendBadge');
+  if(badge){
+    if(pendientes.length){ badge.textContent = pendientes.length; badge.style.display = 'inline-block'; }
+    else { badge.style.display = 'none'; }
+  }
   host.innerHTML = titleHtml +
     '<div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Aprueba aquí las cuentas nuevas que se registren para darles acceso a la app.</div>' +
     '<div id="adminPendList"></div><div id="adminOkList"></div>';
@@ -1874,6 +1920,17 @@ async function renderAdminBox(){
       const tag = document.createElement('span');
       tag.textContent = 'ADMIN';
       tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;background:var(--green);color:#12241a;border-radius:8px;padding:1px 5px;';
+      info.appendChild(tag);
+    }
+    // "emailVerificado" lo escribe cada cuenta sobre sí misma en cuanto inicia sesión (ver
+    // syncEmailVerifiedFlag), reflejando si ya pulsó el enlace del correo de verificación.
+    // Es solo informativo para ayudarte a decidir si aprobar o no: no bloquea nada por sí solo.
+    if(esPendiente){
+      const tag = document.createElement('span');
+      const verificado = c.emailVerificado === true;
+      tag.textContent = verificado ? '✓ correo verificado' : 'correo sin verificar';
+      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px;' +
+        (verificado ? 'background:var(--green);color:#12241a;' : 'background:var(--bg-panel-2);color:var(--cream-dim);border:1px solid var(--line);');
       info.appendChild(tag);
     }
     row.appendChild(info);
@@ -4704,6 +4761,7 @@ function startApp(){
   // Cada cuenta aprobada tiene su propio planning, identificado por su uid: no hay dos
   // cuentas que puedan compartir ni pisarse los datos, ni falta ningún código manual.
   accessCode = firebaseUser.uid;
+  syncEmailVerifiedFlag(); // no bloqueante: se hace en paralelo, no hace falta esperarla
   await loadState();
   if(state.settings.pinHash){
     let localHash = null;
@@ -4719,8 +4777,33 @@ function startApp(){
 /* ===================== PWA: registro del service worker ===================== */
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch((e)=> console.error('Service worker no registrado', e));
+    navigator.serviceWorker.register('service-worker.js').then((reg)=>{
+      // Si el navegador detecta un service-worker.js distinto al que ya tenías (porque he
+      // publicado una actualización), avisamos con una franja para que la persona recargue
+      // cuando le venga bien, en vez de seguir usando en silencio una versión vieja de la app
+      // hasta que recargue la pestaña por otro motivo.
+      reg.addEventListener('updatefound', ()=>{
+        const nuevo = reg.installing;
+        if(!nuevo) return;
+        nuevo.addEventListener('statechange', ()=>{
+          if(nuevo.state === 'installed' && navigator.serviceWorker.controller){
+            renderUpdateAvailableBanner();
+          }
+        });
+      });
+    }).catch((e)=> console.error('Service worker no registrado', e));
   });
+}
+function renderUpdateAvailableBanner(){
+  if(document.getElementById('updateAvailableBanner')) return;
+  const banner = document.createElement('div');
+  banner.id = 'updateAvailableBanner';
+  banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:var(--amber);color:#1a1a12;padding:10px 16px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
+  banner.innerHTML = `
+    <span>Hay una versión nueva de la app disponible.</span>
+    <button class="btn small" id="updateAvailableBtn" style="background:#1a1a12;color:var(--amber);">Recargar ahora</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('updateAvailableBtn').onclick = ()=> location.reload();
 }
 </script>
 </body>

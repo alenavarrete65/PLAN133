@@ -153,6 +153,33 @@ guardaste en el otro dispositivo) o "Seguir con lo mío" (si prefieres continuar
 cambios encima). Si no tienes cambios sin guardar, la app simplemente adopta la versión más
 reciente sin preguntarte nada.
 
+## Verificación de correo (informativa, no bloquea el acceso)
+
+Al crear una cuenta nueva, se envía automáticamente un correo de verificación. Esto **no**
+bloquea el acceso — lo sigue decidiendo el administrador al aprobar la cuenta, igual que
+siempre — pero en el Panel de administración (Ajustes) verás junto a cada cuenta pendiente si
+ya confirmó su correo o no, como una señal extra antes de aprobarla. Cada persona puede ver su
+propio estado y reenviarse el correo desde Ajustes → Cuenta.
+
+## Aviso de cuenta(s) pendiente(s) de aprobar
+
+Como administrador, ya no hace falta que entres a mirar el Panel de administración "por si
+acaso": si hay alguna cuenta nueva esperando aprobación, verás un número en rojo junto a la
+pestaña **Ajustes** en cuanto abras la app.
+
+## Aviso de nueva versión de la app disponible
+
+Cuando publiques un cambio (subiendo un `index.html`/`service-worker.js` nuevos), quien tenga
+la app ya abierta verá una franja arriba avisando de que hay una versión nueva, con un botón
+para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
+que recargue la pestaña por otro motivo.
+
+## Exportar el calendario (imagen o PDF)
+
+En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Exportar imagen** y
+**📄 Exportar PDF**, para guardar o imprimir el mes que estés viendo sin depender del archivo
+JSON técnico.
+
 ## Cómo funciona el guardado offline (resumen rápido)
 
 - Cada cambio se guarda primero en el propio dispositivo (`localStorage`), así que
@@ -180,6 +207,17 @@ reciente sin preguntarte nada.
       a la vez").
 - [x] Confirmación reforzada (escribir "BORRAR") antes de borrar todos los datos desde
       Ajustes, en vez de un simple aceptar/cancelar.
+- [x] Verificación de correo al crear cuenta, visible para el administrador antes de aprobar
+      (implementado: ver apartado "Verificación de correo").
+- [x] Aviso visual (número en la pestaña Ajustes) cuando hay cuentas pendientes de aprobar.
+- [x] Aviso de nueva versión de la app disponible, con botón para recargar.
+- [ ] Notificaciones push con recordatorios diarios de estudio/entreno — necesitaría configurar
+      Firebase Cloud Messaging desde tu consola de Firebase (claves, permisos del navegador);
+      no es algo que pueda dejar activado sin que completes tú esa parte primero.
+- [ ] Firebase App Check (protege tu Firestore para que solo tu propia app pueda usarlo, ni
+      siquiera con la configuración pública copiada) — necesita que registres un sitio en
+      reCAPTCHA/App Check desde la consola de Firebase y me pases la clave; el código está
+      preparado para añadirse en cuanto la tengas.
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).

@@ -24,7 +24,10 @@ rules_version = '2';
 //      totalmente aislado del de cualquier otra.
 //   4) users/{uid} guarda el perfil de cada cuenta: email, si está aprobada ("aprobado") y si
 //      es la cuenta administradora ("esAdmin"). Nadie puede auto-aprobarse ni auto-nombrarse
-//      administrador desde la app: esos campos solo los puede cambiar quien YA es admin.
+//      administrador desde la app: esos campos solo los puede cambiar quien YA es admin. La
+//      única excepción es "emailVerificado": cada cuenta puede actualizar ÚNICAMENTE ese
+//      campo suyo (para que el administrador vea si ya confirmó su correo antes de
+//      aprobarla), sin poder tocar ningún otro campo del documento.
 //   5) La subcolección plannings/{uid}/history guarda copias automáticas diarias de tus
 //      datos; tiene exactamente las mismas restricciones que el documento principal (solo tu
 //      propia cuenta, o un administrador).
@@ -48,7 +51,14 @@ service cloud.firestore {
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.aprobado == false
         && request.resource.data.esAdmin == false;
-      allow update, delete: if esAdmin();
+      allow update: if esAdmin() || (
+        request.auth != null && request.auth.uid == uid &&
+        // Solo se permite tocar el campo "emailVerificado", y nada más (ni aprobado, ni
+        // esAdmin, ni el email): así una cuenta no puede aprobarse ni ascenderse a sí misma
+        // aunque intente colar cambios junto con este campo.
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerificado'])
+      );
+      allow delete: if esAdmin();
     }
 
     match /plannings/{accessCode} {
