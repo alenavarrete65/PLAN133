@@ -888,6 +888,7 @@
     <div class="empty-state" id="adminBox" style="display:none;text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="securityBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="backupBox" style="text-align:left;margin-bottom:18px;"></div>
+    <div class="empty-state" id="historyBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="stat-grid" id="statGrid"></div>
     <p style="font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;max-width:620px;">
       Reglas activas: cada vez que toca un bloque solo se estudia uno de sus dos grupos de temas (azul o morado),
@@ -1202,6 +1203,10 @@ let accessCode = null;
 let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
+// Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
+// como estaba cuando la cargamos o la guardamos por última vez desde este dispositivo. Sirve
+// para detectar si otro dispositivo ha guardado cambios entretanto (ver checkForRemoteChanges).
+let lastKnownUpdatedAt = null;
 
 function pad2(n){ return String(n).padStart(2,'0'); }
 function monthKey(y,m){ return y+'-'+pad2(m); } // m: 1-12
@@ -1269,6 +1274,7 @@ async function loadState(){
     if(snap.exists && snap.data() && snap.data().state){
       state = JSON.parse(snap.data().state);
       cargadoDeFirebase = true;
+      lastKnownUpdatedAt = snap.data().updatedAt || null;
       try{ localStorage.setItem(localCacheKey(), snap.data().state); }catch(e){}
     }
   }catch(e){ console.error(e); }
@@ -1321,7 +1327,9 @@ async function doSave(){
   savingInFlight = true;
   setSaveStatus('saving');
   try{
-    await db.collection('plannings').doc(accessCode).set({state: payload, updatedAt: Date.now()});
+    const nowTs = Date.now();
+    await db.collection('plannings').doc(accessCode).set({state: payload, updatedAt: nowTs});
+    lastKnownUpdatedAt = nowTs;
     saveRetryDelay = 4000;
     clearTimeout(saveRetryTimer);
     clearPendingSync();
@@ -1331,6 +1339,7 @@ async function doSave(){
       const el = document.getElementById('saveIndicator');
       if(el && el.classList.contains('state-saved')) setSaveStatus('idle');
     }, 3000);
+    maybeSnapshotHistory(payload);
   }catch(e){
     console.error(e);
     setSaveStatus('error', 'Error al guardar · reintentando');
@@ -1354,6 +1363,103 @@ function trySyncPending(){
   saveRetryDelay = 4000;
   doSave();
 }
+/* ===================== COPIAS AUTOMÁTICAS EN LA NUBE (historial) =====================
+   Cada vez que se guarda con éxito, y como mucho una vez al día, se guarda además una
+   instantánea de ese momento en plannings/{accessCode}/history/{YYYY-MM-DD}. Así, si algún
+   día borras o estropeas algo por error y ya has guardado ese error (con lo que la copia de
+   seguridad JSON manual tampoco ayuda si no la hiciste a tiempo), puedes recuperar cualquier
+   día de los últimos 7. Es una subcolección aparte del documento principal para no hacerlo
+   más pesado de leer/escribir en el uso normal. */
+function historySnapshotDayKey(){ return 'ob_snapshot_day_'+accessCode; }
+async function maybeSnapshotHistory(payload){
+  if(!firebaseOk || !accessCode) return;
+  try{
+    const today = new Date().toISOString().slice(0,10);
+    let lastDay = null;
+    try{ lastDay = localStorage.getItem(historySnapshotDayKey()); }catch(e){}
+    if(lastDay === today) return; // ya se guardó una copia hoy desde este dispositivo
+    await db.collection('plannings').doc(accessCode).collection('history').doc(today).set({state: payload, at: Date.now()});
+    try{ localStorage.setItem(historySnapshotDayKey(), today); }catch(e){}
+    // Limpieza: nos quedamos solo con las 7 copias más recientes para no acumular basura.
+    const snaps = await db.collection('plannings').doc(accessCode).collection('history').orderBy('at','desc').get();
+    const sobran = snaps.docs.slice(7);
+    for(const d of sobran){ try{ await d.ref.delete(); }catch(e){ console.error(e); } }
+  }catch(e){
+    // No es crítico: si falla, simplemente no hay copia de hoy, pero el guardado normal ya
+    // se hizo bien.
+    console.error('No se pudo guardar la copia automática del día', e);
+  }
+}
+async function listHistorySnapshots(){
+  if(!firebaseOk || !accessCode) return [];
+  try{
+    const snaps = await db.collection('plannings').doc(accessCode).collection('history').orderBy('at','desc').get();
+    return snaps.docs.map(d=>({id:d.id, at:d.data().at, state:d.data().state}));
+  }catch(e){ console.error(e); return []; }
+}
+/* ===================== AVISO DE CAMBIOS EN OTRO DISPOSITIVO =====================
+   Comprueba si el planning se ha guardado desde otro sitio después de la última vez que lo
+   cargamos aquí. Si no tenemos cambios propios sin guardar, simplemente recargamos los datos
+   más recientes sin molestar. Si sí los tenemos, avisamos para que la persona decida, en vez
+   de arriesgarnos a que el próximo autoguardado sobrescriba en silencio lo que se hizo en el
+   otro dispositivo. */
+let checkingRemote = false;
+async function checkForRemoteChanges(){
+  if(!firebaseOk || !accessCode || !unlocked || checkingRemote) return;
+  checkingRemote = true;
+  try{
+    const snap = await db.collection('plannings').doc(accessCode).get();
+    if(!snap.exists) return;
+    const remoteUpdatedAt = snap.data().updatedAt || null;
+    if(lastKnownUpdatedAt !== null && remoteUpdatedAt && remoteUpdatedAt !== lastKnownUpdatedAt){
+      if(!hasPendingSync() && !savingInFlight){
+        // No hay nada propio sin guardar: adoptamos sin más la versión más reciente.
+        state = JSON.parse(snap.data().state);
+        lastKnownUpdatedAt = remoteUpdatedAt;
+        normalizeState();
+        renderAll();
+        showToast('Actualizado con los cambios guardados desde otro dispositivo');
+      } else {
+        renderRemoteConflictBanner(remoteUpdatedAt);
+      }
+    }
+  }catch(e){ console.error(e); }
+  finally{ checkingRemote = false; }
+}
+function renderRemoteConflictBanner(remoteUpdatedAt){
+  if(document.getElementById('remoteConflictBanner')) return; // ya se está mostrando
+  const banner = document.createElement('div');
+  banner.id = 'remoteConflictBanner';
+  banner.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--red-text, #b23b3b);color:#fff;padding:12px 16px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
+  banner.innerHTML = `
+    <span style="flex:1;min-width:220px;">Este planning se ha guardado desde otro dispositivo mientras tenías cambios sin guardar aquí. Si sigues editando aquí, tus cambios podrían sobrescribir los del otro dispositivo.</span>
+    <span style="display:flex;gap:8px;">
+      <button class="btn ghost small" id="remoteConflictReload" style="border-color:#fff;color:#fff;">Usar la versión más reciente (descartar lo mío)</button>
+      <button class="btn ghost small" id="remoteConflictKeep" style="border-color:#fff;color:#fff;">Seguir con lo mío</button>
+    </span>`;
+  document.body.appendChild(banner);
+  document.getElementById('remoteConflictReload').onclick = async ()=>{
+    try{
+      const snap = await db.collection('plannings').doc(accessCode).get();
+      if(snap.exists){
+        state = JSON.parse(snap.data().state);
+        lastKnownUpdatedAt = snap.data().updatedAt || null;
+        normalizeState();
+        clearPendingSync();
+        clearTimeout(saveTimer);
+        renderAll();
+        showToast('Se ha cargado la versión más reciente');
+      }
+    }catch(e){ console.error(e); showToast('No se pudo recargar, inténtalo de nuevo'); }
+    banner.remove();
+  };
+  document.getElementById('remoteConflictKeep').onclick = ()=>{
+    lastKnownUpdatedAt = remoteUpdatedAt; // para no volver a avisar por el mismo cambio remoto
+    banner.remove();
+  };
+}
+document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState === 'visible') checkForRemoteChanges(); });
+window.addEventListener('online', ()=> checkForRemoteChanges());
 function refreshOfflineBadge(){
   const el = document.getElementById('offlineIndicator');
   if(!el) return;
@@ -1427,9 +1533,17 @@ function renderPinGate(){
   document.getElementById('pinGateInput').focus();
   // Vía de emergencia: como ya estamos autenticados y aprobados en este punto (solo falta el
   // PIN de este dispositivo), podemos quitar el PIN directamente contra Firestore sin
-  // necesidad de conocerlo. Útil si alguien olvida su PIN.
+  // necesidad de conocerlo. Útil si alguien olvida su PIN. Para reducir el riesgo de que
+  // alguien con acceso momentáneo a una sesión ya abierta lo quite sin querer (o sin permiso),
+  // pedimos confirmar escribiendo el correo de la cuenta antes de continuar.
   document.getElementById('pinGateForgotBtn').onclick = async ()=>{
-    if(!confirm('Esto quita el PIN de este planning (podrás poner uno nuevo después, desde Ajustes). ¿Continuar?')) return;
+    const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
+    const typed = prompt('Para confirmar que eres tú, escribe el correo de esta cuenta ('+email+') y pulsa aceptar:');
+    if(typed === null) return; // canceló
+    if(typed.trim().toLowerCase() !== email.toLowerCase()){
+      document.getElementById('pinGateError').textContent = 'El correo no coincide. No se ha quitado el PIN.';
+      return;
+    }
     const btn = document.getElementById('pinGateForgotBtn');
     btn.disabled = true;
     try{
@@ -1565,6 +1679,59 @@ function importBackup(e){
   };
   reader.readAsText(file);
   e.target.value = '';
+}
+
+/* ===================== COPIAS AUTOMÁTICAS EN LA NUBE: panel para restaurarlas ===================== */
+function formatSnapshotDate(id, at){
+  try{
+    const d = at ? new Date(at) : new Date(id+'T00:00:00');
+    return d.toLocaleDateString('es-ES', {weekday:'short', day:'2-digit', month:'short', year:'numeric'}) +
+      (at ? ' · ' + d.toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'}) : '');
+  }catch(e){ return id; }
+}
+async function renderHistoryBox(){
+  const host = document.getElementById('historyBox');
+  if(!host) return;
+  host.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copias automáticas en la nube</div>
+    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Cada día que se guarda algún cambio se conserva automáticamente una copia de cómo estaban tus
+    datos ese día (hasta 7 días atrás). Útil si borras o cambias algo por error y ya se ha guardado. No sustituye a la copia JSON manual.</div>
+    <div id="historyList" style="font-size:12px;color:var(--muted);">Cargando…</div>
+  `;
+  const list = await listHistorySnapshots();
+  const listHost = document.getElementById('historyList');
+  if(!listHost) return; // la pestaña pudo cambiar mientras cargaba
+  if(!list.length){
+    listHost.textContent = 'Todavía no hay copias automáticas guardadas (se irán creando a medida que uses la app en distintos días).';
+    return;
+  }
+  listHost.innerHTML = '';
+  list.forEach(snap=>{
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:6px 0;border-bottom:1px solid var(--line);';
+    const label = document.createElement('span');
+    label.textContent = formatSnapshotDate(snap.id, snap.at);
+    label.style.cssText = 'font-family:var(--font-mono);color:var(--cream);';
+    const btn = document.createElement('button');
+    btn.className = 'btn ghost small';
+    btn.textContent = 'Restaurar esta copia';
+    btn.onclick = ()=>{
+      if(!confirm('Esto reemplazará TODOS tus datos actuales por como estaban el '+formatSnapshotDate(snap.id, snap.at)+'. ¿Continuar?')) return;
+      try{
+        state = JSON.parse(snap.state);
+        normalizeState();
+        scheduleSave();
+        currentMonthKey = null;
+        const keys = sortedMonthKeys();
+        currentMonthKey = keys.length ? keys[keys.length-1] : null;
+        renderAll();
+        showToast('Copia restaurada');
+      }catch(e){ console.error(e); showToast('No se pudo restaurar esta copia'); }
+    };
+    row.appendChild(label);
+    row.appendChild(btn);
+    listHost.appendChild(row);
+  });
 }
 
 /* ===================== PANTALLAS DE ACCESO ===================== */
@@ -4321,16 +4488,22 @@ function renderSyncBox(){
 }
 
 document.getElementById('resetBtn').onclick = ()=>{
-  if(confirm('Esto borrará todos los meses y notas guardados. ¿Continuar?')){
-    // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
-    // no debería dejar el planning sin protección.
-    const keepPin = state.settings ? state.settings.pinHash : null;
-    state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
-    currentMonthKey = null;
-    invalidatePlan();
-    scheduleSave();
-    renderAll();
-  }
+  // Borrar todo es irreversible desde la app (aparte de las copias automáticas/manuales), así
+  // que pedimos escribir una palabra exacta en vez de un simple aceptar/cancelar, para evitar
+  // un borrado accidental por pulsar demasiado rápido.
+  const val = prompt('Esto borrará TODOS los meses y notas guardados. Esta acción no se puede deshacer desde la app '+
+    '(aunque puedes restaurar una copia automática o manual después, si tienes). Para confirmar, escribe BORRAR en mayúsculas:');
+  if(val === null) return; // canceló
+  if(val.trim() !== 'BORRAR'){ showToast('No se ha borrado nada (el texto no coincidía con BORRAR)'); return; }
+  // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
+  // no debería dejar el planning sin protección.
+  const keepPin = state.settings ? state.settings.pinHash : null;
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+  currentMonthKey = null;
+  invalidatePlan();
+  scheduleSave();
+  renderAll();
+  showToast('Datos borrados');
 };
 
 /* ===================== TABS ===================== */
@@ -4499,6 +4672,7 @@ function renderAll(){
   if(isAdmin) renderAdminBox();
   renderSecurity();
   renderBackupBox();
+  renderHistoryBox();
 }
 // Segunda mitad del arranque: construye la interfaz normal una vez sabemos qué mostrar
 // (usuario aprobado, datos cargados y, si tenía PIN, ya desbloqueado).

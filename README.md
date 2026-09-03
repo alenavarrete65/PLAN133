@@ -132,6 +132,27 @@ Esta copia es independiente de Firebase: te sirve si algún día pierdes el cód
 acceso, se borra el proyecto de Firebase, o simplemente quieres tener un respaldo
 local.
 
+## Copias automáticas en la nube (últimos 7 días)
+
+Además de la copia JSON manual, la app guarda automáticamente, como mucho una vez al día,
+una instantánea de cómo estaban tus datos ese día. Se conservan las últimas 7. Puedes verlas
+y restaurar cualquiera desde Ajustes → **"Copias automáticas en la nube"**.
+
+Sirve sobre todo para el caso en el que borras o cambias algo por error **y ya se ha guardado**
+(con lo que la copia JSON manual no ayuda si no la hiciste ese mismo día): puedes volver a como
+estaban las cosas ayer, anteayer, etc. Estas copias se guardan aparte del planning principal
+(en `plannings/{tu cuenta}/history/`), con las mismas reglas de seguridad: solo tu cuenta puede
+verlas.
+
+## Aviso si editas en dos dispositivos a la vez
+
+Si tienes la app abierta en dos sitios (por ejemplo, móvil y ordenador) y guardas cambios en
+uno mientras el otro sigue abierto con cambios propios sin guardar, la app te avisará con una
+franja abajo del todo: puedes elegir "Usar la versión más reciente" (para no perder lo que
+guardaste en el otro dispositivo) o "Seguir con lo mío" (si prefieres continuar y guardar tus
+cambios encima). Si no tienes cambios sin guardar, la app simplemente adopta la versión más
+reciente sin preguntarte nada.
+
 ## Cómo funciona el guardado offline (resumen rápido)
 
 - Cada cambio se guarda primero en el propio dispositivo (`localStorage`), así que
@@ -152,6 +173,16 @@ local.
 - [ ] Borrar a mano, desde la consola de Firebase, el documento antiguo de `plannings` que
       usaba el código de acceso compartido (ya no lo usa la app ni es accesible por ninguna
       cuenta, pero sigue ocupando espacio si no lo borras tú mismo).
+- [x] Copias automáticas de seguridad en la nube, además de la manual (implementado: ver
+      apartado "Copias automáticas en la nube").
+- [x] Aviso cuando se edita a la vez desde dos dispositivos, en vez de que gane en silencio
+      el último que guarda (implementado: ver apartado "Aviso si editas en dos dispositivos
+      a la vez").
+- [x] Confirmación reforzada (escribir "BORRAR") antes de borrar todos los datos desde
+      Ajustes, en vez de un simple aceptar/cancelar.
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).
+- [ ] Dividir `index.html` en varios archivos/módulos si el proyecto sigue creciendo (hoy
+      es un único archivo de más de 4700 líneas con HTML+CSS+JS mezclados; funciona bien
+      para el tamaño actual, pero a partir de cierto punto cuesta más mantenerlo).

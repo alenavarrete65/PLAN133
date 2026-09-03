@@ -25,7 +25,10 @@ rules_version = '2';
 //   4) users/{uid} guarda el perfil de cada cuenta: email, si está aprobada ("aprobado") y si
 //      es la cuenta administradora ("esAdmin"). Nadie puede auto-aprobarse ni auto-nombrarse
 //      administrador desde la app: esos campos solo los puede cambiar quien YA es admin.
-//   5) Cualquier otra colección/ruta queda denegada por completo.
+//   5) La subcolección plannings/{uid}/history guarda copias automáticas diarias de tus
+//      datos; tiene exactamente las mismas restricciones que el documento principal (solo tu
+//      propia cuenta, o un administrador).
+//   6) Cualquier otra colección/ruta queda denegada por completo.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -54,6 +57,13 @@ service cloud.firestore {
       allow get: if estaAprobado() && (accessCode == request.auth.uid || esAdmin());
       allow list: if false;
       allow write: if estaAprobado() && (accessCode == request.auth.uid || esAdmin());
+
+      // Copias automáticas diarias del planning (ver maybeSnapshotHistory en index.html).
+      // Mismas reglas que el documento principal: solo tu propia cuenta (o admin), nunca
+      // enumerable ni accesible por nadie más.
+      match /history/{day} {
+        allow read, write, delete: if estaAprobado() && (accessCode == request.auth.uid || esAdmin());
+      }
     }
 
     match /{document=**} {
