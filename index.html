@@ -740,6 +740,7 @@
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-firestore-compat.js"></script>
 <!-- Librerías solo para "Exportar imagen / PDF" del calendario -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
@@ -1138,6 +1139,33 @@ try{
     firebaseOk = true;
   }
 }catch(e){ console.error('Error iniciando Firebase', e); firebaseOk = false; }
+
+// ---- Autenticación anónima ----
+// Se dispara nada más cargar la app (antes de leer/guardar nada en Firestore). No pide ni
+// email ni contraseña: Firebase le asigna a este navegador un identificador anónimo estable,
+// que se queda guardado en el propio dispositivo. Esto es lo que permite que las reglas de
+// Firestore exijan "request.auth != null" y así bloqueen que cualquiera llame a la API sin
+// pasar antes por la app. Si no hay conexión la primera vez que se abre la app en un
+// dispositivo nuevo, el inicio de sesión no puede completarse (hace falta red la primera
+// vez); por eso ponemos un límite de espera para que la app no se quede colgada offline.
+let firebaseUser = null;
+const firebaseAuthReady = (async ()=>{
+  if(!firebaseOk) return null;
+  try{
+    const user = await Promise.race([
+      new Promise((resolve, reject)=>{
+        firebase.auth().onAuthStateChanged((u)=>{ if(u) resolve(u); }, reject);
+        firebase.auth().signInAnonymously().catch(reject);
+      }),
+      new Promise((resolve)=> setTimeout(()=> resolve(null), 6000)) // sin conexión: no bloquear la app
+    ]);
+    firebaseUser = user;
+    return user;
+  }catch(e){
+    console.error('Error de autenticación anónima', e);
+    return null;
+  }
+})();
 
 function getCodeFromUrl(){
   const params = new URLSearchParams(window.location.search);
@@ -4265,6 +4293,7 @@ function renderAll(){
 }
 (async function init(){
   if(!firebaseOk){ renderConfigNeeded(); return; }
+  await firebaseAuthReady; // esperamos a que termine el login anónimo (o al timeout offline) antes de tocar Firestore
   if(!accessCode){ renderCodeGate(); return; }
   await loadState();
   if(state.settings.pinHash){

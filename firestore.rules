@@ -1,16 +1,17 @@
 rules_version = '2';
 
 // Reglas para Operación Baeza.
-// Importante: esta app NO usa Firebase Authentication, solo un "código de acceso" elegido
-// por el usuario (que hace de identificador del documento) y un PIN opcional que se
-// comprueba en el propio navegador. Eso significa que la seguridad real es "quien tenga
-// el enlace/código puede editar los datos" — el PIN evita miradas casuales, pero no es una
-// autenticación de verdad. Si algún día quieres protección real, habría que añadir
-// Firebase Auth (aunque sea anónima) y comprobar el PIN en una Cloud Function.
+// Desde que se activó Firebase Authentication (login anónimo, sin email ni contraseña:
+// cada dispositivo recibe un identificador anónimo estable la primera vez que abre la app
+// con conexión), exigimos "request.auth != null" para leer o escribir. Esto NO ata los
+// datos a un usuario/UID concreto — sigue siendo el "código de acceso" el que identifica
+// tu planning — pero sí bloquea que alguien llame directamente a la API REST de Firestore
+// sin pasar antes por la app (que es quien hace el login anónimo). Es una capa extra, no
+// sustituye al PIN de la app ni a una autenticación real por usuario.
 //
-// Lo que SÍ arreglan estas reglas frente a las de "modo prueba" por defecto de Firebase
-// (que dejan TODA la base de datos abierta a cualquiera):
-//   1) Solo se puede leer/escribir dentro de la colección "plannings".
+// Lo que arreglan estas reglas:
+//   1) Solo se puede leer/escribir dentro de la colección "plannings", y solo si la
+//      petición viene de un cliente autenticado (aunque sea de forma anónima).
 //   2) Se bloquea el "list" del documento principal (nadie puede pedir "dame todos los
 //      documentos de plannings" y enumerar los códigos de acceso de otras personas); solo
 //      se puede hacer "get" de un documento si ya conoces su ID exacto (tu código de acceso).
@@ -18,9 +19,9 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     match /plannings/{accessCode} {
-      allow get: if true;
+      allow get: if request.auth != null;
       allow list: if false;
-      allow write: if true;
+      allow write: if request.auth != null;
     }
     match /{document=**} {
       allow read, write: if false;

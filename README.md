@@ -28,8 +28,34 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 > eliminó de la app. Si en la consola de Firebase quedaban preguntas guardadas en la
 > subcolección `plannings/{tu código}/testQuestions/`, ya no se usan ni se muestran en
 > la app, pero no se han borrado automáticamente de la base de datos — puedes borrarlas
-> a mano desde la consola de Firebase si quieres liberar espacio. Recuerda también volver
-> a pegar el `firestore.rules` actualizado (ya no incluye reglas para esa subcolección).
+> a mano desde la consola de Firebase si quieres liberar espacio.
+
+## Autenticación (login anónimo)
+
+La app ahora hace login anónimo en Firebase nada más abrirse, antes de leer o guardar
+nada en Firestore. No pide ni email ni contraseña — a cada dispositivo se le asigna un
+identificador anónimo estable la primera vez que abre la app con conexión, y ese login
+se queda guardado en el propio navegador (no hay que volver a "iniciar sesión" cada vez).
+
+Esto es una capa extra de seguridad: las reglas de `firestore.rules` ahora exigen que la
+petición venga de un cliente autenticado (`request.auth != null`), así que ya no se puede
+llamar directamente a la API de Firestore desde fuera de la app. **No sustituye** al PIN
+de la app ni ata los datos a un usuario/UID concreto — sigue siendo el "código de acceso"
+el que identifica tu planning.
+
+**⚠️ Acción necesaria una sola vez:**
+1. En la consola de Firebase → **Authentication** → pestaña **Sign-in method**, comprueba
+   que el proveedor **Anónimo** está activado (si ya lo activaste tú, con esto vale).
+2. Vuelve a pegar el `firestore.rules` de este proyecto en la consola de Firebase
+   (Firestore Database → Reglas → Publicar), como se explica más abajo — ahora exige
+   `request.auth != null` para leer y escribir.
+3. Si no haces el paso 2, la app dejará de poder leer/guardar datos aunque el login
+   anónimo funcione bien, porque las reglas antiguas no comprueban la autenticación.
+
+Si abres la app por primera vez en un dispositivo sin conexión, el login anónimo no puede
+completarse (hace falta red la primera vez); en ese caso la app espera unos segundos y
+sigue abriendo igualmente, para no dejarte bloqueado sin internet — pero no podrá
+guardar/sincronizar hasta que haya conexión y se pueda completar el login.
 
 ## Cómo publicar un cambio
 
