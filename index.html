@@ -18,35 +18,35 @@
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
-<meta name="theme-color" content="#14211c">
+<meta name="theme-color" content="#16302a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Operación Baeza">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700;800&family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Source+Sans+3:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
-    --bg: #14211c;
-    --bg-panel: #1b2b24;
-    --bg-panel-2: #20362d;
-    --line: #34493d;
-    --cream: #ece4d3;
-    --cream-dim: #b9baa8;
-    --amber: #d99a3c;
-    --amber-dim: #8a6a35;
+    --bg: #16302a;
+    --bg-panel: #1c3d34;
+    --bg-panel-2: #234a3f;
+    --line: #3d6255;
+    --cream: #f4ecd6;
+    --cream-dim: #c3bda3;
+    --amber: #c9a227;
+    --amber-dim: #8f7a2f;
     --red: #b6543f;
     --green: #6f9a6a;
     --blue: #5c8a99;
-    --muted: #84978c;
+    --muted: #8a9186;
     --red-text: #d9705a;
-    --font-display: 'Oswald', sans-serif;
+    --font-display: 'Playfair Display', serif;
     --font-mono: 'IBM Plex Mono', monospace;
     --font-body: 'Source Sans 3', sans-serif;
     /* capas del fondo con textura (foto + veladura). Se sobrescriben en modo claro */
-    --bg-overlay-1: rgba(20,33,28,0.82);
-    --bg-overlay-2: rgba(20,33,28,0.90);
-    --bg-overlay-3: rgba(20,33,28,0.95);
-    --bg-noise: rgba(236,228,211,0.02);
+    --bg-overlay-1: rgba(22,48,42,0.82);
+    --bg-overlay-2: rgba(22,48,42,0.90);
+    --bg-overlay-3: rgba(22,48,42,0.95);
+    --bg-noise: rgba(244,236,214,0.02);
     --status-descanso-bg:#25261f; --status-descanso-line:#4a4a3a;
     --status-trabajo-bg:#1c2733; --status-trabajo-line:#33465a;
     --status-desconocido-alt:#25332b;
@@ -54,23 +54,23 @@
   }
   /* ---- MODO CLARO ---- */
   html[data-theme="light"]{
-    --bg:#f4efe3;
-    --bg-panel:#fffdf8;
-    --bg-panel-2:#efe7d6;
-    --line:#d9cdb0;
-    --cream:#2b2620;
-    --cream-dim:#5b5346;
-    --amber:#a8701f;
-    --amber-dim:#c99a55;
+    --bg:#f4ecd6;
+    --bg-panel:#fffdf6;
+    --bg-panel-2:#efe4c4;
+    --line:#d9c98f;
+    --cream:#1e2a22;
+    --cream-dim:#55524a;
+    --amber:#b8901f;
+    --amber-dim:#d4b65c;
     --red:#a8402c;
-    --green:#4c7548;
+    --green:#3f7a54;
     --blue:#3d6b78;
     --muted:#7a7160;
     --red-text:#a8402c;
-    --bg-overlay-1: rgba(244,239,227,0.86);
-    --bg-overlay-2: rgba(244,239,227,0.93);
-    --bg-overlay-3: rgba(244,239,227,0.97);
-    --bg-noise: rgba(43,38,32,0.025);
+    --bg-overlay-1: rgba(244,236,214,0.86);
+    --bg-overlay-2: rgba(244,236,214,0.93);
+    --bg-overlay-3: rgba(244,236,214,0.97);
+    --bg-noise: rgba(30,42,34,0.025);
     --status-descanso-bg:#efe9d6; --status-descanso-line:#cabf98;
     --status-trabajo-bg:#dfe6ee; --status-trabajo-line:#a9bdd1;
     --status-desconocido-alt:#e5ddc7;
@@ -78,7 +78,7 @@
   }
   /* Botón .btn usa texto oscuro fijo sobre ámbar; en claro seguimos queriendo contraste correcto */
   html[data-theme="light"] .btn:not(.ghost):not(.danger){ color:#fff8ec; }
-  html[data-theme="light"] .btn:not(.ghost):not(.danger):hover{ background:#8f5c15; }
+  html[data-theme="light"] .btn:not(.ghost):not(.danger):hover{ background:#8f7420; }
   html[data-theme="light"] .view-toggle-btn.active{ color:#fff8ec; }
   html[data-theme="light"] .day-status-badge.complete{ color:#f2fbf1; }
   html[data-theme="light"] .day-status-badge.pending{ color:#fff3ef; }
@@ -1002,7 +1002,7 @@
 (function initTheme(){
   const btn = document.getElementById('themeToggleBtn');
   const metaTheme = document.querySelector('meta[name="theme-color"]');
-  const THEME_COLORS = { dark: '#14211c', light: '#f4efe3' };
+  const THEME_COLORS = { dark: '#16302a', light: '#f4ecd6' };
 
   function applyThemeUI(theme){
     if (btn) {
@@ -3804,7 +3804,7 @@ function renderProgreso(){
     // variables CSS (var(--amber)) como sí hace el resto de la app, así que para dibujar el
     // sparkline necesitamos el valor final.
     const GRUPO_HEX_COLOR = {
-      'Bloques':'#d99a3c',
+      'Bloques':'#c9a227',
       'Leves':'#6f9a6a',
       'Inglés':'#5c8a99',
       'Psicotécnicos':'#8b6fae'
@@ -4679,7 +4679,7 @@ async function capturarCalendarioComoCanvas(){
   }
   const bgVar = getComputedStyle(document.documentElement).getPropertyValue('--bg-panel').trim();
   return await html2canvas(host, {
-    backgroundColor: bgVar || '#14211c',
+    backgroundColor: bgVar || '#16302a',
     scale: Math.min(2, window.devicePixelRatio || 1.5),
     useCORS: true
   });
