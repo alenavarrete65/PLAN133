@@ -99,7 +99,9 @@
   @media (max-width:640px){
     body{ background-attachment: scroll, scroll, scroll; }
   }
-  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 40px;}
+  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 40px;transition:max-width .15s;}
+  /* Vista Calendario en escritorio/tablet: más ancho para que la rejilla respire */
+  .wrap.wrap-wide{max-width:1400px;}
 
   header.app-head{
     display:flex;flex-direction:column;align-items:center;text-align:center;
@@ -2360,12 +2362,17 @@ function renderCalendar(){
 }
 /* Construye el bloque de tareas de un día (bloque, leve, inglés, entreno, psico, orto).
    Se reutiliza tanto en la vista de rejilla como en la vista de lista/agenda. */
-function buildTasksBlock(d, info){
+function buildTasksBlock(d, info, compact){
   const tasks = document.createElement('div');
   tasks.className = 'cal-tasks';
   const dticks = info.ticks || {};
   const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
-  const temasTxt = info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
+  // En modo compacto (rejilla) solo mostramos el número de tema, sin el articulado,
+  // para que la celda no se llene de texto; el detalle completo sigue disponible
+  // al pulsar el día (modal) y en la vista de lista.
+  const temasTxt = compact
+    ? info.temasDelDia.map(t=> t.clase || t.nombre).join('; ')
+    : info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
   tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
   tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
   tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
@@ -2548,7 +2555,7 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   cell.appendChild(statusSel);
 
   if(info.status === 'ESTUDIO'){
-    const tasks = buildTasksBlock(d, info);
+    const tasks = buildTasksBlock(d, info, true);
     tasks.onclick = ()=> openDayModal(d, info);
     tasks.style.cursor = 'pointer';
     cell.appendChild(tasks);
@@ -4610,6 +4617,10 @@ document.getElementById('resetBtn').onclick = ()=>{
 const tabsNavEl = document.getElementById('tabsNav');
 const tabsMobileTriggerEl = document.getElementById('tabsMobileTrigger');
 const tabsMobileTriggerLabelEl = document.getElementById('tabsMobileTriggerLabel');
+const wrapEl = document.querySelector('.wrap');
+function syncWrapWidth(tabName){
+  if(wrapEl) wrapEl.classList.toggle('wrap-wide', tabName==='calendario');
+}
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick = ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -4618,8 +4629,10 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.tab).classList.add('active');
     if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
     if(tabsNavEl) tabsNavEl.classList.remove('open');
+    syncWrapWidth(btn.dataset.tab);
   };
 });
+syncWrapWidth('calendario'); // la pestaña Calendario empieza activa
 if(tabsMobileTriggerEl){
   tabsMobileTriggerEl.onclick = ()=>{
     const isOpen = tabsNavEl.classList.toggle('open');
