@@ -811,6 +811,7 @@
       <div class="tabs-group">
         <span class="tabs-group-label">Seguimiento</span>
         <button class="tab-btn" data-tab="entrenos">Entrenos</button>
+        <button class="tab-btn" data-tab="arrastre">Arrastre</button>
         <button class="tab-btn" data-tab="progreso">Progreso</button>
       </div>
       <div class="tabs-group">
@@ -890,6 +891,17 @@
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">¿Cuánto tiempo tardo en dar una vuelta?</h3>
       <div id="cicloHost"></div>
     </section>
+  </div>
+
+  <!-- ARRASTRE (repaso acumulado por vuelta, para el test de arrastre diario) -->
+  <div class="view" id="view-arrastre">
+    <div class="sub" style="max-width:640px;margin-bottom:6px;">
+      Aquí tienes, agrupado por bloque de materia, qué temas dar de arrastre hoy: todo lo que llevas
+      estudiado (y no marcado como pendiente) en la vuelta que tienes abierta ahora mismo en cada grupo.
+      En cuanto termines una vuelta entera de un grupo, esa lista se vacía y empieza a llenarse otra vez
+      con la vuelta siguiente.
+    </div>
+    <div id="arrastreHost"></div>
   </div>
 
   <!-- AJUSTES -->
@@ -2426,6 +2438,7 @@ function renderCalendar(){
   if(typeof calViewMode !== 'undefined' && calViewMode === 'list') renderCalendarList();
   else renderCalendarGrid();
   renderHomeDash();
+  renderArrastre();
 }
 /* Construye el bloque de tareas de un día (bloque, leve, inglés, entreno, psico, orto).
    Se reutiliza tanto en la vista de rejilla como en la vista de lista/agenda. */
@@ -2543,6 +2556,15 @@ function renderHomeDash(){
     ? '<div class="home-card-value" style="font-size:18px;">'+objetivo.nombre+'</div><div class="home-card-sub">Te faltan '+objetivo.diffTxt+' para el apto</div>'
     : '<div class="home-card-sub">'+ (Object.keys(state.marcas||{}).length ? 'Ya cumples todas las marcas registradas 💪' : 'Registra tus marcas físicas para verlo aquí') +'</div>';
 
+  const arrastrePools = computeArrastreData();
+  const arrastreTotal = arrastreItemsCount(arrastrePools);
+  const arrastreHtml = arrastreTotal
+    ? '<div class="home-card-value" style="font-size:22px;">'+arrastreTotal+' tema'+(arrastreTotal!==1?'s':'')+'</div>'+
+      '<div class="home-card-sub">para meter hoy en tu test de arrastre</div>'+
+      '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Ver qué temas son →</button>'
+    : '<div class="home-card-sub">Todavía no hay temas acumulados en ninguna vuelta abierta.</div>'+
+      '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>';
+
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
       '<div class="home-card-value">'+exam.daysLeft+'</div>'+
@@ -2551,7 +2573,14 @@ function renderHomeDash(){
       '<div class="home-card-value">'+racha+'</div>'+
       '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div></div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
-    '<div class="home-card"><div class="home-card-label">Objetivo físico más cercano</div>'+objetivoHtml+'</div>';
+    '<div class="home-card"><div class="home-card-label">Objetivo físico más cercano</div>'+objetivoHtml+'</div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
+
+  const arrastreBtn = document.getElementById('homeArrastreBtn');
+  if(arrastreBtn) arrastreBtn.onclick = ()=>{
+    const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
+    if(tabBtn) tabBtn.click();
+  };
 
   const entrenoBtn = document.getElementById('homeEntrenoBtn');
   if(entrenoBtn) entrenoBtn.onclick = ()=>{
@@ -3234,6 +3263,238 @@ function renderOrto(){
   });
 }
 
+/* ===================== ARRASTRE (repaso acumulado por vuelta) ===================== */
+// Recorre el calendario real, desde el primer día guardado hasta HOY (nunca el futuro), para
+// saber qué temas ya se han estudiado en la vuelta que está abierta ahora mismo en cada grupo:
+// bloques graves (1-5), bloques menos graves (6-12), leves, inglés y psicotécnicos. Cada grupo
+// tiene su propia "vuelta" independiente (una vuelta = pasar una vez por todo el ciclo de ese
+// grupo). Un día cuenta como completado con el mismo criterio que ya usa el resto de la app
+// para avanzar el planning: si no lo has marcado como NO completado, se da por hecho.
+const ARRASTRE_POOL_META = {
+  graves:  {shortTitle:'Graves',        title:'Bloques graves (1–5)',         sub:'Días impares · una vuelta = pasar una vez por los bloques 1 a 5 (azul y morado)'},
+  mgraves: {shortTitle:'Menos graves',  title:'Bloques menos graves (6–12)',  sub:'Días pares · una vuelta = pasar una vez por los bloques 6 a 12 (azul y morado)'},
+  leves:   {shortTitle:'Leves',         title:'Leves',                         sub:'Una vuelta = pasar una vez por los 17 leves del ciclo'},
+  ingles:  {shortTitle:'Inglés',        title:'Inglés',                        sub:'Una vuelta = pasar una vez por los 32 temas del ciclo'},
+  psico:   {shortTitle:'Psicotécnicos', title:'Psicotécnicos',                 sub:'Una vuelta = pasar una vez por las 23 pruebas + los 2 controles'}
+};
+// Agrupación para la pestaña Arrastre: graves + menos graves + leves se enseñan juntos bajo
+// "Conocimientos" (aunque cada uno sigue llevando su propia vuelta por dentro), e inglés y
+// psicotécnicos se quedan cada uno en su propio bloque. Así el test de arrastre queda en solo
+// 3 apartados en vez de 5.
+const ARRASTRE_GROUPS = [
+  {key:'conocimientos', title:'Conocimientos', pools:['graves','mgraves','leves']},
+  {key:'ingles', title:'Inglés', pools:['ingles']},
+  {key:'psico', title:'Psicotécnicos', pools:['psico']}
+];
+function computeArrastreData(){
+  const pools = {};
+  Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}}; });
+
+  const keys = sortedMonthKeys();
+  if(!keys.length) return pools;
+
+  const now = new Date();
+  const todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+
+  let gIdx=0, mgIdx=0, lIdx=0, iIdx=0, pIdx=0;
+  const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
+  const blockTurn = {}; Object.keys(BLOCKS).forEach(k=>{ blockTurn[k]=0; });
+  const leveAppear = {}; LEVES.forEach((_,i)=>{ leveAppear[i]=0; });
+
+  function pushItem(poolKey, lap, item){
+    const p = pools[poolKey];
+    p.lap = lap;
+    if(!p.items[lap]) p.items[lap] = [];
+    if(!p.seenKeys[lap]) p.seenKeys[lap] = {};
+    if(p.seenKeys[lap][item.key]) return;
+    p.seenKeys[lap][item.key] = true;
+    p.items[lap].push(item);
+  }
+
+  outer:
+  for(let ki=0; ki<keys.length; ki++){
+    const k = keys[ki];
+    const [y,m] = k.split('-').map(Number);
+    const nDays = daysInMonth(y,m);
+    const days = (state.months[k] && state.months[k].days) || {};
+    const monthTicks = (state.dayTicks && state.dayTicks[k]) || {};
+    for(let d=1; d<=nDays; d++){
+      const dayKey = k+'-'+pad2(d);
+      if(dayKey > todayKey) break outer;
+      const status = days[d] || 'ESTUDIO';
+      if(status !== 'ESTUDIO') continue;
+      const ticks = monthTicks[d] || {};
+      const dateObj = new Date(y, m-1, d);
+      const jsDow = dateObj.getDay();
+      const isMonWed = (jsDow===1 || jsDow===3);
+      const dayOfMonthParity = d % 2;
+
+      // ---- Bloque (grave en días impares, menos grave en días pares) ----
+      const poolKey = dayOfMonthParity===1 ? 'graves' : 'mgraves';
+      const order = dayOfMonthParity===1 ? GRAVES_ORDER : MGRAVES_ORDER;
+      const curIdx = dayOfMonthParity===1 ? gIdx : mgIdx;
+      const bloqueNum = order[curIdx % order.length];
+      const lap = Math.floor(curIdx / order.length) + 1;
+      const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
+      let rawTemas, colorHoy;
+      if(unifyThisMonth){
+        rawTemas = BLOCKS[bloqueNum].temas;
+        colorHoy = 'unificado';
+      } else {
+        colorHoy = (blockTurn[bloqueNum] % 2 === 0) ? 'azul' : 'morado';
+        rawTemas = BLOCKS[bloqueNum].temas.filter(t=>t.color===colorHoy);
+      }
+      const resolvedTemas = rawTemas.map(t=>{
+        if(t.type==='armas_explosivos'){
+          const turn = azulCount[bloqueNum];
+          return {nombre:(turn%2===0)?t.armas:t.explosivos, clase:t.clase};
+        }
+        return {nombre:t.nombre, clase:t.clase};
+      });
+      if(!ticks.bloque){
+        resolvedTemas.forEach(t=>{
+          pushItem(poolKey, lap, {
+            key: 'b'+bloqueNum+'-'+t.nombre,
+            clase: t.clase,
+            nombre: 'B'+bloqueNum+' · '+t.nombre,
+            numTema: temaNumFromClase(t.clase)
+          });
+        });
+        if(dayOfMonthParity===1) gIdx++; else mgIdx++;
+        if(unifyThisMonth || colorHoy==='azul') azulCount[bloqueNum]++;
+        blockTurn[bloqueNum]++;
+      }
+
+      // ---- Leve ----
+      const leveIdx = lIdx % LEVES.length;
+      const leveLap = Math.floor(lIdx / LEVES.length) + 1;
+      const leveItemRaw = LEVES[leveIdx];
+      let leveResolved;
+      if(leveItemRaw.type==='l39_l40'){
+        const turn = leveAppear[leveIdx];
+        leveResolved = {nombre:(turn%2===0)?leveItemRaw.l39:leveItemRaw.l40, clase:leveItemRaw.clase};
+      } else {
+        leveResolved = {nombre:leveItemRaw.nombre, clase:leveItemRaw.clase};
+      }
+      if(!ticks.leve){
+        pushItem('leves', leveLap, {
+          key: 'leve-'+leveIdx+'-'+leveResolved.nombre,
+          clase: leveResolved.clase,
+          nombre: 'LEVE Nº'+(leveIdx+1)+' · '+leveResolved.nombre,
+          numTema: temaNumFromClase(leveResolved.clase)
+        });
+        leveAppear[leveIdx]++;
+        lIdx++;
+      }
+
+      // ---- Inglés ----
+      const inglesNum = (iIdx % INGLES_TOTAL) + 1;
+      const inglesLap = Math.floor(iIdx / INGLES_TOTAL) + 1;
+      if(!ticks.ingles){
+        pushItem('ingles', inglesLap, {
+          key: 'ingles-'+inglesNum,
+          clase: '',
+          nombre: 'Tema '+inglesNum,
+          numTema: ''
+        });
+        iIdx++;
+      }
+
+      // ---- Psicotécnico (solo lunes/miércoles) ----
+      if(isMonWed){
+        const psicoIdx = pIdx % PSICO_ITEMS.length;
+        const psicoLap = Math.floor(pIdx / PSICO_ITEMS.length) + 1;
+        if(!ticks.psico){
+          pushItem('psico', psicoLap, {
+            key: 'psico-'+psicoIdx,
+            clase: '',
+            nombre: PSICO_ITEMS[psicoIdx],
+            numTema: ''
+          });
+          pIdx++;
+        }
+      }
+    }
+  }
+  return pools;
+}
+function arrastreItemsCount(pools){
+  let total = 0;
+  Object.keys(pools).forEach(k=>{
+    const p = pools[k];
+    total += ((p.items && p.items[p.lap]) || []).length;
+  });
+  return total;
+}
+function renderArrastre(){
+  const host = document.getElementById('arrastreHost');
+  if(!host) return;
+  host.innerHTML = '';
+
+  const keys = sortedMonthKeys();
+  if(!keys.length){
+    const empty = document.createElement('div'); empty.className='empty-state';
+    empty.textContent = 'Todavía no tienes ningún mes creado en el Calendario, así que no hay nada que arrastrar.';
+    host.appendChild(empty);
+    return;
+  }
+
+  const pools = computeArrastreData();
+
+  ARRASTRE_GROUPS.forEach(group=>{
+    const section = document.createElement('section');
+    section.className = 'temario-group';
+
+    // Cabecera: si el grupo junta varios subgrupos (Conocimientos = graves+menos graves+leves),
+    // cada uno sigue llevando su propia vuelta por dentro, así que se listan todas aquí.
+    const vueltaTxt = group.pools.map(pk=>ARRASTRE_POOL_META[pk].shortTitle+' · vuelta '+pools[pk].lap).join('  —  ');
+    const h3 = document.createElement('h3');
+    h3.innerHTML = group.title;
+    section.appendChild(h3);
+
+    const vueltaLine = document.createElement('div');
+    vueltaLine.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin:-4px 0 8px;';
+    vueltaLine.textContent = vueltaTxt;
+    section.appendChild(vueltaLine);
+
+    const sub = document.createElement('div'); sub.className='sub'; sub.style.marginBottom='10px';
+    sub.textContent = group.pools.map(pk=>ARRASTRE_POOL_META[pk].sub).join(' · ');
+    section.appendChild(sub);
+
+    // Combina los temas de la vuelta actual de cada subgrupo en una sola lista.
+    let items = [];
+    group.pools.forEach(pk=>{
+      const p = pools[pk];
+      items = items.concat((p.items && p.items[p.lap]) || []);
+    });
+
+    if(!items.length){
+      const empty = document.createElement('div'); empty.className='empty-state';
+      empty.textContent = 'Todavía no has completado ningún tema de este grupo en la vuelta actual.';
+      section.appendChild(empty);
+    } else {
+      const grid = document.createElement('div'); grid.className='flat-grid';
+      items.forEach(it=>{
+        const card = document.createElement('div'); card.className='flat-item';
+        const badge = it.numTema || it.clase || '';
+        card.innerHTML =
+          '<div class="fi-head"><span class="fi-name">'+it.nombre.replace(/</g,'&lt;')+'</span>'+
+          (badge ? '<span class="fi-clase">'+badge.replace(/</g,'&lt;')+'</span>' : '')+'</div>'+
+          (it.clase && it.numTema ? '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;">'+it.clase.replace(/</g,'&lt;')+'</div>' : '');
+        grid.appendChild(card);
+      });
+      section.appendChild(grid);
+
+      const count = document.createElement('div');
+      count.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;';
+      count.textContent = items.length+' tema'+(items.length!==1?'s':'')+' para arrastrar en este bloque.';
+      section.appendChild(count);
+    }
+
+    host.appendChild(section);
+  });
+}
+
 /* ===================== RENDER: CLASES (visualización de clases) ===================== */
 // Simple fila de 3 ticks (Vuelta 1/2/3) para marcar que la clase ya se ha visto.
 // A diferencia de las "vueltas" de Temario y notas, aquí no hay modo ni nota: es un check binario.
@@ -3782,18 +4043,24 @@ document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.targe
 
 /* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
 function collectNotaData(){
-  const porGrupo = {}; // grupo -> [{key,label,notas:[..],max}]
+  const porGrupo = {}; // grupo -> [{key,label,notas:[..],seq:[..],max}]
   Object.keys(state.ticks).forEach(key=>{
     const meta = KEY_LABELS[key];
     if(!meta) return; // key de un tema que ya no existe en el temario actual
     const entries = (state.ticks[key]||[]).map(migrateTickEntry);
-    const notas = [];
+    const notas = []; // solo las vueltas con nota numérica (para media/gráfico)
+    const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
     entries.forEach(e=>{
-      if(e.mode==='nota' && e.nota!=null && !isNaN(e.nota)) notas.push(e.nota);
+      if(e.mode==='nota' && e.nota!=null && !isNaN(e.nota)){
+        notas.push(e.nota);
+        seq.push({mode:'nota', nota:e.nota});
+      } else if(e.mode==='no_test' || e.mode==='no_tiempo' || e.mode==='solo_lectura'){
+        seq.push({mode:e.mode});
+      }
     });
-    if(notas.length){
+    if(seq.length){
       if(!porGrupo[meta.grupo]) porGrupo[meta.grupo] = [];
-      porGrupo[meta.grupo].push({key, label:meta.label, notas, max: meta.max || GROUP_MAX_NOTA[meta.grupo] || 10});
+      porGrupo[meta.grupo].push({key, label:meta.label, notas, seq, max: meta.max || GROUP_MAX_NOTA[meta.grupo] || 10});
     }
   });
   return {porGrupo};
@@ -3853,7 +4120,7 @@ function renderProgreso(){
   const grupos = Object.keys(data.porGrupo);
 
   if(!grupos.length){
-    host.innerHTML = '<div class="empty-state">Todavía no hay ninguna nota registrada.<br>Pon una vuelta en modo «Nota test» desde «Temario y notas» y aquí aparecerá la comparativa.</div>';
+    host.innerHTML = '<div class="empty-state">Todavía no hay ninguna vuelta registrada como «Nota test», «No test», «No tiempo» o «Solo lectura».<br>Cambia el estado de una vuelta desde «Temario y notas» y aquí aparecerá la comparativa.</div>';
     return;
   }
 
@@ -3888,23 +4155,39 @@ function renderProgreso(){
       data.porGrupo[grupo].forEach(item=>{
         const notas = item.notas;
         const max = item.max;
-        const avg = notas.reduce((a,b)=>a+b,0)/notas.length;
+        const hasNotas = notas.length>0;
+        const avg = hasNotas ? notas.reduce((a,b)=>a+b,0)/notas.length : null;
 
-        // Cada nota (a partir de la 2ª) muestra la diferencia con la vuelta anterior.
-        const notasHtml = notas.map((n,i)=>{
+        // Recorremos la secuencia real de vueltas (notas + "no test" intercalados). El delta
+        // ▲/▼ de una nota se calcula contra la nota numérica anterior, saltándose los huecos
+        // de "no test" que haya por en medio (igual que hacía antes, pero sin perder de vista
+        // en qué vuelta cayó cada "no test").
+        let lastNota = null;
+        const NON_NOTA_PILL = {
+          no_test:      {label:'No test',      color:'var(--muted)'},
+          no_tiempo:    {label:'No tiempo',     color:'#c0672f'},
+          solo_lectura: {label:'Solo lectura',  color:'#5c8a99'}
+        };
+        const notasHtml = item.seq.map(entry=>{
+          if(entry.mode!=='nota'){
+            const pillMeta = NON_NOTA_PILL[entry.mode] || {label:entry.mode, color:'var(--muted)'};
+            return '<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>';
+          }
+          const n = entry.nota;
           let deltaTxt = '';
-          if(i>0){
-            const diff = Math.round((n - notas[i-1])*10)/10;
+          if(lastNota!=null){
+            const diff = Math.round((n - lastNota)*10)/10;
             if(diff > 0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
             else if(diff < 0) deltaTxt = ' <span style="color:var(--red-text);">▼'+diff+'</span>';
             else deltaTxt = ' <span style="color:var(--muted);">=</span>';
           }
+          lastNota = n;
           return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
         }).join(' ');
 
         // Tendencia general: última nota frente a la anterior (se usa como texto accesible
         // del gráfico, para quien use lector de pantalla o quiera el dato exacto).
-        let tendenciaTxt = 'Sin datos suficientes para ver tendencia';
+        let tendenciaTxt = hasNotas ? 'Sin datos suficientes para ver tendencia' : 'Todavía no hay ninguna nota numérica para este tema';
         if(notas.length>1){
           const diff = Math.round((notas[notas.length-1]-notas[notas.length-2])*10)/10;
           if(diff>0) tendenciaTxt = 'Mejorando, +'+diff+' respecto a la vuelta anterior';
@@ -3915,7 +4198,7 @@ function renderProgreso(){
         const tr = document.createElement('tr');
         tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
           `<td>${notasHtml}</td>`+
-          `<td><span class="nota-pill ${notaPillClass(avg, max)}">${avg.toFixed(1)}/${max}</span></td>`+
+          `<td>${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>'}</td>`+
           `<td></td>`;
         const sparkTd = tr.lastElementChild;
         sparkTd.title = tendenciaTxt;
@@ -3927,8 +4210,10 @@ function renderProgreso(){
           canvas.setAttribute('role', 'img');
           sparkTd.appendChild(canvas);
           drawSparkline(canvas, notas, max, GRUPO_HEX_COLOR[grupo] || '#d99a3c');
-        } else {
+        } else if(hasNotas){
           sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— hace falta otra vuelta —</span>';
+        } else {
+          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>';
         }
         tbody.appendChild(tr);
       });
