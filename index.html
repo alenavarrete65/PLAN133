@@ -99,9 +99,7 @@
   @media (max-width:640px){
     body{ background-attachment: scroll, scroll, scroll; }
   }
-  .wrap{max-width:980px;margin:0 auto;padding:20px 16px 40px;transition:max-width .15s;}
-  /* Vista Calendario en escritorio/tablet: más ancho para que la rejilla respire */
-  .wrap.wrap-wide{max-width:1400px;}
+  .wrap{max-width:1400px;margin:0 auto;padding:20px 16px 40px;}
 
   header.app-head{
     display:flex;flex-direction:column;align-items:center;text-align:center;
@@ -4617,10 +4615,6 @@ document.getElementById('resetBtn').onclick = ()=>{
 const tabsNavEl = document.getElementById('tabsNav');
 const tabsMobileTriggerEl = document.getElementById('tabsMobileTrigger');
 const tabsMobileTriggerLabelEl = document.getElementById('tabsMobileTriggerLabel');
-const wrapEl = document.querySelector('.wrap');
-function syncWrapWidth(tabName){
-  if(wrapEl) wrapEl.classList.toggle('wrap-wide', tabName==='calendario');
-}
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick = ()=>{
     document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -4629,10 +4623,8 @@ document.querySelectorAll('.tab-btn').forEach(btn=>{
     document.getElementById('view-'+btn.dataset.tab).classList.add('active');
     if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
     if(tabsNavEl) tabsNavEl.classList.remove('open');
-    syncWrapWidth(btn.dataset.tab);
   };
 });
-syncWrapWidth('calendario'); // la pestaña Calendario empieza activa
 if(tabsMobileTriggerEl){
   tabsMobileTriggerEl.onclick = ()=>{
     const isOpen = tabsNavEl.classList.toggle('open');
