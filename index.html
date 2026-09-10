@@ -3358,6 +3358,7 @@ function computeArrastreData(){
             clase: t.clase,
             nombre: t.nombre,
             grupo: 'B'+bloqueNum,
+            color: colorHoy,
             numTema: temaNumFromClase(t.clase)
           });
         });
@@ -3488,9 +3489,14 @@ function renderArrastre(){
       sorted.forEach(it=>{
         const card = document.createElement('div'); card.className='flat-item';
         const titulo = it.numTema ? (it.numTema+' · '+it.nombre) : it.nombre;
+        const pie = (it.grupo || it.color) ?
+          '<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">'+
+            (it.grupo ? '<span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">'+it.grupo.replace(/</g,'&lt;')+'</span>' : '')+
+            (it.color ? '<span class="colorpill '+it.color+'">'+it.color+'</span>' : '')+
+          '</div>' : '';
         card.innerHTML =
           '<div class="fi-head"><span class="fi-name">'+titulo.replace(/</g,'&lt;')+'</span></div>'+
-          (it.grupo ? '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;">'+it.grupo.replace(/</g,'&lt;')+'</div>' : '');
+          pie;
         grid.appendChild(card);
       });
       section.appendChild(grid);
