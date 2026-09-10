@@ -198,6 +198,9 @@
   .home-card-sub{
     font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-top:4px;
   }
+  .home-card-note{
+    font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:6px;font-style:italic;
+  }
   .home-today-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}
   .home-today-list li{
     font-family:var(--font-mono);font-size:11.5px;color:var(--cream-dim);
@@ -2591,11 +2594,17 @@ function renderHomeDash(){
 
   const arrastrePools = computeArrastreData();
   const arrastreTotal = arrastreItemsCount(arrastrePools);
+  // Aviso: el arrastre cuenta a día vencido, así que lo de hoy todavía no está en la lista.
+  const arrastreNota = (todayInfo && todayInfo.status==='ESTUDIO')
+    ? '<div class="home-card-note">Lo de hoy se suma mañana, cuando el día termine.</div>'
+    : '';
   const arrastreHtml = arrastreTotal
     ? '<div class="home-card-value" style="font-size:22px;">'+arrastreTotal+' tema'+(arrastreTotal!==1?'s':'')+'</div>'+
       '<div class="home-card-sub">para meter hoy en tu test de arrastre</div>'+
+      arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Ver qué temas son →</button>'
     : '<div class="home-card-sub">Todavía no hay temas acumulados en ninguna vuelta abierta.</div>'+
+      arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>';
 
   el.innerHTML =
@@ -3638,7 +3647,12 @@ function renderArrastre(){
       resetBtn.textContent = 'Reiniciar marcas de repaso de este bloque';
       resetBtn.onclick = ()=>{
         items.forEach(it=>{ delete arrastreChecked[it.key]; });
-        renderArrastre();
+        grid.querySelectorAll('.arrastre-item.done').forEach(row=>{
+          row.classList.remove('done');
+          const chk = row.querySelector('.arrastre-check');
+          if(chk) chk.checked = false;
+        });
+        refreshCount();
       };
       section.appendChild(resetBtn);
 
