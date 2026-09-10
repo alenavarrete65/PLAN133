@@ -503,6 +503,31 @@
   }
   .arrastre-counts{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;}
 
+  /* ---- Buscador global ---- */
+  .global-search{position:relative;display:inline-block;}
+  .global-search-input{
+    background:var(--bg-panel);border:1px solid var(--line);color:var(--cream);border-radius:2px;
+    font-family:var(--font-mono);font-size:12px;padding:6px 10px;width:190px;outline:none;
+  }
+  .global-search-input:focus{border-color:var(--amber);}
+  .global-search-results{
+    display:none;position:absolute;top:calc(100% + 4px);left:0;width:320px;max-height:360px;overflow-y:auto;
+    background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:2px;z-index:50;
+    box-shadow:0 6px 18px rgba(0,0,0,.35);
+  }
+  .global-search-results.open{display:block;}
+  .gsr-item{padding:8px 10px;border-bottom:1px solid var(--line);cursor:pointer;}
+  .gsr-item:last-child{border-bottom:none;}
+  .gsr-item:hover, .gsr-item.active{background:var(--bg-panel-2);}
+  .gsr-item .gsr-name{font-size:12px;font-weight:600;}
+  .gsr-item .gsr-meta{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;}
+  .gsr-empty{padding:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .temarow-flash{animation:temarowFlash 1.6s ease-out;}
+  @keyframes temarowFlash{
+    0%{box-shadow:0 0 0 2px var(--amber); background:var(--bg-panel-2);}
+    100%{box-shadow:0 0 0 0 transparent;}
+  }
+
   .ticks-row{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
   .vuelta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
@@ -814,6 +839,10 @@
     </div>
     <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
       <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
+      <div class="global-search" id="globalSearchWrap">
+        <input type="text" id="globalSearchInput" class="global-search-input" placeholder="🔎 Buscar un tema…" autocomplete="off" />
+        <div class="global-search-results" id="globalSearchResults"></div>
+      </div>
       <button type="button" class="icon-btn" id="themeToggleBtn" title="Cambiar a tema claro/oscuro" aria-label="Cambiar tema" style="font-size:14px;">🌙</button>
       <div class="save-indicator" id="offlineIndicator" role="status" aria-live="polite" style="display:none;border-color:var(--red-text);color:var(--red-text);">
         <span class="dot" aria-hidden="true" style="background:var(--red-text);"></span><span>Sin conexión</span>
@@ -3133,6 +3162,7 @@ const temarioOpen = {bloques:false, leves:false, ingles:false, psico:false, orto
 function renderAccordionSection(host, key, titleText, buildFn){
   host.innerHTML = '';
   const wrap = document.createElement('div');
+  wrap.id = 'temario-section-'+key;
   wrap.className = 'temario-section' + (temarioOpen[key] ? ' open' : '');
   const head = document.createElement('div'); head.className = 'temario-section-head';
   head.innerHTML = `<h3>${titleText}</h3><div class="chev">${temarioOpen[key] ? '▴' : '▾'}</div>`;
@@ -3158,7 +3188,7 @@ function buildTemaControls(key, grupo, label, notePlaceholder){
   return frag;
 }
 function buildFlatItem(key, grupo, label, headHTML, notePlaceholder){
-  const item = document.createElement('div'); item.className='flat-item';
+  const item = document.createElement('div'); item.className='flat-item'; item.id='temarow-'+key;
   item.innerHTML = '<div class="fi-head">'+headHTML+'</div>';
   item.appendChild(buildTemaControls(key, grupo, label, notePlaceholder));
   return item;
@@ -3176,7 +3206,7 @@ function renderBlocks(){
   renderAccordionSection(host, 'bloques', 'Bloques', (body)=>{
     Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
       const b = BLOCKS[num];
-      const card = document.createElement('div'); card.className='block-card';
+      const card = document.createElement('div'); card.className='block-card'; card.id='blockcard-'+num;
       const head = document.createElement('div'); head.className='block-head';
       head.innerHTML = `
         <div class="block-title">
@@ -3189,7 +3219,7 @@ function renderBlocks(){
         if(t.type==='armas_explosivos'){
           [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
             const noteKey = 'b'+num+'-'+idx+'-'+sub;
-            const row = document.createElement('div'); row.className='tema-row';
+            const row = document.createElement('div'); row.className='tema-row'; row.id='temarow-'+noteKey;
             row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||label}<span class="rot-pill">${tag} · alterna cada vuelta</span></span><span class="tema-clase">${t.clase?label:''}</span></div>`;
             row.appendChild(buildTemaControls(noteKey, 'Bloques', 'B'+num+' · '+(t.clase||label)));
             bbody.appendChild(row);
@@ -3197,7 +3227,7 @@ function renderBlocks(){
           return;
         }
         const noteKey = 'b'+num+'-'+idx;
-        const row = document.createElement('div'); row.className='tema-row';
+        const row = document.createElement('div'); row.className='tema-row'; row.id='temarow-'+noteKey;
         row.innerHTML = `<div class="tema-head"><span class="tema-name">${t.clase||t.nombre}<span class="colorpill ${t.color}">${t.color}</span></span><span class="tema-clase">${t.clase?t.nombre:''}</span></div>`;
         row.appendChild(buildTemaControls(noteKey, 'Bloques', 'B'+num+' · '+(t.clase||t.nombre)));
         bbody.appendChild(row);
@@ -3342,15 +3372,18 @@ const ARRASTRE_GROUPS = [
   {key:'ingles', title:'Inglés', pools:['ingles']},
   {key:'psico', title:'Psicotécnicos', pools:['psico']}
 ];
-function computeArrastreData(){
+function computeArrastreData(asOfDayKey){
   const pools = {};
   Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}}; });
 
   const keys = sortedMonthKeys();
   if(!keys.length) return pools;
 
-  const now = new Date();
-  const todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+  let todayKey = asOfDayKey;
+  if(!todayKey){
+    const now = new Date();
+    todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
+  }
 
   let gIdx=0, mgIdx=0, lIdx=0, iIdx=0, pIdx=0;
   const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
@@ -4303,15 +4336,128 @@ function drawSparkline(canvas, notas, max, color){
     ctx.fill();
   });
 }
+function drawTrendChart(canvas, points, color){
+  const parent = canvas.parentElement;
+  const parentW = parent && parent.clientWidth;
+  const cssW = Math.max(260, Math.min(680, parentW || (window.innerWidth - 60)));
+  const cssH = 140;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  canvas.style.width = cssW+'px';
+  canvas.style.height = cssH+'px';
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  const values = points.map(p=>p.value);
+  const maxV = Math.max(1, ...values);
+  const padL=26, padR=10, padT=10, padB=20;
+  const w = cssW-padL-padR, h = cssH-padT-padB;
+  const n = points.length;
+  const xAt = i => n>1 ? padL + w*i/(n-1) : padL + w/2;
+  const yAt = v => padT + h*(1 - v/maxV);
+
+  // Líneas de referencia en 0 y en el máximo, con su etiqueta.
+  ctx.strokeStyle = 'rgba(236,228,211,0.14)';
+  ctx.lineWidth = 1;
+  [0, maxV].forEach(v=>{
+    const y = yAt(v);
+    ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+w, y); ctx.stroke();
+  });
+  ctx.fillStyle = 'rgba(236,228,211,0.55)';
+  ctx.font = '9px monospace';
+  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ctx.fillText(String(Math.round(maxV)), padL-4, yAt(maxV));
+  ctx.fillText('0', padL-4, yAt(0));
+
+  // Relleno bajo la línea.
+  ctx.beginPath();
+  points.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.value); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+  ctx.lineTo(xAt(n-1), yAt(0)); ctx.lineTo(xAt(0), yAt(0)); ctx.closePath();
+  ctx.fillStyle = color+'26';
+  ctx.fill();
+
+  // Línea de la evolución.
+  ctx.beginPath();
+  points.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.value); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.stroke();
+
+  // Punto final resaltado.
+  const lastX = xAt(n-1), lastY = yAt(points[n-1].value);
+  ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 3, 0, Math.PI*2); ctx.fill();
+
+  // Etiquetas de fecha: primera, del medio y última.
+  ctx.fillStyle = 'rgba(236,228,211,0.55)';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+  const labelIdxs = n>1 ? [0, Math.floor((n-1)/2), n-1] : [0];
+  labelIdxs.forEach(i=>{
+    const parts = points[i].date.split('-');
+    ctx.fillText(parts[2]+'/'+parts[1], xAt(i), padT+h+4);
+  });
+}
+// Muestrea, día a día, cuántos temas había acumulados en el arrastre total (a día vencido)
+// en cada uno de los últimos `numPoints` días. Sirve para ver si el arrastre crece sin
+// parar (mal síntoma) o se mantiene bajo control.
+function buildArrastreTrend(numPoints){
+  const keys = sortedMonthKeys();
+  if(!keys.length) return [];
+  const now = new Date();
+  const points = [];
+  for(let i=numPoints-1; i>=0; i--){
+    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
+    const cutoff = d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate());
+    const total = arrastreItemsCount(computeArrastreData(cutoff));
+    points.push({date:cutoff, value:total});
+  }
+  return points;
+}
 function renderProgreso(){
   const host = document.getElementById('progresoHost');
   if(!host) return;
   host.innerHTML = '';
+
+  // Tendencia del arrastre: no depende de tener notas de tests, así que se muestra siempre
+  // que haya algo de historial en el calendario.
+  const trendPoints = buildArrastreTrend(21);
+  if(trendPoints.length && trendPoints.some(p=>p.value>0)){
+    const sTrend = document.createElement('div');
+    appendAccordionSection(sTrend, 'tendenciaArrastre', progresoOpen, 'Tendencia del arrastre', (body)=>{
+      const sub = document.createElement('div'); sub.className='sub'; sub.style.marginBottom='10px';
+      sub.textContent = 'Cuántos temas tenías acumulados en el arrastre total (a día vencido) cada día, en las últimas '+trendPoints.length+' fechas. Si sube sin parar, el ritmo de estudio no está dando abasto para repasar todo lo acumulado.';
+      body.appendChild(sub);
+
+      const canvasWrap = document.createElement('div'); canvasWrap.style.width='100%';
+      const canvas = document.createElement('canvas'); canvas.className='arrastre-trend-canvas';
+      canvas.setAttribute('role','img');
+      canvasWrap.appendChild(canvas);
+      body.appendChild(canvasWrap);
+
+      const first = trendPoints[0].value, last = trendPoints[trendPoints.length-1].value;
+      const diff = last - first;
+      let veredicto;
+      if(diff > 0) veredicto = 'Ha subido en '+diff+' tema'+(diff!==1?'s':'')+' en este periodo — puede que te esté costando dar abasto.';
+      else if(diff < 0) veredicto = 'Ha bajado en '+Math.abs(diff)+' tema'+(Math.abs(diff)!==1?'s':'')+' en este periodo — vas aligerando el arrastre.';
+      else veredicto = 'Se ha mantenido estable en este periodo.';
+      canvas.setAttribute('aria-label', veredicto);
+      const verdictEl = document.createElement('div');
+      verdictEl.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-top:8px;';
+      verdictEl.textContent = veredicto;
+      body.appendChild(verdictEl);
+
+      drawTrendChart(canvas, trendPoints, '#c9a227');
+    });
+    host.appendChild(sTrend);
+  }
+
   const data = collectNotaData();
   const grupos = Object.keys(data.porGrupo);
 
   if(!grupos.length){
-    host.innerHTML = '<div class="empty-state">Todavía no hay ninguna vuelta registrada como «Nota test», «No test», «No tiempo» o «Solo lectura».<br>Cambia el estado de una vuelta desde «Temario y notas» y aquí aparecerá la comparativa.</div>';
+    const empty = document.createElement('div'); empty.className='empty-state';
+    empty.innerHTML = 'Todavía no hay ninguna vuelta registrada como «Nota test», «No test», «No tiempo» o «Solo lectura».<br>Cambia el estado de una vuelta desde «Temario y notas» y aquí aparecerá la comparativa.';
+    host.appendChild(empty);
     return;
   }
 
@@ -4419,7 +4565,7 @@ function renderProgreso(){
   });
   host.appendChild(s4);
 }
-const progresoOpen = {detalleTema:false};
+const progresoOpen = {detalleTema:false, tendenciaArrastre:true};
 /* ===================== MARCAS FÍSICAS MÍNIMAS (oposición Guardia Civil) ===================== */
 function parseTiempoASegundos(v){
   if(v==null || v==='') return NaN;
@@ -5160,15 +5306,18 @@ document.getElementById('resetBtn').onclick = ()=>{
 const tabsNavEl = document.getElementById('tabsNav');
 const tabsMobileTriggerEl = document.getElementById('tabsMobileTrigger');
 const tabsMobileTriggerLabelEl = document.getElementById('tabsMobileTriggerLabel');
+function activateTab(tabName){
+  const btn = document.querySelector('.tab-btn[data-tab="'+tabName+'"]');
+  if(!btn) return;
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('view-'+tabName).classList.add('active');
+  if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
+  if(tabsNavEl) tabsNavEl.classList.remove('open');
+}
 document.querySelectorAll('.tab-btn').forEach(btn=>{
-  btn.onclick = ()=>{
-    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-    btn.classList.add('active');
-    document.getElementById('view-'+btn.dataset.tab).classList.add('active');
-    if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
-    if(tabsNavEl) tabsNavEl.classList.remove('open');
-  };
+  btn.onclick = ()=> activateTab(btn.dataset.tab);
 });
 if(tabsMobileTriggerEl){
   tabsMobileTriggerEl.onclick = ()=>{
@@ -5182,6 +5331,139 @@ if(tabsMobileTriggerEl){
     }
   });
 }
+
+/* ===================== BUSCADOR GLOBAL DE TEMAS ===================== */
+// Índice plano de todo lo que se puede buscar: Bloques, Leves, Inglés y Psicotécnicos.
+// Se reconstruye bajo demanda (es barato) para no tener que mantenerlo sincronizado
+// con cambios en los datos.
+function buildSearchIndex(){
+  const idx = [];
+  Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
+    BLOCKS[num].temas.forEach((t,i)=>{
+      if(t.type==='armas_explosivos'){
+        [['armas', t.armas, 'armas'], ['explosivos', t.explosivos, 'explosivos']].forEach(([sub,label])=>{
+          idx.push({
+            text: (t.clase||'')+' '+label, display: label,
+            meta: 'Bloque '+num+(t.clase?' · '+t.clase:''),
+            tab:'temario', accordion:'bloques', block:num, elId:'temarow-b'+num+'-'+i+'-'+sub
+          });
+        });
+        return;
+      }
+      idx.push({
+        text: (t.clase||'')+' '+t.nombre, display: t.nombre,
+        meta: 'Bloque '+num+(t.clase?' · '+t.clase:''),
+        tab:'temario', accordion:'bloques', block:num, elId:'temarow-b'+num+'-'+i
+      });
+    });
+  });
+  LEVES.forEach((t,i)=>{
+    if(t.type==='l39_l40'){
+      [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
+        idx.push({
+          text: 'leve '+(i+1)+' '+(t.clase||'')+' '+label, display: label,
+          meta: 'Leve Nº'+(i+1)+(t.clase?' · '+t.clase:''),
+          tab:'temario', accordion:'leves', elId:'temarow-leve-'+i+'-'+sub
+        });
+      });
+      return;
+    }
+    idx.push({
+      text: 'leve '+(i+1)+' '+(t.clase||'')+' '+t.nombre, display: t.nombre,
+      meta: 'Leve Nº'+(i+1)+(t.clase?' · '+t.clase:''),
+      tab:'temario', accordion:'leves', elId:'temarow-leve-'+i
+    });
+  });
+  for(let i=1;i<=INGLES_TOTAL;i++){
+    idx.push({
+      text: 'ingles tema '+i, display: 'Tema '+i, meta: 'Inglés',
+      tab:'temario', accordion:'ingles', elId:'temarow-ingles-'+i
+    });
+  }
+  PSICO_ITEMS.forEach((name,i)=>{
+    idx.push({
+      text: name, display: name, meta: 'Psicotécnicos',
+      tab:'temario', accordion:'psico', elId:'temarow-psico-'+i
+    });
+  });
+  return idx;
+}
+function normalizeSearch(s){
+  return String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+}
+function goToSearchResult(entry){
+  activateTab(entry.tab);
+  temarioOpen[entry.accordion] = true;
+  const section = document.getElementById('temario-section-'+entry.accordion);
+  if(section){
+    section.classList.add('open');
+    const chev = section.querySelector(':scope > .temario-section-head .chev');
+    if(chev) chev.textContent = '▴';
+  }
+  if(entry.block){
+    const card = document.getElementById('blockcard-'+entry.block);
+    if(card){
+      const bbody = card.querySelector('.block-body');
+      const chev = card.querySelector('.chev');
+      if(bbody) bbody.classList.add('open');
+      if(chev) chev.textContent = '▴';
+    }
+  }
+  setTimeout(()=>{
+    const el = document.getElementById(entry.elId);
+    if(el){
+      el.scrollIntoView({behavior:'smooth', block:'center'});
+      el.classList.remove('temarow-flash');
+      void el.offsetWidth; // reinicia la animación si ya se había lanzado antes
+      el.classList.add('temarow-flash');
+    }
+  }, 60);
+}
+(function setupGlobalSearch(){
+  const input = document.getElementById('globalSearchInput');
+  const resultsEl = document.getElementById('globalSearchResults');
+  const wrap = document.getElementById('globalSearchWrap');
+  if(!input || !resultsEl) return;
+  let lastResults = [];
+  function renderResults(query){
+    const q = normalizeSearch(query).trim();
+    if(!q){ resultsEl.classList.remove('open'); resultsEl.innerHTML=''; return; }
+    const idx = buildSearchIndex();
+    const terms = q.split(/\s+/).filter(Boolean);
+    lastResults = idx.filter(e=>{
+      const hay = normalizeSearch(e.text+' '+e.meta);
+      return terms.every(t=>hay.includes(t));
+    }).slice(0, 25);
+    if(!lastResults.length){
+      resultsEl.innerHTML = '<div class="gsr-empty">Sin resultados para "'+query.replace(/</g,'&lt;')+'"</div>';
+    } else {
+      resultsEl.innerHTML = lastResults.map((e,i)=>
+        '<div class="gsr-item" data-i="'+i+'">'+
+          '<div class="gsr-name">'+e.display.replace(/</g,'&lt;')+'</div>'+
+          '<div class="gsr-meta">'+e.meta.replace(/</g,'&lt;')+'</div>'+
+        '</div>'
+      ).join('');
+    }
+    resultsEl.classList.add('open');
+  }
+  input.addEventListener('input', ()=> renderResults(input.value));
+  input.addEventListener('focus', ()=>{ if(input.value.trim()) renderResults(input.value); });
+  resultsEl.addEventListener('click', (e)=>{
+    const item = e.target.closest('.gsr-item');
+    if(!item) return;
+    const entry = lastResults[Number(item.dataset.i)];
+    if(!entry) return;
+    goToSearchResult(entry);
+    resultsEl.classList.remove('open');
+    input.value = '';
+  });
+  document.addEventListener('click', (e)=>{
+    if(wrap && !wrap.contains(e.target)) resultsEl.classList.remove('open');
+  });
+  input.addEventListener('keydown', (e)=>{
+    if(e.key==='Escape'){ resultsEl.classList.remove('open'); input.blur(); }
+  });
+})();
 
 /* ===================== VISTA CALENDARIO: rejilla / lista ===================== */
 let calViewMode = 'grid';
