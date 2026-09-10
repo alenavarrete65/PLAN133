@@ -933,12 +933,14 @@
   <div class="view" id="view-arrastre">
     <div class="sub" style="max-width:640px;margin-bottom:6px;">
       Aquí tienes, agrupado por bloque de materia, qué temas dar de arrastre hoy: todo lo que llevas
-      estudiado (y no marcado como pendiente) en la vuelta que tienes abierta ahora mismo en cada grupo.
+      estudiado (y no marcado como pendiente) en la vuelta que tienes abierta ahora mismo en cada grupo,
+      contando a día vencido — lo de hoy se suma mañana, cuando el día ya haya terminado.
       En cuanto termines una vuelta entera de un grupo, esa lista se vacía y empieza a llenarse otra vez
       con la vuelta siguiente.
     </div>
     <div id="arrastreHost"></div>
   </div>
+
 
   <!-- AJUSTES -->
   <div class="view" id="view-ajustes">
@@ -3294,12 +3296,14 @@ function renderOrto(){
 }
 
 /* ===================== ARRASTRE (repaso acumulado por vuelta) ===================== */
-// Recorre el calendario real, desde el primer día guardado hasta HOY (nunca el futuro), para
-// saber qué temas ya se han estudiado en la vuelta que está abierta ahora mismo en cada grupo:
-// bloques graves (1-5), bloques menos graves (6-12), leves, inglés y psicotécnicos. Cada grupo
-// tiene su propia "vuelta" independiente (una vuelta = pasar una vez por todo el ciclo de ese
-// grupo). Un día cuenta como completado con el mismo criterio que ya usa el resto de la app
-// para avanzar el planning: si no lo has marcado como NO completado, se da por hecho.
+// Recorre el calendario real, desde el primer día guardado hasta AYER (a día vencido: el día
+// de hoy no cuenta todavía, aunque ya hayas marcado sus tareas, hasta que empiece el día
+// siguiente), para saber qué temas ya se han estudiado en la vuelta que está abierta ahora
+// mismo en cada grupo: bloques graves (1-5), bloques menos graves (6-12), leves, inglés y
+// psicotécnicos. Cada grupo tiene su propia "vuelta" independiente (una vuelta = pasar una vez
+// por todo el ciclo de ese grupo). Un día cuenta como completado con el mismo criterio que ya
+// usa el resto de la app para avanzar el planning: si no lo has marcado como NO completado, se
+// da por hecho.
 const ARRASTRE_POOL_META = {
   graves:  {shortTitle:'Graves',        title:'Bloques graves (1–5)',         sub:'Días impares · una vuelta = pasar una vez por los bloques 1 a 5 (azul y morado)'},
   mgraves: {shortTitle:'Menos graves',  title:'Bloques menos graves (6–12)',  sub:'Días pares · una vuelta = pasar una vez por los bloques 6 a 12 (azul y morado)'},
@@ -3363,7 +3367,9 @@ function computeArrastreData(){
     const monthTicks = (state.dayTicks && state.dayTicks[k]) || {};
     for(let d=1; d<=nDays; d++){
       const dayKey = k+'-'+pad2(d);
-      if(dayKey > todayKey) break outer;
+      // A día vencido: hasta que hoy no termina, no cuenta para el arrastre (solo días
+      // ya cerrados, es decir, estrictamente anteriores a hoy).
+      if(dayKey >= todayKey) break outer;
       const status = days[d] || 'ESTUDIO';
       if(status !== 'ESTUDIO') continue;
       const ticks = monthTicks[d] || {};
