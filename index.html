@@ -464,6 +464,42 @@
   .flat-item .fi-name{font-weight:600;}
   .flat-item .fi-clase{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
 
+  /* ---- Pestaña Arrastre: extras ---- */
+  .mini-tag{
+    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
+    padding:1px 5px;border-radius:2px;display:inline-block;white-space:nowrap;
+  }
+  .arrastre-item{cursor:pointer;user-select:none;transition:opacity .15s;}
+  .arrastre-item:hover{border-color:var(--amber-dim);}
+  .arrastre-item.done{opacity:.4;}
+  .arrastre-item.done .fi-name{text-decoration:line-through;}
+  .arrastre-check{
+    width:14px;height:14px;flex-shrink:0;accent-color:var(--amber);cursor:pointer;margin-top:1px;
+  }
+  .arrastre-head-row{display:flex;align-items:flex-start;gap:8px;}
+  .arrastre-meta{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap;}
+  .arrastre-meta .grupo-txt{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .arrastre-sub{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px;}
+  .arrastre-sub:first-child{border-top:none;margin-top:0;padding-top:0;}
+  .arrastre-group-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:2px;
+  }
+  .arrastre-group-head h3{
+    font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:17px;letter-spacing:.03em;
+    border:none;padding:0;margin:0;
+  }
+  .arrastre-copy-btn{
+    background:transparent;border:1px solid var(--amber-dim);color:var(--amber);border-radius:2px;
+    font-family:var(--font-mono);font-size:11px;padding:4px 9px;cursor:pointer;white-space:nowrap;
+  }
+  .arrastre-copy-btn:hover{background:var(--bg-panel-2);}
+  .arrastre-reset-btn{
+    background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);font-size:10px;
+    text-decoration:underline;cursor:pointer;padding:0;margin-top:6px;
+  }
+  .arrastre-counts{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;}
+
   .ticks-row{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
   .vuelta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
@@ -3277,6 +3313,19 @@ const ARRASTRE_POOL_META = {
   ingles:  {shortTitle:'Inglés',        title:'Inglés',                        sub:'Una vuelta = pasar una vez por los 32 temas del ciclo'},
   psico:   {shortTitle:'Psicotécnicos', title:'Psicotécnicos',                 sub:'Una vuelta = pasar una vez por las 23 pruebas + los 2 controles'}
 };
+// Etiqueta visual (mismos colores que ya usa el Calendario) para distinguir de un vistazo
+// grave/menos grave/leve cuando van mezclados dentro de "Conocimientos".
+const ARRASTRE_POOL_TAG = {
+  graves:'tag-grave', mgraves:'tag-mgrave', leves:'tag-leve', ingles:'tag-ing', psico:'tag-psico'
+};
+const ARRASTRE_POOL_LABEL = {
+  graves:'GRAVE', mgraves:'MENOS GRAVE', leves:'LEVE', ingles:'INGLÉS', psico:'PSICO'
+};
+// Marcas de "ya repasado hoy" dentro de la pestaña Arrastre: es solo para ir tachando durante
+// una sesión de repaso en vivo, NO se guarda en Firebase ni en localStorage — vive únicamente
+// en memoria, así que se reinicia sola en cuanto se recarga o se vuelve a abrir la app.
+let arrastreChecked = {};
+
 // Agrupación para la pestaña Arrastre: graves + menos graves + leves se enseñan juntos bajo
 // "Conocimientos" (aunque cada uno sigue llevando su propia vuelta por dentro), e inglés y
 // psicotécnicos se quedan cada uno en su propio bloque. Así el test de arrastre queda en solo
@@ -3359,6 +3408,7 @@ function computeArrastreData(){
             nombre: t.nombre,
             grupo: 'B'+bloqueNum,
             color: colorHoy,
+            pool: poolKey,
             numTema: temaNumFromClase(t.clase)
           });
         });
@@ -3384,6 +3434,7 @@ function computeArrastreData(){
           clase: leveResolved.clase,
           nombre: leveResolved.nombre,
           grupo: 'LEVE Nº'+(leveIdx+1),
+          pool: 'leves',
           numTema: temaNumFromClase(leveResolved.clase)
         });
         leveAppear[leveIdx]++;
@@ -3398,6 +3449,7 @@ function computeArrastreData(){
           key: 'ingles-'+inglesNum,
           clase: '',
           nombre: 'Tema '+inglesNum,
+          pool: 'ingles',
           numTema: ''
         });
         iIdx++;
@@ -3412,6 +3464,7 @@ function computeArrastreData(){
             key: 'psico-'+psicoIdx,
             clase: '',
             nombre: PSICO_ITEMS[psicoIdx],
+            pool: 'psico',
             numTema: ''
           });
           pIdx++;
@@ -3444,6 +3497,44 @@ function renderArrastre(){
 
   const pools = computeArrastreData();
 
+  // Construye la línea de meta-datos (bloque/leve + grave-menos grave-leve + azul/morado)
+  // que va debajo del nombre de cada tema.
+  function metaHtml(it, showPoolTag){
+    const bits = [];
+    if(showPoolTag && it.pool && ARRASTRE_POOL_TAG[it.pool]){
+      bits.push('<span class="mini-tag '+ARRASTRE_POOL_TAG[it.pool]+'">'+ARRASTRE_POOL_LABEL[it.pool]+'</span>');
+    }
+    if(it.grupo) bits.push('<span class="grupo-txt">'+it.grupo.replace(/</g,'&lt;')+'</span>');
+    if(it.color) bits.push('<span class="colorpill '+it.color+'">'+it.color+'</span>');
+    return bits.length ? '<div class="arrastre-meta">'+bits.join('')+'</div>' : '';
+  }
+
+  // Fila individual, clicable, para marcar "ya repasado" (efímero, solo en memoria).
+  function buildCheckRow(it, titleHtml, showPoolTag, extraClass, onToggle){
+    const row = document.createElement('div');
+    row.className = 'arrastre-item'+(extraClass?(' '+extraClass):'')+(arrastreChecked[it.key]?' done':'');
+    row.innerHTML =
+      '<div class="arrastre-head-row">'+
+        '<input type="checkbox" class="arrastre-check"'+(arrastreChecked[it.key]?' checked':'')+'>'+
+        '<div style="flex:1;min-width:0;">'+
+          '<div class="fi-head"><span class="fi-name">'+titleHtml+'</span></div>'+
+          metaHtml(it, showPoolTag)+
+        '</div>'+
+      '</div>';
+    const toggle = ()=>{
+      arrastreChecked[it.key] = !arrastreChecked[it.key];
+      row.classList.toggle('done', !!arrastreChecked[it.key]);
+      row.querySelector('.arrastre-check').checked = !!arrastreChecked[it.key];
+      if(onToggle) onToggle();
+    };
+    row.addEventListener('click', (e)=>{
+      if(e.target.tagName==='INPUT') return; // el propio checkbox ya dispara 'change'
+      toggle();
+    });
+    row.querySelector('.arrastre-check').addEventListener('change', toggle);
+    return row;
+  }
+
   ARRASTRE_GROUPS.forEach(group=>{
     const section = document.createElement('section');
     section.className = 'temario-group';
@@ -3451,12 +3542,18 @@ function renderArrastre(){
     // Cabecera: si el grupo junta varios subgrupos (Conocimientos = graves+menos graves+leves),
     // cada uno sigue llevando su propia vuelta por dentro, así que se listan todas aquí.
     const vueltaTxt = group.pools.map(pk=>ARRASTRE_POOL_META[pk].shortTitle+' · vuelta '+pools[pk].lap).join('  —  ');
-    const h3 = document.createElement('h3');
-    h3.innerHTML = group.title;
-    section.appendChild(h3);
+
+    const headRow = document.createElement('div'); headRow.className = 'arrastre-group-head';
+    const h3 = document.createElement('h3'); h3.innerHTML = group.title;
+    headRow.appendChild(h3);
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button'; copyBtn.className = 'arrastre-copy-btn';
+    copyBtn.textContent = '📋 Copiar lista';
+    headRow.appendChild(copyBtn);
+    section.appendChild(headRow);
 
     const vueltaLine = document.createElement('div');
-    vueltaLine.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin:-4px 0 8px;';
+    vueltaLine.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin:8px 0 8px;';
     vueltaLine.textContent = vueltaTxt;
     section.appendChild(vueltaLine);
 
@@ -3475,7 +3572,10 @@ function renderArrastre(){
       const empty = document.createElement('div'); empty.className='empty-state';
       empty.textContent = 'Todavía no has completado ningún tema de este grupo en la vuelta actual.';
       section.appendChild(empty);
+      copyBtn.disabled = true; copyBtn.style.opacity = '.4'; copyBtn.style.cursor = 'default';
     } else {
+      const showPoolTag = group.pools.length > 1;
+
       // Orden por número de tema ascendente (los que no tienen número de tema, como
       // Inglés o Psicotécnicos, se quedan al final en su orden original).
       const sorted = items.slice().sort((a,b)=>{
@@ -3485,26 +3585,87 @@ function renderArrastre(){
         const vb = isNaN(nb) ? Infinity : nb;
         return va - vb;
       });
-      const grid = document.createElement('div'); grid.className='flat-grid';
+
+      // Agrupa entradas consecutivas que comparten el mismo número de tema (p.ej. un leve
+      // que resulta ser el mismo tema que un bloque) bajo una sola tarjeta "TEMA X".
+      const clusters = [];
       sorted.forEach(it=>{
-        const card = document.createElement('div'); card.className='flat-item';
-        const titulo = it.numTema ? (it.numTema+' · '+it.nombre) : it.nombre;
-        const pie = (it.grupo || it.color) ?
-          '<div style="display:flex;align-items:center;gap:6px;margin-top:2px;">'+
-            (it.grupo ? '<span style="font-family:var(--font-mono);font-size:10px;color:var(--muted);">'+it.grupo.replace(/</g,'&lt;')+'</span>' : '')+
-            (it.color ? '<span class="colorpill '+it.color+'">'+it.color+'</span>' : '')+
-          '</div>' : '';
-        card.innerHTML =
-          '<div class="fi-head"><span class="fi-name">'+titulo.replace(/</g,'&lt;')+'</span></div>'+
-          pie;
-        grid.appendChild(card);
+        const last = clusters[clusters.length-1];
+        if(it.numTema && last && last.numTema===it.numTema){
+          last.items.push(it);
+        } else {
+          clusters.push({numTema: it.numTema, items:[it]});
+        }
+      });
+
+      const grid = document.createElement('div'); grid.className='flat-grid';
+      const countEl = document.createElement('div'); countEl.className = 'arrastre-counts';
+
+      function refreshCount(){
+        const checkedN = items.filter(it=>arrastreChecked[it.key]).length;
+        const base = group.pools.length>1
+          ? group.pools.map(pk=>{
+              const n = ((pools[pk].items && pools[pk].items[pools[pk].lap]) || []).length;
+              return ARRASTRE_POOL_META[pk].shortTitle+': '+n;
+            }).join(' · ')
+          : items.length+' tema'+(items.length!==1?'s':'')+' para arrastrar en este bloque';
+        countEl.textContent = base+(checkedN ? ' — repasados '+checkedN+'/'+items.length : '');
+      }
+
+      clusters.forEach(cluster=>{
+        if(cluster.items.length === 1){
+          const it = cluster.items[0];
+          const titleHtml = (it.numTema ? (it.numTema+' · ') : '') + it.nombre.replace(/</g,'&lt;');
+          const row = buildCheckRow(it, titleHtml, showPoolTag, 'flat-item', refreshCount);
+          grid.appendChild(row);
+        } else {
+          const card = document.createElement('div'); card.className = 'flat-item';
+          card.innerHTML = '<div class="fi-head"><span class="fi-name">'+cluster.numTema.replace(/</g,'&lt;')+'</span></div>';
+          cluster.items.forEach(it=>{
+            const subRow = buildCheckRow(it, it.nombre.replace(/</g,'&lt;'), showPoolTag, 'arrastre-sub', refreshCount);
+            card.appendChild(subRow);
+          });
+          grid.appendChild(card);
+        }
       });
       section.appendChild(grid);
 
-      const count = document.createElement('div');
-      count.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;';
-      count.textContent = items.length+' tema'+(items.length!==1?'s':'')+' para arrastrar en este bloque.';
-      section.appendChild(count);
+      refreshCount();
+      section.appendChild(countEl);
+
+      const resetBtn = document.createElement('button');
+      resetBtn.type = 'button'; resetBtn.className = 'arrastre-reset-btn';
+      resetBtn.textContent = 'Reiniciar marcas de repaso de este bloque';
+      resetBtn.onclick = ()=>{
+        items.forEach(it=>{ delete arrastreChecked[it.key]; });
+        renderArrastre();
+      };
+      section.appendChild(resetBtn);
+
+      copyBtn.onclick = ()=>{
+        const lines = [group.title.replace(/<[^>]+>/g,'')+' — '+vueltaTxt];
+        clusters.forEach(cluster=>{
+          if(cluster.items.length === 1){
+            const it = cluster.items[0];
+            const parts = [it.grupo, it.color].filter(Boolean).join(', ');
+            lines.push((it.numTema?(it.numTema+' · '):'')+it.nombre+(parts?' ('+parts+')':''));
+          } else {
+            const detalle = cluster.items.map(it=>{
+              const parts = [it.grupo, it.color].filter(Boolean).join(', ');
+              return it.nombre+(parts?' ('+parts+')':'');
+            }).join(' / ');
+            lines.push(cluster.numTema+' · '+detalle);
+          }
+        });
+        const text = lines.join('\n');
+        const done = ()=>{ const old = copyBtn.textContent; copyBtn.textContent = '✅ Copiado'; setTimeout(()=>{ copyBtn.textContent = old; }, 1500); };
+        if(navigator.clipboard && navigator.clipboard.writeText){
+          navigator.clipboard.writeText(text).then(done).catch(()=>{ copyBtn.textContent = '⚠️ No se pudo copiar'; setTimeout(()=>{ copyBtn.textContent='📋 Copiar lista'; },1500); });
+        } else {
+          copyBtn.textContent = '⚠️ No disponible';
+          setTimeout(()=>{ copyBtn.textContent='📋 Copiar lista'; },1500);
+        }
+      };
     }
 
     host.appendChild(section);
