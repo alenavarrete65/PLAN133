@@ -3356,7 +3356,8 @@ function computeArrastreData(){
           pushItem(poolKey, lap, {
             key: 'b'+bloqueNum+'-'+t.nombre,
             clase: t.clase,
-            nombre: 'B'+bloqueNum+' · '+t.nombre,
+            nombre: t.nombre,
+            grupo: 'B'+bloqueNum,
             numTema: temaNumFromClase(t.clase)
           });
         });
@@ -3380,7 +3381,8 @@ function computeArrastreData(){
         pushItem('leves', leveLap, {
           key: 'leve-'+leveIdx+'-'+leveResolved.nombre,
           clase: leveResolved.clase,
-          nombre: 'LEVE Nº'+(leveIdx+1)+' · '+leveResolved.nombre,
+          nombre: leveResolved.nombre,
+          grupo: 'LEVE Nº'+(leveIdx+1),
           numTema: temaNumFromClase(leveResolved.clase)
         });
         leveAppear[leveIdx]++;
@@ -3473,14 +3475,22 @@ function renderArrastre(){
       empty.textContent = 'Todavía no has completado ningún tema de este grupo en la vuelta actual.';
       section.appendChild(empty);
     } else {
+      // Orden por número de tema ascendente (los que no tienen número de tema, como
+      // Inglés o Psicotécnicos, se quedan al final en su orden original).
+      const sorted = items.slice().sort((a,b)=>{
+        const na = parseInt((a.numTema||'').match(/\d+/), 10);
+        const nb = parseInt((b.numTema||'').match(/\d+/), 10);
+        const va = isNaN(na) ? Infinity : na;
+        const vb = isNaN(nb) ? Infinity : nb;
+        return va - vb;
+      });
       const grid = document.createElement('div'); grid.className='flat-grid';
-      items.forEach(it=>{
+      sorted.forEach(it=>{
         const card = document.createElement('div'); card.className='flat-item';
-        const badge = it.numTema || it.clase || '';
+        const titulo = it.numTema ? (it.numTema+' · '+it.nombre) : it.nombre;
         card.innerHTML =
-          '<div class="fi-head"><span class="fi-name">'+it.nombre.replace(/</g,'&lt;')+'</span>'+
-          (badge ? '<span class="fi-clase">'+badge.replace(/</g,'&lt;')+'</span>' : '')+'</div>'+
-          (it.clase && it.numTema ? '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;">'+it.clase.replace(/</g,'&lt;')+'</div>' : '');
+          '<div class="fi-head"><span class="fi-name">'+titulo.replace(/</g,'&lt;')+'</span></div>'+
+          (it.grupo ? '<div style="font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;">'+it.grupo.replace(/</g,'&lt;')+'</div>' : '');
         grid.appendChild(card);
       });
       section.appendChild(grid);
