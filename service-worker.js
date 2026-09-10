@@ -2,13 +2,20 @@
    Objetivo: que la app siempre abra (aunque no haya internet) y que puedas ver
    la última versión de tus datos sincronizada, aunque no puedas guardar cambios
    nuevos hasta que vuelva la conexión (eso lo sigue gestionando Firebase). */
-const CACHE_NAME = 'operacion-baeza-v33';
+const CACHE_NAME = 'operacion-baeza-v34';
 const APP_SHELL = [
   './',
   './index.html',
   './manifest.json',
   './icon-192.png',
-  './icon-512.png'
+  './icon-512.png',
+  './styles.css',
+  './js/core.js',
+  './js/calendario.js',
+  './js/temario.js',
+  './js/clases-simulacros.js',
+  './js/seguimiento.js',
+  './js/app.js'
 ];
 
 self.addEventListener('install', (event) => {

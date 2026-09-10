@@ -17,12 +17,26 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 
 | Archivo               | Para qué sirve                                                |
 |------------------------|----------------------------------------------------------------|
-| `index.html`           | Toda la app (HTML + CSS + JS en un único archivo)              |
+| `index.html`           | Estructura HTML de la app (cabecera, pestañas, modales) — enlaza a `styles.css` y a los archivos de `js/` |
+| `styles.css`           | Todo el CSS de la app                                          |
+| `js/core.js`           | Sesión/tema, datos de referencia, config. de Firebase, estado, guardado, PIN, backups, pantallas de acceso, panel admin, motor de cálculo del plan |
+| `js/calendario.js`     | Barra de meses, calendario (rejilla/lista), modales de día/mes |
+| `js/temario.js`        | Bloques, Leves, Inglés, Psicotécnicos, Ortografía y la pestaña Arrastre |
+| `js/clases-simulacros.js` | Pestaña Clases y pestaña Simulacros                          |
+| `js/seguimiento.js`    | Progreso, Marcas físicas, Entrenos, "¿cuánto tardo en dar una vuelta?", sincronización |
+| `js/app.js`            | Pestañas, buscador global, vista de calendario rejilla/lista, exportar imagen/PDF, arranque de la app |
 | `manifest.json`        | Metadatos de la PWA (nombre, iconos, colores)                  |
-| `service-worker.js`    | Caché offline del "app shell"                                  |
+| `service-worker.js`    | Caché offline del "app shell" (incluye `styles.css` y todo `js/`) |
 | `icon-192.png` / `icon-512.png` | Iconos de la app (escudo de la Guardia Civil)          |
 | `firestore.rules`      | Reglas de seguridad de la base de datos (se pegan en la consola de Firebase, no en GitHub Pages) |
 | `firebase.json` / `.firebaserc` | Solo necesarios si algún día despliegas con Firebase Hosting en vez de (o además de) GitHub Pages |
+
+> **Nota (mantenimiento):** hasta hace poco todo (HTML+CSS+JS) vivía en un único `index.html`
+> de más de 5.000 líneas. Se ha dividido en los archivos de arriba **sin usar build ni
+> bundler** — son `<script src="...">` normales, cargados en orden, así que se siguen
+> desplegando exactamente igual (subir los archivos a GitHub Pages o a Firebase Hosting, sin
+> ningún paso intermedio). Si en el futuro tocas una función y no la encuentras en `js/`, mira
+> primero en qué pestaña vive (la tabla de arriba indica qué archivo cubre cada pestaña).
 
 > **Nota:** la pestaña "Tests" (banco de preguntas propio transcritas desde fotos) se
 > eliminó de la app. Si en la consola de Firebase quedaban preguntas guardadas en la
@@ -88,9 +102,12 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 
 ## Cómo publicar un cambio
 
-1. Edita los archivos que necesites (normalmente `index.html`).
-2. Si tocas el `index.html`, `manifest.json`, `service-worker.js` o los iconos,
-   sube **la versión del caché** en `service-worker.js`:
+1. Edita los archivos que necesites: normalmente será uno de los `js/*.js` (mira la tabla de
+   arriba para saber cuál cubre la pestaña que quieres tocar), `styles.css` para estilos, o
+   `index.html` solo si tocas la estructura general (cabecera, pestañas, modales).
+2. Si tocas cualquier archivo cacheado (`index.html`, `styles.css`, cualquier `js/*.js`,
+   `manifest.json`, `service-worker.js` o los iconos), sube **la versión del caché** en
+   `service-worker.js`:
    ```js
    const CACHE_NAME = 'operacion-baeza-v3'; // sube el número cada vez que despliegues
    ```
@@ -221,6 +238,8 @@ JSON técnico.
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).
-- [ ] Dividir `index.html` en varios archivos/módulos si el proyecto sigue creciendo (hoy
+- [x] Dividir `index.html` en varios archivos/módulos si el proyecto sigue creciendo (hoy
       es un único archivo de más de 4700 líneas con HTML+CSS+JS mezclados; funciona bien
       para el tamaño actual, pero a partir de cierto punto cuesta más mantenerlo).
+      (implementado: ver la tabla "Archivos del proyecto" — sin build ni bundler, con
+      `<script src="...">` normales.)
