@@ -2587,11 +2587,6 @@ function renderHomeDash(){
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
   }
 
-  const objetivo = objetivoMasCercano();
-  const objetivoHtml = objetivo
-    ? '<div class="home-card-value" style="font-size:18px;">'+objetivo.nombre+'</div><div class="home-card-sub">Te faltan '+objetivo.diffTxt+' para el apto</div>'
-    : '<div class="home-card-sub">'+ (Object.keys(state.marcas||{}).length ? 'Ya cumples todas las marcas registradas 💪' : 'Registra tus marcas físicas para verlo aquí') +'</div>';
-
   const arrastrePools = computeArrastreData();
   const arrastreTotal = arrastreItemsCount(arrastrePools);
   const arrastreHtml = arrastreTotal
@@ -2609,7 +2604,6 @@ function renderHomeDash(){
       '<div class="home-card-value">'+racha+'</div>'+
       '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div></div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
-    '<div class="home-card"><div class="home-card-label">Objetivo físico más cercano</div>'+objetivoHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
 
   const arrastreBtn = document.getElementById('homeArrastreBtn');
