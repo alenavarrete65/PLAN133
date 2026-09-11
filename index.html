@@ -628,6 +628,16 @@
     background:transparent;border:none;color:#1b2b1f;font-size:14px;line-height:1;cursor:pointer;padding:0 2px;font-weight:700;
   }
   .clase-multi-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .clase-named-list{display:flex;flex-direction:column;gap:6px;}
+  .clase-named-item{display:flex;gap:6px;align-items:center;}
+  .clase-named-item input{
+    flex:1;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    padding:7px 8px;font-family:var(--font-mono);font-size:12px;
+  }
+  .clase-named-item button{
+    background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--red-text);
+    font-size:14px;line-height:1;cursor:pointer;padding:4px 9px;font-weight:700;
+  }
   /* ---- Simulacros ---- */
   .sim-card{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px;margin-bottom:12px;
@@ -1413,10 +1423,19 @@ function normalizeState(){
           ? [] : [Number(entry.psico)];
       }
       if(!Array.isArray(entry.orto)){
-        entry.orto = entry.orto ? [1] : [];
+        entry.orto = entry.orto ? [''] : [];
+      } else {
+        entry.orto = entry.orto.map(v=> (v && typeof v==='object') ? (v.nombre||'') : (typeof v==='string' ? v : ''));
       }
       if(!Array.isArray(entry.gram)){
-        entry.gram = entry.gram ? [1] : [];
+        entry.gram = entry.gram ? [''] : [];
+      } else {
+        entry.gram = entry.gram.map(v=> (v && typeof v==='object') ? (v.nombre||'') : (typeof v==='string' ? v : ''));
+      }
+      if(!Array.isArray(entry.psicoExtra)){
+        entry.psicoExtra = [];
+      } else {
+        entry.psicoExtra = entry.psicoExtra.map(v=> typeof v==='string' ? v : '');
       }
     });
   });
@@ -3928,15 +3947,16 @@ function renderClasesCalMonthBar(){
 }
 function ensureClaseCalDay(monthKey, day){
   if(!state.claseCal[monthKey]) state.claseCal[monthKey] = {};
-  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:[], ingles:[], psico:[], orto:[], gram:[], nota:''};
+  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:[], ingles:[], psico:[], psicoExtra:[], orto:[], gram:[], nota:''};
   const e = state.claseCal[monthKey][day];
   if(e.nota === undefined) e.nota = '';
   const normArr = (v)=> Array.isArray(v) ? v : (v===null || v===undefined || v==='' ? [] : [Number(v)]);
   e.conocimientos = normArr(e.conocimientos);
   e.ingles = normArr(e.ingles);
   e.psico = normArr(e.psico);
-  e.orto = Array.isArray(e.orto) ? e.orto : (e.orto ? [1] : []);
-  e.gram = Array.isArray(e.gram) ? e.gram : (e.gram ? [1] : []);
+  e.orto = Array.isArray(e.orto) ? e.orto.map(v=> (v && typeof v==='object') ? (v.nombre||'') : (typeof v==='string' ? v : '')) : (e.orto ? [''] : []);
+  e.gram = Array.isArray(e.gram) ? e.gram.map(v=> (v && typeof v==='object') ? (v.nombre||'') : (typeof v==='string' ? v : '')) : (e.gram ? [''] : []);
+  e.psicoExtra = Array.isArray(e.psicoExtra) ? e.psicoExtra.map(v=> typeof v==='string' ? v : '') : [];
   return e;
 }
 function renderClaseCalendar(){
@@ -3990,8 +4010,15 @@ function renderClaseCalendar(){
     if(entry.conocimientos && entry.conocimientos.length){ pills.innerHTML += '<span class="cclase-pill p-con">CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
     if(entry.ingles && entry.ingles.length){ pills.innerHTML += '<span class="cclase-pill p-ing">ING · Lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
     if(entry.psico && entry.psico.length){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
-    if(entry.orto && entry.orto.length){ pills.innerHTML += '<span class="cclase-pill p-orto">ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:'')+'</span>'; any=true; }
-    if(entry.gram && entry.gram.length){ pills.innerHTML += '<span class="cclase-pill p-gram">GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:'')+'</span>'; any=true; }
+    if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
+    if(entry.orto && entry.orto.length){
+      const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
+      pills.innerHTML += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+    }
+    if(entry.gram && entry.gram.length){
+      const label = entry.gram.filter(n=>n && n.trim()).join(', ') || ('GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:''));
+      pills.innerHTML += '<span class="cclase-pill p-gram">'+(entry.gram.some(n=>n&&n.trim())?'GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+    }
     if(entry.nota){
       const preview = entry.nota.length>28 ? entry.nota.slice(0,28)+'…' : entry.nota;
       pills.innerHTML += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>'; any=true;
@@ -4064,44 +4091,49 @@ function openClaseDayModal(d, jsDow){
     return row;
   }
 
-  // Fila "de repeticiones": una materia sin unidades numeradas (ortografía, gramática),
-  // donde cada pulsación de "+ Añadir" registra una clase más ese día.
-  function buildCounterRow(labelText, arrKey, chipLabel){
+  // Fila "de nombres": una materia sin unidades numeradas (ortografía, gramática), donde
+  // cada pulsación de "+ Añadir" crea una fila nueva con un cuadro de texto para escribir
+  // cómo se llama esa clase (por ejemplo "Tema 3 - Acentuación").
+  function buildNamedListRow(labelText, arrKey, placeholder){
     const row = document.createElement('div'); row.className='clase-multi-row';
     const lbl = document.createElement('label'); lbl.textContent = labelText; row.appendChild(lbl);
-    const chips = document.createElement('div'); chips.className='clase-multi-chips';
+    const list = document.createElement('div'); list.className='clase-named-list';
     const addWrap = document.createElement('div'); addWrap.className='clase-multi-add';
     const addBtn = document.createElement('button');
     addBtn.type='button'; addBtn.textContent = '+ Añadir';
     const repaint = ()=>{
       if(!Array.isArray(entry[arrKey])) entry[arrKey] = [];
-      chips.innerHTML = '';
+      list.innerHTML = '';
       if(!entry[arrKey].length){
         const empty = document.createElement('span'); empty.className='clase-multi-empty'; empty.textContent = 'Ninguna todavía.';
-        chips.appendChild(empty);
+        list.appendChild(empty);
       } else {
-        entry[arrKey].forEach((_,i)=>{
-          const chip = document.createElement('span'); chip.className='clase-multi-chip';
-          chip.appendChild(document.createTextNode(chipLabel+' '+(i+1)));
+        entry[arrKey].forEach((nombre,i)=>{
+          const item = document.createElement('div'); item.className='clase-named-item';
+          const inp = document.createElement('input');
+          inp.type='text'; inp.placeholder = placeholder; inp.value = nombre || '';
+          inp.setAttribute('aria-label', labelText+' #'+(i+1));
+          inp.oninput = ()=>{ entry[arrKey][i] = inp.value; scheduleSave(); };
+          inp.onblur = ()=> renderClaseCalendar();
           const rm = document.createElement('button');
-          rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar '+chipLabel+' '+(i+1));
+          rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar esta clase');
           rm.onclick = ()=>{
             entry[arrKey].splice(i,1);
             scheduleSave(); repaint(); renderClaseCalendar();
           };
-          chip.appendChild(rm);
-          chips.appendChild(chip);
+          item.appendChild(inp); item.appendChild(rm);
+          list.appendChild(item);
         });
       }
     };
     addBtn.onclick = ()=>{
       if(!Array.isArray(entry[arrKey])) entry[arrKey] = [];
-      entry[arrKey].push(1);
+      entry[arrKey].push('');
       scheduleSave(); repaint(); renderClaseCalendar();
     };
     addWrap.appendChild(addBtn);
     repaint();
-    row.appendChild(chips); row.appendChild(addWrap);
+    row.appendChild(list); row.appendChild(addWrap);
     return row;
   }
 
@@ -4113,9 +4145,10 @@ function openClaseDayModal(d, jsDow){
 
   const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
   body.appendChild(buildMultiRow('Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'prueba de psicotécnicos', 'psico', psiOptions));
+  body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)'));
 
-  body.appendChild(buildCounterRow('Clase de ortografía', 'orto', 'Clase'));
-  body.appendChild(buildCounterRow('Clase de gramática', 'gram', 'Clase'));
+  body.appendChild(buildNamedListRow('Clase de ortografía', 'orto', 'Nombre de la clase (opcional)'));
+  body.appendChild(buildNamedListRow('Clase de gramática', 'gram', 'Nombre de la clase (opcional)'));
 
   const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
   notaRow.innerHTML = '<label for="claseNotaTa">Notas del día</label>';
