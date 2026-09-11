@@ -643,6 +643,20 @@
     background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--red-text);
     font-size:14px;line-height:1;cursor:pointer;padding:4px 9px;font-weight:700;
   }
+  .clase-preview{display:flex;flex-direction:column;gap:14px;margin-bottom:18px;}
+  .clase-preview-row{display:flex;flex-direction:column;gap:6px;}
+  .clase-preview-label{
+    font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;
+  }
+  .clase-preview-value{display:flex;flex-wrap:wrap;gap:6px;}
+  .clase-preview-value .cclase-pill{font-size:12px;padding:5px 9px;}
+  .clase-preview-nota{
+    font-family:var(--font-body);font-size:13px;color:var(--cream);white-space:pre-wrap;
+    background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:8px 10px;display:block;
+  }
+  .clase-preview-edit-btn{width:100%;text-align:center;}
+  .clase-edit-back-btn{width:100%;text-align:center;margin-top:16px;background:transparent;border:1px solid var(--amber-dim);color:var(--amber);}
+  .clase-edit-back-btn:hover{border-color:var(--amber);background:transparent;}
   /* ---- Simulacros ---- */
   .sim-card{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px;margin-bottom:12px;
@@ -4104,9 +4118,58 @@ function openClaseDayModal(d, jsDow){
   const [y,m] = currentMonthKey.split('-').map(Number);
   document.getElementById('claseDayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
   document.getElementById('claseDayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)];
+  const entry = ensureClaseCalDay(currentMonthKey, d);
+  renderClaseDayPreview(entry, d, jsDow);
+  document.getElementById('claseDayModal').classList.add('open');
+}
+// Vista previa (solo lectura) de lo que hay guardado ese día, con un botón "Editar" debajo
+// para pasar al formulario completo solo cuando de verdad quieras cambiar algo.
+function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
   body.innerHTML = '';
-  const entry = ensureClaseCalDay(currentMonthKey, d);
+  const wrap = document.createElement('div'); wrap.className = 'clase-preview';
+
+  const addRow = (label, valueHTML)=>{
+    const row = document.createElement('div'); row.className = 'clase-preview-row';
+    row.innerHTML = '<div class="clase-preview-label">'+label+'</div><div class="clase-preview-value">'+valueHTML+'</div>';
+    wrap.appendChild(row);
+  };
+  const pillOrNone = (items)=> items && items.length
+    ? items.map(t=>'<span class="cclase-pill p-'+t.cls+'">'+t.text.replace(/</g,'&lt;')+'</span>').join(' ')
+    : '<span class="cclase-empty">Sin clase</span>';
+
+  addRow('Conocimientos', pillOrNone(
+    (entry.conocimientos||[]).slice().sort((a,b)=>a-b).map(t=>({cls:'con', text:'Tema '+t}))
+  ));
+  addRow('Inglés', pillOrNone(
+    (entry.ingles||[]).slice().sort((a,b)=>a-b).map(l=>({cls:'ing', text:'Lesson '+l}))
+  ));
+  const psicoItems = [
+    ...(entry.psico||[]).slice().sort((a,b)=>a-b).map(idx=>({cls:'psi', text:PSICO_ITEMS[idx]})),
+    ...(entry.psicoExtra||[]).filter(n=>n&&n.trim()).map(n=>({cls:'psi', text:n}))
+  ];
+  addRow('Psicotécnicos', pillOrNone(psicoItems));
+  const ortoItems = (entry.orto||[]).map((n,i)=>({cls:'orto', text: n&&n.trim() ? n : 'Clase '+(i+1)}));
+  addRow('Ortografía', pillOrNone(ortoItems));
+  const gramItems = (entry.gram||[]).map((n,i)=>({cls:'gram', text: n&&n.trim() ? n : 'Clase '+(i+1)}));
+  addRow('Gramática', pillOrNone(gramItems));
+  addRow('Notas', entry.nota && entry.nota.trim()
+    ? '<span class="clase-preview-nota">'+entry.nota.replace(/</g,'&lt;').replace(/\n/g,'<br>')+'</span>'
+    : '<span class="cclase-empty">Sin notas</span>');
+
+  body.appendChild(wrap);
+
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button'; editBtn.className = 'btn clase-preview-edit-btn';
+  editBtn.textContent = '✎ Editar';
+  editBtn.onclick = ()=> renderClaseDayEdit(entry, d, jsDow);
+  body.appendChild(editBtn);
+}
+// Formulario completo de edición: aquí es donde se pueden añadir todas las clases que
+// hagan falta de cada materia (temas, lessons, pruebas, ortografía, gramática y notas).
+function renderClaseDayEdit(entry, d, jsDow){
+  const body = document.getElementById('claseDayModalBody');
+  body.innerHTML = '';
 
   // Fila "de varias veces": una materia donde puedes marcar más de una unidad (tema,
   // lesson, prueba...) el mismo día. Un desplegable para elegir + botón "Añadir", y
@@ -4230,7 +4293,11 @@ function openClaseDayModal(d, jsDow){
   notaRow.appendChild(notaTa);
   body.appendChild(notaRow);
 
-  document.getElementById('claseDayModal').classList.add('open');
+  const backBtn = document.createElement('button');
+  backBtn.type = 'button'; backBtn.className = 'btn clase-edit-back-btn';
+  backBtn.textContent = '← Volver a la vista previa';
+  backBtn.onclick = ()=> renderClaseDayPreview(entry, d, jsDow);
+  body.appendChild(backBtn);
 }
 document.getElementById('closeClaseDayModal').onclick = ()=> document.getElementById('claseDayModal').classList.remove('open');
 document.getElementById('claseDayModal').addEventListener('click', e=>{ if(e.target.id==='claseDayModal') e.currentTarget.classList.remove('open'); });
