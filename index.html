@@ -607,6 +607,27 @@
   }
   .clase-check-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream);cursor:pointer;margin-bottom:8px;}
   .clase-check-row input{width:16px;height:16px;cursor:pointer;}
+  .clase-multi-row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
+  .clase-multi-row label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
+  .clase-multi-add{display:flex;gap:6px;}
+  .clase-multi-add select{
+    flex:1;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    padding:7px 8px;font-family:var(--font-mono);font-size:12px;
+  }
+  .clase-multi-add button{
+    background:var(--amber);color:#1b2b1f;border:none;border-radius:2px;padding:0 12px;
+    font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.03em;
+  }
+  .clase-multi-add button:disabled{opacity:.4;cursor:not-allowed;}
+  .clase-multi-chips{display:flex;flex-wrap:wrap;gap:6px;}
+  .clase-multi-chip{
+    display:inline-flex;align-items:center;gap:6px;background:var(--amber);color:#1b2b1f;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 6px 4px 10px;border-radius:2px;
+  }
+  .clase-multi-chip button{
+    background:transparent;border:none;color:#1b2b1f;font-size:14px;line-height:1;cursor:pointer;padding:0 2px;font-weight:700;
+  }
+  .clase-multi-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
   /* ---- Simulacros ---- */
   .sim-card{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px 16px;margin-bottom:12px;
@@ -1370,6 +1391,18 @@ function normalizeState(){
   if(!state.clases.psico) state.clases.psico = {};
   if(!state.clases.ortoGram) state.clases.ortoGram = [];
   if(!state.claseCal) state.claseCal = {};
+  // Migración: antes cada día solo admitía UN tema de "Conocimientos" (entry.conocimientos
+  // era un número). Ahora admite varios (entry.conocimientos es un array de temas).
+  Object.keys(state.claseCal).forEach(mKey=>{
+    const monthObj = state.claseCal[mKey];
+    Object.keys(monthObj).forEach(d=>{
+      const entry = monthObj[d];
+      if(entry && !Array.isArray(entry.conocimientos)){
+        entry.conocimientos = (entry.conocimientos===null || entry.conocimientos===undefined || entry.conocimientos==='')
+          ? [] : [Number(entry.conocimientos)];
+      }
+    });
+  });
   if(!state.simulacros) state.simulacros = [];
   if(!state.simulacroCal) state.simulacroCal = {};
   // Migración: antes el modo repaso final se activaba por mes (unifyFromKey = "YYYY-MM").
@@ -3878,8 +3911,12 @@ function renderClasesCalMonthBar(){
 }
 function ensureClaseCalDay(monthKey, day){
   if(!state.claseCal[monthKey]) state.claseCal[monthKey] = {};
-  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:null, ingles:null, psico:null, orto:false, gram:false, nota:''};
+  if(!state.claseCal[monthKey][day]) state.claseCal[monthKey][day] = {conocimientos:[], ingles:null, psico:null, orto:false, gram:false, nota:''};
   if(state.claseCal[monthKey][day].nota === undefined) state.claseCal[monthKey][day].nota = '';
+  if(!Array.isArray(state.claseCal[monthKey][day].conocimientos)){
+    const v = state.claseCal[monthKey][day].conocimientos;
+    state.claseCal[monthKey][day].conocimientos = (v===null || v===undefined || v==='') ? [] : [Number(v)];
+  }
   return state.claseCal[monthKey][day];
 }
 function renderClaseCalendar(){
@@ -3930,7 +3967,7 @@ function renderClaseCalendar(){
     const entry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
     const pills = document.createElement('div'); pills.className='cclase-pills';
     let any = false;
-    if(entry.conocimientos){ pills.innerHTML += '<span class="cclase-pill p-con">CON · Tema '+entry.conocimientos+'</span>'; any=true; }
+    if(entry.conocimientos && entry.conocimientos.length){ pills.innerHTML += '<span class="cclase-pill p-con">CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
     if(entry.ingles){ pills.innerHTML += '<span class="cclase-pill p-ing">ING · Lesson '+entry.ingles+'</span>'; any=true; }
     if(entry.psico!=null){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+PSICO_ITEMS[entry.psico]+'</span>'; any=true; }
     if(entry.orto){ pills.innerHTML += '<span class="cclase-pill p-orto">ORTOGRAFÍA</span>'; any=true; }
@@ -3955,15 +3992,52 @@ function openClaseDayModal(d, jsDow){
   body.innerHTML = '';
   const entry = ensureClaseCalDay(currentMonthKey, d);
 
-  const conRow = document.createElement('div'); conRow.className='clase-select-row';
+  const conRow = document.createElement('div'); conRow.className='clase-multi-row';
   conRow.innerHTML = '<label>Clase de conocimientos (temas 1–23)</label>';
+  const conChips = document.createElement('div'); conChips.className='clase-multi-chips';
+  const conAdd = document.createElement('div'); conAdd.className='clase-multi-add';
   const conSel = document.createElement('select');
-  conSel.setAttribute('aria-label','Clase de conocimientos (temas 1–23)');
-  conSel.appendChild(new Option('— Ninguna —', ''));
-  for(let i=1;i<=23;i++) conSel.appendChild(new Option('Tema '+i, i));
-  conSel.value = entry.conocimientos ? String(entry.conocimientos) : '';
-  conSel.onchange = ()=>{ entry.conocimientos = conSel.value ? Number(conSel.value) : null; scheduleSave(); renderClaseCalendar(); };
-  conRow.appendChild(conSel);
+  conSel.setAttribute('aria-label','Añadir tema de conocimientos');
+  const conAddBtn = document.createElement('button');
+  conAddBtn.type = 'button'; conAddBtn.textContent = '+ Añadir';
+  const paintConocimientos = ()=>{
+    if(!Array.isArray(entry.conocimientos)) entry.conocimientos = [];
+    const temas = entry.conocimientos.slice().sort((a,b)=>a-b);
+    conChips.innerHTML = '';
+    if(!temas.length){
+      const empty = document.createElement('span'); empty.className='clase-multi-empty'; empty.textContent = 'Ningún tema añadido todavía.';
+      conChips.appendChild(empty);
+    } else {
+      temas.forEach(t=>{
+        const chip = document.createElement('span'); chip.className='clase-multi-chip';
+        chip.appendChild(document.createTextNode('Tema '+t));
+        const rm = document.createElement('button');
+        rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar tema '+t);
+        rm.onclick = ()=>{
+          entry.conocimientos = entry.conocimientos.filter(x=>x!==t);
+          scheduleSave(); paintConocimientos(); renderClaseCalendar();
+        };
+        chip.appendChild(rm);
+        conChips.appendChild(chip);
+      });
+    }
+    conSel.innerHTML = '';
+    conSel.appendChild(new Option('Elegir tema…',''));
+    for(let i=1;i<=23;i++){
+      if(!entry.conocimientos.includes(i)) conSel.appendChild(new Option('Tema '+i, i));
+    }
+    conAddBtn.disabled = conSel.options.length<=1;
+  };
+  conAddBtn.onclick = ()=>{
+    if(!conSel.value) return;
+    if(!Array.isArray(entry.conocimientos)) entry.conocimientos = [];
+    entry.conocimientos.push(Number(conSel.value));
+    scheduleSave(); paintConocimientos(); renderClaseCalendar();
+  };
+  conAdd.appendChild(conSel); conAdd.appendChild(conAddBtn);
+  paintConocimientos();
+  conRow.appendChild(conChips);
+  conRow.appendChild(conAdd);
   body.appendChild(conRow);
 
   const ingRow = document.createElement('div'); ingRow.className='clase-select-row';
