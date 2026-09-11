@@ -576,7 +576,7 @@
   /* ---- Calendario de clases ---- */
   .cclase-cell{
     background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;
-    min-height:96px;padding:6px;display:flex;flex-direction:column;gap:4px;position:relative;cursor:pointer;
+    min-height:140px;padding:8px;display:flex;flex-direction:column;gap:6px;position:relative;cursor:pointer;
   }
   .cclase-cell:hover{border-color:var(--amber-dim);}
   .cclase-cell.blank{background:transparent;border:none;cursor:default;}
@@ -585,10 +585,10 @@
   .cclase-cell.status-DESCONOCIDO{background:repeating-linear-gradient(45deg,var(--bg-panel),var(--bg-panel) 6px,var(--status-desconocido-alt) 6px,var(--status-desconocido-alt) 12px);}
   .cclase-cell.today{border:2px solid var(--amber);box-shadow:0 0 0 1px var(--amber) inset;}
   .cclase-cell.today .cal-daynum span:first-child{color:var(--amber);}
-  .cclase-pills{display:flex;flex-direction:column;gap:2px;}
+  .cclase-pills{display:flex;flex-direction:column;gap:4px;}
   .cclase-pill{
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.02em;
-    padding:2px 5px;border-radius:2px;color:#fff;white-space:normal;line-height:1.25;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.02em;
+    padding:4px 7px;border-radius:2px;color:#fff;white-space:normal;line-height:1.3;
   }
   .cclase-pill.p-con{background:var(--amber);color:#1b2b1f;}
   .cclase-pill.p-ing{background:var(--blue);color:#0e2027;}
@@ -596,7 +596,12 @@
   .cclase-pill.p-orto{background:var(--muted);}
   .cclase-pill.p-gram{background:var(--green);color:#12241a;}
   .cclase-pill.p-nota{background:transparent;color:var(--cream-dim);border:1px solid var(--line);}
-  .cclase-empty{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;}
+  .cclase-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px;}
+  /* Vista lista del calendario de clases: filas grandes apiladas, texto más legible */
+  .cclase-list-item{cursor:pointer;}
+  .cclase-list-pills{margin-top:8px;}
+  .cclase-list-pills .cclase-pill{font-size:13px;padding:6px 9px;}
+  .cclase-list-pills .cclase-empty{font-size:12px;}
   .clase-note-row{margin-top:4px;}
   .clase-note-row label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .clase-select-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
@@ -808,6 +813,7 @@
 
   @media (max-width:640px){
     .cal-cell{min-height:96px;font-size:10px;}
+    .cclase-cell{min-height:110px;}
     .cal-grid{gap:4px;}
     .brand h1{font-size:23px;}
 
@@ -842,6 +848,7 @@
     .cal-list-daynum{font-size:22px;}
     .cal-list-tasks .task-row{padding:10px 8px;font-size:14.5px;}
     .view-toggle-btn{padding:9px 16px;font-size:12px;}
+    .cclase-list-pills .cclase-pill{font-size:13.5px;padding:7px 10px;}
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
@@ -950,6 +957,10 @@
         Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario principal. Pulsa un día para elegir qué clase (conocimientos, inglés, psicotécnicos, ortografía, gramática) tocó ese día.
       </div>
       <div class="month-bar" id="clasesCalMonthBar"></div>
+      <div class="view-toggle" id="claseCalViewToggle" role="tablist" aria-label="Vista del calendario de clases">
+        <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+        <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+      </div>
       <div id="clasesCalHost"></div>
     </section>
   </div>
@@ -3959,7 +3970,34 @@ function ensureClaseCalDay(monthKey, day){
   e.psicoExtra = Array.isArray(e.psicoExtra) ? e.psicoExtra.map(v=> typeof v==='string' ? v : '') : [];
   return e;
 }
+function buildClasePillsHTML(entry, notePreviewLen){
+  let html = '';
+  let any = false;
+  if(entry.conocimientos && entry.conocimientos.length){ html += '<span class="cclase-pill p-con">CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
+  if(entry.ingles && entry.ingles.length){ html += '<span class="cclase-pill p-ing">ING · Lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
+  if(entry.psico && entry.psico.length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
+  if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
+  if(entry.orto && entry.orto.length){
+    const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
+    html += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+  }
+  if(entry.gram && entry.gram.length){
+    const label = entry.gram.filter(n=>n && n.trim()).join(', ') || ('GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:''));
+    html += '<span class="cclase-pill p-gram">'+(entry.gram.some(n=>n&&n.trim())?'GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+  }
+  if(entry.nota){
+    const maxLen = notePreviewLen || 28;
+    const preview = entry.nota.length>maxLen ? entry.nota.slice(0,maxLen)+'…' : entry.nota;
+    html += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>'; any=true;
+  }
+  if(!any){ html = '<span class="cclase-empty">Sin clase</span>'; }
+  return html;
+}
 function renderClaseCalendar(){
+  if(typeof claseCalViewMode !== 'undefined' && claseCalViewMode === 'list') renderClaseCalendarList();
+  else renderClaseCalendarGrid();
+}
+function renderClaseCalendarGrid(){
   const host = document.getElementById('clasesCalHost');
   if(!host) return;
   host.innerHTML = '';
@@ -3971,7 +4009,7 @@ function renderClaseCalendar(){
   const nDays = daysInMonth(y,m);
   const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
 
-  const grid = document.createElement('div'); grid.className='cal-grid';
+  const grid = document.createElement('div'); grid.className='cal-grid cclase-grid';
   DOW.forEach(dname=>{
     const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
     grid.appendChild(dow);
@@ -4006,30 +4044,61 @@ function renderClaseCalendar(){
 
     const entry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
     const pills = document.createElement('div'); pills.className='cclase-pills';
-    let any = false;
-    if(entry.conocimientos && entry.conocimientos.length){ pills.innerHTML += '<span class="cclase-pill p-con">CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
-    if(entry.ingles && entry.ingles.length){ pills.innerHTML += '<span class="cclase-pill p-ing">ING · Lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
-    if(entry.psico && entry.psico.length){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
-    if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ pills.innerHTML += '<span class="cclase-pill p-psi">PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
-    if(entry.orto && entry.orto.length){
-      const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
-      pills.innerHTML += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
-    }
-    if(entry.gram && entry.gram.length){
-      const label = entry.gram.filter(n=>n && n.trim()).join(', ') || ('GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:''));
-      pills.innerHTML += '<span class="cclase-pill p-gram">'+(entry.gram.some(n=>n&&n.trim())?'GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
-    }
-    if(entry.nota){
-      const preview = entry.nota.length>28 ? entry.nota.slice(0,28)+'…' : entry.nota;
-      pills.innerHTML += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>'; any=true;
-    }
-    if(!any){ pills.innerHTML = '<span class="cclase-empty">Sin clase</span>'; }
+    pills.innerHTML = buildClasePillsHTML(entry, 28);
     cell.appendChild(pills);
 
     cell.onclick = ()=> openClaseDayModal(d, jsDow);
     grid.appendChild(cell);
   }
   host.appendChild(grid);
+}
+/* Vista alternativa tipo lista/agenda para el calendario de clases: una fila grande por
+   día, apilada verticalmente, con texto más legible — pensada sobre todo para el móvil. */
+function renderClaseCalendarList(){
+  const host = document.getElementById('clasesCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde la pestaña Calendario.</div>';
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
+
+  const list = document.createElement('div'); list.className='cal-list';
+  for(let d=1; d<=nDays; d++){
+    const status = daysData[d] || 'ESTUDIO';
+    const jsDow = new Date(y, m-1, d).getDay();
+    const isToday = isCurrentMonth && d===now.getDate();
+
+    const item = document.createElement('div');
+    item.className = 'cal-list-item cclase-list-item status-'+status;
+    if(isToday){ item.classList.add('today'); item.id = 'todayClaseListItem'; }
+
+    const head = document.createElement('div'); head.className='cal-list-head';
+    const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+    const wdName = DOW[(jsDow===0?6:jsDow-1)];
+    dateWrap.innerHTML = '<span class="cal-list-daynum">'+d+'</span><span class="cal-list-wd">'+wdName+'</span>';
+    head.appendChild(dateWrap);
+    if(status !== 'ESTUDIO'){
+      const lbl = document.createElement('span'); lbl.className='off-label';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      head.appendChild(lbl);
+    }
+    item.appendChild(head);
+
+    const entry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
+    const pills = document.createElement('div'); pills.className='cclase-pills cclase-list-pills';
+    pills.innerHTML = buildClasePillsHTML(entry, 120);
+    item.appendChild(pills);
+
+    item.onclick = ()=> openClaseDayModal(d, jsDow);
+    list.appendChild(item);
+  }
+  host.appendChild(list);
 }
 function openClaseDayModal(d, jsDow){
   const [y,m] = currentMonthKey.split('-').map(Number);
@@ -5623,7 +5692,7 @@ try{
   calViewMode = window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid';
 }
 function syncViewToggleButtons(){
-  document.querySelectorAll('.view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===calViewMode));
+  document.querySelectorAll('#calViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===calViewMode));
 }
 function setCalViewMode(mode){
   calViewMode = mode;
@@ -5631,10 +5700,31 @@ function setCalViewMode(mode){
   syncViewToggleButtons();
   renderCalendar();
 }
-document.querySelectorAll('.view-toggle-btn').forEach(btn=>{
+document.querySelectorAll('#calViewToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setCalViewMode(btn.dataset.view);
 });
 syncViewToggleButtons();
+
+/* ===================== VISTA CALENDARIO DE CLASES: rejilla / lista ===================== */
+let claseCalViewMode = 'grid';
+try{
+  claseCalViewMode = localStorage.getItem('claseCalViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  claseCalViewMode = window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid';
+}
+function syncClaseViewToggleButtons(){
+  document.querySelectorAll('#claseCalViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===claseCalViewMode));
+}
+function setClaseCalViewMode(mode){
+  claseCalViewMode = mode;
+  try{ localStorage.setItem('claseCalViewMode', mode); }catch(e){}
+  syncClaseViewToggleButtons();
+  renderClaseCalendar();
+}
+document.querySelectorAll('#claseCalViewToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setClaseCalViewMode(btn.dataset.view);
+});
+syncClaseViewToggleButtons();
 
 /* ===================== EXPORTAR CALENDARIO (imagen / PDF) ===================== */
 function calendarExportBaseName(){
