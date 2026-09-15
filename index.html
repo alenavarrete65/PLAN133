@@ -2673,13 +2673,15 @@ function dayCompletionInfo(info){
   const pending = streams.filter(s=> dticks[s]).length;
   return {total:streams.length, pending};
 }
-/* Racha de días de estudio completados seguidos, contando hacia atrás desde hoy.
-   Los días de descanso/trabajo/sin horario se saltan sin romper la racha.
-   Si hoy todavía no está completo no rompe la racha (se cuenta desde ayer). */
+/* Racha de días de estudio completados seguidos, a DÍA VENCIDO: se cuenta hacia
+   atrás empezando por AYER, así que el día que está corriendo no suma hasta que
+   termina (igual que el test de arrastre). Los días de descanso/trabajo/sin
+   horario se saltan sin romper la racha. */
 function computeRacha(plan){
   const now = new Date();
   let d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let streak = 0, first = true, guard = 0;
+  d.setDate(d.getDate()-1); // empezamos en ayer: hoy todavía no cuenta
+  let streak = 0, guard = 0;
   while(guard++ < 3650){
     const mk = d.getFullYear()+'-'+pad2(d.getMonth()+1);
     const monthPlan = plan[mk];
@@ -2689,10 +2691,8 @@ function computeRacha(plan){
       const comp = dayCompletionInfo(info);
       const done = comp && comp.pending === 0;
       if(done) streak++;
-      else if(first){ /* hoy en curso: no cuenta ni rompe */ }
       else break;
     }
-    first = false;
     d.setDate(d.getDate()-1);
   }
   return streak;
@@ -2744,6 +2744,15 @@ function renderHomeDash(){
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
   }
 
+  // La racha va a día vencido: hoy no suma hasta que el día termine.
+  let rachaNota = '';
+  if(todayInfo && todayInfo.status === 'ESTUDIO'){
+    const compHoy = dayCompletionInfo(todayInfo);
+    rachaNota = (compHoy && compHoy.pending === 0)
+      ? '<div class="home-card-note">Hoy ya está completo · sumará mañana.</div>'
+      : '<div class="home-card-note">Lo de hoy suma mañana, cuando el día termine.</div>';
+  }
+
   const arrastrePools = computeArrastreData();
   const arrastreTotal = arrastreItemsCount(arrastrePools);
   // Aviso: el arrastre cuenta a día vencido, así que lo de hoy todavía no está en la lista.
@@ -2765,7 +2774,8 @@ function renderHomeDash(){
       '<div class="home-card-sub">días para el examen (10 jul '+exam.year+')</div></div>'+
     '<div class="home-card"><div class="home-card-label">Racha de estudio</div>'+
       '<div class="home-card-value">'+racha+'</div>'+
-      '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div></div>'+
+      '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div>'+
+      rachaNota+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
 
