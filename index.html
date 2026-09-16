@@ -638,6 +638,8 @@
   .clase-multi-chip button{
     background:transparent;border:none;color:#1b2b1f;font-size:14px;line-height:1;cursor:pointer;padding:0 2px;font-weight:700;
   }
+  .clase-multi-chip.future{background:transparent;border:1px solid var(--line);color:var(--cream-dim);}
+  .clase-multi-chip.future button{color:var(--cream-dim);}
   .clase-multi-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
   .clase-named-list{display:flex;flex-direction:column;gap:6px;}
   .clase-named-item{display:flex;gap:6px;align-items:center;}
@@ -673,6 +675,8 @@
     font-family:var(--font-mono);font-size:13px;padding:12px 14px;border-radius:2px;cursor:pointer;
     text-align:center;flex:1 1 120px;}
   .clase-quiz-opt:hover{border-color:var(--amber);color:var(--amber);}
+  .clase-quiz-opt:disabled{opacity:.4;cursor:not-allowed;}
+  .clase-quiz-opt:disabled:hover{border-color:var(--line);color:var(--cream);}
   .clase-quiz-select,.clase-quiz-text-input{
     width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
     font-family:var(--font-mono);padding:10px 8px;border-radius:2px;font-size:13px;
@@ -993,6 +997,7 @@
     <section class="temario-group" id="clasesInglesHost"></section>
     <section class="temario-group" id="clasesPsicoHost"></section>
     <section class="temario-group" id="clasesOrtoGramHost"></section>
+    <section class="temario-group" id="clasesPendientesHost"></section>
 
     <section class="temario-group" style="margin-top:34px;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de clases</h3>
@@ -1418,7 +1423,7 @@ const firebaseAuthReady = (async ()=>{
 let accessCode = null;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], simulacros:[], simulacroCal:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1455,6 +1460,14 @@ function normalizeState(){
   if(!state.clases.psico) state.clases.psico = {};
   if(!state.clases.ortoGram) state.clases.ortoGram = [];
   if(!state.claseCal) state.claseCal = {};
+  // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
+  // de "disponible a partir de") y que aún no has colocado en ningún día del calendario.
+  if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
+  state.clasesPendientes.forEach(p=>{
+    if(p.disponibleDesde === undefined) p.disponibleDesde = null;
+    if(p.useExtra === undefined) p.useExtra = false;
+    if(p.temaValue === undefined) p.temaValue = null;
+  });
   // Migración: antes cada día solo admitía UN tema de "Conocimientos" (entry.conocimientos
   // era un número), UNA lesson de inglés y UNA prueba de psicotécnicos, y "ortografía"/
   // "gramática" eran simples sí/no. Ahora las cinco admiten varias veces el mismo día
@@ -3853,6 +3866,27 @@ function renderArrastre(){
 }
 
 /* ===================== RENDER: CLASES (visualización de clases) ===================== */
+// Fecha 'YYYY-MM-DD' -> "D de Mes de AAAA", para mostrar la fecha de disponibilidad de una
+// clase pendiente de forma legible.
+function formatFechaEs(iso){
+  if(!iso) return '';
+  const [y,m,d] = iso.split('-').map(Number);
+  return d+' de '+MESES[m-1]+' de '+y;
+}
+// Definición compartida de las 5 materias de clase (usada tanto por el modo quiz del
+// calendario de clases como por el tablón de clases pendientes), para no repetirla dos veces.
+function getClaseMateriasDef(){
+  const conOptions = []; for(let i=1;i<=23;i++) conOptions.push({value:i, label:'Tema '+i});
+  const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
+  const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
+  return [
+    {key:'conocimientos', label:'Conocimientos', kind:'select',        options:conOptions, arrKey:'conocimientos'},
+    {key:'ingles',        label:'Inglés',        kind:'select',        options:ingOptions, arrKey:'ingles'},
+    {key:'psico',         label:'Psicotécnicos', kind:'select-or-text', options:psiOptions, arrKey:'psico', extraArrKey:'psicoExtra'},
+    {key:'orto',          label:'Ortografía',    kind:'text', arrKey:'orto'},
+    {key:'gram',          label:'Gramática',     kind:'text', arrKey:'gram'}
+  ];
+}
 // Simple fila de 3 ticks (Vuelta 1/2/3) para marcar que la clase ya se ha visto.
 // A diferencia de las "vueltas" de Temario y notas, aquí no hay modo ni nota: es un check binario.
 function ensureClaseTick(cat, id){
@@ -3972,6 +4006,130 @@ function renderClasesOrtoGram(){
     });
 
     body.appendChild(wrap);
+  });
+}
+// Tablón de clases pendientes: aquí se cargan de antemano las clases que ya se sabe que
+// tocarán más adelante (p. ej. todo el temario de conocimientos del mes) sin saber todavía
+// en qué día exacto caerá cada una. Desde el modo quiz del calendario de clases se pueden
+// elegir directamente de esta lista en vez de escribirlas de nuevo, y al usarlas desaparecen
+// de aquí (se "mueven" al día del calendario en el que se han colocado).
+function renderClasesPendientes(){
+  const host = document.getElementById('clasesPendientesHost');
+  if(!host) return;
+  if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
+  const MATERIAS = getClaseMateriasDef();
+  renderAccordionSection(host, 'clasesPendientes', 'Clases pendientes (tablón)', (body)=>{
+    const intro = document.createElement('div'); intro.className='sub'; intro.style.marginBottom='12px';
+    intro.textContent = 'Apunta aquí por adelantado las clases que ya sabes que tienes por delante (por ejemplo, todo el temario de conocimientos del mes) sin saber todavía qué día caerá cada una. Cuando la des de verdad, en el "Calendario de clases" podrás elegirla de esta lista en vez de escribirla de nuevo, y desaparecerá de aquí. Si le pones una fecha de "disponible a partir de", no podrás elegirla en el calendario antes de esa fecha.';
+    body.appendChild(intro);
+
+    // ---- formulario para añadir una nueva clase pendiente ----
+    const addRow = document.createElement('div'); addRow.className='clase-multi-row';
+
+    const matRow = document.createElement('div'); matRow.className='clase-select-row';
+    const matLbl = document.createElement('label'); matLbl.textContent = 'Materia';
+    const matSel = document.createElement('select'); matSel.setAttribute('aria-label','Materia de la clase pendiente');
+    MATERIAS.forEach(m=> matSel.appendChild(new Option(m.label, m.key)));
+    matRow.appendChild(matLbl); matRow.appendChild(matSel);
+    addRow.appendChild(matRow);
+
+    const temaHost = document.createElement('div');
+    addRow.appendChild(temaHost);
+
+    const dateRow = document.createElement('div'); dateRow.className='clase-select-row';
+    const dateLbl = document.createElement('label'); dateLbl.textContent = 'Disponible a partir de (opcional)';
+    const dateInp = document.createElement('input'); dateInp.type = 'date'; dateInp.setAttribute('aria-label','Disponible a partir de');
+    dateRow.appendChild(dateLbl); dateRow.appendChild(dateInp);
+    addRow.appendChild(dateRow);
+
+    const pending = {temaValue:null, temaLabel:'', useExtra:false};
+
+    function renderTemaField(){
+      temaHost.innerHTML = '';
+      const mat = MATERIAS.find(m=>m.key===matSel.value);
+      pending.temaValue = null; pending.temaLabel=''; pending.useExtra=false;
+      if(mat.kind==='text'){
+        const wrap = document.createElement('div'); wrap.className='clase-select-row';
+        const lbl = document.createElement('label'); lbl.textContent = 'Nombre de la clase';
+        const inp = document.createElement('input'); inp.type='text'; inp.placeholder = 'p. ej. "Acentuación"';
+        inp.oninput = ()=>{ pending.temaLabel = inp.value.trim(); pending.useExtra = true; };
+        wrap.appendChild(lbl); wrap.appendChild(inp);
+        temaHost.appendChild(wrap);
+      } else {
+        const wrap = document.createElement('div'); wrap.className='clase-select-row';
+        const lbl = document.createElement('label'); lbl.textContent = 'Tema';
+        const sel = document.createElement('select'); sel.setAttribute('aria-label','Tema de la clase pendiente');
+        sel.appendChild(new Option('Elegir…',''));
+        mat.options.forEach(o=> sel.appendChild(new Option(o.label, o.value)));
+        sel.onchange = ()=>{
+          if(sel.value===''){ pending.temaValue=null; pending.temaLabel=''; pending.useExtra=false; return; }
+          const opt = mat.options.find(o=>String(o.value)===String(sel.value));
+          pending.temaValue = opt.value; pending.temaLabel = opt.label; pending.useExtra=false;
+        };
+        wrap.appendChild(lbl); wrap.appendChild(sel);
+        temaHost.appendChild(wrap);
+        if(mat.kind==='select-or-text'){
+          const or = document.createElement('div'); or.className='clase-quiz-or'; or.textContent='O, si no está en la lista, escríbelo:';
+          temaHost.appendChild(or);
+          const inp = document.createElement('input'); inp.type='text'; inp.placeholder='Escribe el tema';
+          inp.oninput = ()=>{
+            if(inp.value.trim()){ sel.value=''; pending.temaValue=null; pending.temaLabel=inp.value.trim(); pending.useExtra=true; }
+          };
+          temaHost.appendChild(inp);
+        }
+      }
+    }
+    matSel.onchange = renderTemaField;
+    renderTemaField();
+
+    const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add';
+    addBtn.textContent = '+ Añadir a pendientes';
+    addBtn.onclick = ()=>{
+      if(!pending.temaLabel){ alert('Elige o escribe un tema antes de añadirlo.'); return; }
+      const mat = MATERIAS.find(m=>m.key===matSel.value);
+      state.clasesPendientes.push({
+        id: Date.now()+'-'+Math.random(),
+        materiaKey: mat.key,
+        temaValue: pending.temaValue,
+        temaLabel: pending.temaLabel,
+        useExtra: pending.useExtra,
+        disponibleDesde: dateInp.value || null
+      });
+      scheduleSave();
+      renderClasesPendientes();
+    };
+    addRow.appendChild(addBtn);
+    body.appendChild(addRow);
+
+    // ---- lista de pendientes ----
+    const list = state.clasesPendientes.slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+    if(!list.length){
+      const empty = document.createElement('div'); empty.className='clase-multi-empty'; empty.style.marginTop='10px';
+      empty.textContent = 'No tienes ninguna clase pendiente apuntada.';
+      body.appendChild(empty);
+    } else {
+      const todayISO = new Date().toISOString().slice(0,10);
+      const chips = document.createElement('div'); chips.className='clase-multi-chips'; chips.style.marginTop='12px';
+      list.forEach(p=>{
+        const mat = MATERIAS.find(m=>m.key===p.materiaKey);
+        const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
+        const chip = document.createElement('span'); chip.className='clase-multi-chip'+(isFuture?' future':'');
+        let txt = (mat ? mat.label : p.materiaKey)+' — '+p.temaLabel;
+        if(p.disponibleDesde) txt += ' · '+(isFuture ? 'disponible desde ' : 'desde ')+formatFechaEs(p.disponibleDesde);
+        chip.appendChild(document.createTextNode(txt));
+        const del = document.createElement('button'); del.type='button'; del.textContent='×';
+        del.title = 'Quitar de pendientes'; del.setAttribute('aria-label','Quitar de pendientes: '+txt);
+        del.onclick = ()=>{
+          const i = state.clasesPendientes.findIndex(x=>x.id===p.id);
+          if(i>-1) state.clasesPendientes.splice(i,1);
+          scheduleSave();
+          renderClasesPendientes();
+        };
+        chip.appendChild(del);
+        chips.appendChild(chip);
+      });
+      body.appendChild(chips);
+    }
   });
 }
 
@@ -4281,19 +4439,9 @@ function renderClaseDayPreview(entry, d, jsDow){
 function renderClaseDayQuiz(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
 
-  const conOptions = []; for(let i=1;i<=23;i++) conOptions.push({value:i, label:'Tema '+i});
-  const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
-  const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
+  const MATERIAS = getClaseMateriasDef();
 
-  const MATERIAS = [
-    {key:'conocimientos', label:'Conocimientos', kind:'select',        options:conOptions, arrKey:'conocimientos'},
-    {key:'ingles',        label:'Inglés',        kind:'select',        options:ingOptions, arrKey:'ingles'},
-    {key:'psico',         label:'Psicotécnicos', kind:'select-or-text', options:psiOptions, arrKey:'psico', extraArrKey:'psicoExtra'},
-    {key:'orto',          label:'Ortografía',    kind:'text', arrKey:'orto'},
-    {key:'gram',          label:'Gramática',     kind:'text', arrKey:'gram'}
-  ];
-
-  const sel = {materia:null, temaValue:null, temaLabel:null, useExtra:false};
+  const sel = {materia:null, temaValue:null, temaLabel:null, useExtra:false, pendienteId:null};
   let addedCount = 0;
   let lastAdd = null;
 
@@ -4326,7 +4474,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     wrap.appendChild(q);
     const opts = document.createElement('div'); opts.className='clase-quiz-options';
     const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='clase-quiz-opt'; yesBtn.textContent='Sí';
-    yesBtn.onclick = ()=> stepMateria();
+    yesBtn.onclick = ()=> ((state.clasesPendientes||[]).length ? stepOrigen() : stepMateria());
     const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='clase-quiz-opt';
     noBtn.textContent = isFirst ? 'No' : 'No, he terminado';
     noBtn.onclick = ()=> renderClaseDayPreview(entry, d, jsDow);
@@ -4346,11 +4494,77 @@ function renderClaseDayQuiz(entry, d, jsDow){
     const opts = document.createElement('div'); opts.className='clase-quiz-options';
     MATERIAS.forEach(mat=>{
       const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt'; b.textContent=mat.label;
-      b.onclick = ()=>{ sel.materia=mat; sel.temaValue=null; sel.temaLabel=null; sel.useExtra=false; stepTema(); };
+      b.onclick = ()=>{ sel.materia=mat; sel.temaValue=null; sel.temaLabel=null; sel.useExtra=false; sel.pendienteId=null; stepTema(); };
       opts.appendChild(b);
     });
     wrap.appendChild(opts);
+    addBackBtn(wrap, '← Atrás', ()=> ((state.clasesPendientes||[]).length ? stepOrigen() : stepVisto(addedCount===0)));
+    body.appendChild(wrap);
+  }
+
+  // Paso previo, solo si hay algo en el tablón de pendientes: preguntar si la clase vista
+  // es una de las que ya tenías apuntadas de antemano o una completamente nueva.
+  function stepOrigen(){
+    clearBody();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent='Has visto una clase';
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Es una de las clases pendientes que ya tenías apuntadas, o una nueva?';
+    wrap.appendChild(q);
+    const opts = document.createElement('div'); opts.className='clase-quiz-options';
+    const pendBtn = document.createElement('button'); pendBtn.type='button'; pendBtn.className='clase-quiz-opt'; pendBtn.textContent='De las pendientes';
+    pendBtn.onclick = ()=> stepPendiente();
+    const newBtn = document.createElement('button'); newBtn.type='button'; newBtn.className='clase-quiz-opt'; newBtn.textContent='Nueva';
+    newBtn.onclick = ()=> stepMateria();
+    opts.appendChild(pendBtn); opts.appendChild(newBtn);
+    wrap.appendChild(opts);
     addBackBtn(wrap, '← Atrás', ()=> stepVisto(addedCount===0));
+    body.appendChild(wrap);
+  }
+
+  // Lista las clases del tablón de pendientes para elegir una. Las que tengan una fecha de
+  // "disponible a partir de" posterior a este día del calendario salen deshabilitadas, con
+  // la fecha a partir de la cual se podrán usar.
+  function stepPendiente(){
+    clearBody();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent='Clases pendientes';
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Cuál de las pendientes has visto?';
+    wrap.appendChild(q);
+
+    const dayKeyStr = currentMonthKey+'-'+pad2(d);
+    const pendList = (state.clasesPendientes||[]).slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+
+    if(!pendList.length){
+      const info = document.createElement('div'); info.className='clase-multi-empty';
+      info.textContent = 'Ya no te queda ninguna clase pendiente apuntada.';
+      wrap.appendChild(info);
+    } else {
+      const opts = document.createElement('div'); opts.className='clase-quiz-options';
+      pendList.forEach(p=>{
+        const matDef = MATERIAS.find(m=>m.key===p.materiaKey);
+        const isBlocked = !!(p.disponibleDesde && p.disponibleDesde > dayKeyStr);
+        const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt';
+        b.textContent = (matDef ? matDef.label : p.materiaKey)+' — '+p.temaLabel + (isBlocked ? ' (disponible desde '+formatFechaEs(p.disponibleDesde)+')' : '');
+        if(isBlocked){
+          b.disabled = true;
+          b.title = 'Esta clase estará disponible a partir del '+formatFechaEs(p.disponibleDesde);
+        } else {
+          b.onclick = ()=>{
+            sel.materia = matDef;
+            sel.temaValue = p.temaValue;
+            sel.temaLabel = p.temaLabel;
+            sel.useExtra = p.useExtra;
+            sel.pendienteId = p.id;
+            stepComentario();
+          };
+        }
+        opts.appendChild(b);
+      });
+      wrap.appendChild(opts);
+    }
+    addBackBtn(wrap, '← Atrás', stepOrigen);
     body.appendChild(wrap);
   }
 
@@ -4369,7 +4583,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
       wrap.appendChild(inp);
       const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn'; nextBtn.style.marginTop='4px';
       nextBtn.textContent='Continuar';
-      nextBtn.onclick = ()=>{ sel.temaValue = inp.value.trim(); sel.temaLabel = inp.value.trim(); stepComentario(); };
+      nextBtn.onclick = ()=>{ sel.temaValue = inp.value.trim(); sel.temaLabel = inp.value.trim(); sel.pendienteId = null; stepComentario(); };
       wrap.appendChild(nextBtn);
     } else {
       const already = Array.isArray(entry[mat.arrKey]) ? entry[mat.arrKey] : [];
@@ -4386,7 +4600,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
         nextBtn.onclick = ()=>{
           if(selEl.value==='') return;
           const opt = available.find(o=>String(o.value)===String(selEl.value));
-          sel.temaValue = opt.value; sel.temaLabel = opt.label; sel.useExtra=false;
+          sel.temaValue = opt.value; sel.temaLabel = opt.label; sel.useExtra=false; sel.pendienteId=null;
           stepComentario();
         };
         wrap.appendChild(nextBtn);
@@ -4405,7 +4619,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
         writeBtn.textContent='Continuar con esto';
         writeBtn.onclick = ()=>{
           if(!inp.value.trim()) return;
-          sel.temaValue = null; sel.temaLabel = inp.value.trim(); sel.useExtra = true;
+          sel.temaValue = null; sel.temaLabel = inp.value.trim(); sel.useExtra = true; sel.pendienteId = null;
           stepComentario();
         };
         wrap.appendChild(writeBtn);
@@ -4430,7 +4644,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     saveBtn.textContent = 'Guardar clase';
     saveBtn.onclick = ()=> guardarSeleccion(ta.value.trim());
     wrap.appendChild(saveBtn);
-    addBackBtn(wrap, '← Atrás', stepTema);
+    addBackBtn(wrap, '← Atrás', ()=> sel.pendienteId ? stepPendiente() : stepTema());
     body.appendChild(wrap);
   }
 
@@ -4455,16 +4669,25 @@ function renderClaseDayQuiz(entry, d, jsDow){
       const tag = '['+mat.label + (sel.temaLabel ? (' — '+sel.temaLabel) : '') + ']';
       entry.nota = (entry.nota && entry.nota.trim()) ? (entry.nota+'\n'+tag+' '+comentario) : (tag+' '+comentario);
     }
+    // Si la clase venía del tablón de pendientes, la quitamos de ahí: ya se ha "colocado"
+    // en este día del calendario. Guardamos una copia por si luego se deshace el añadido.
+    let removedPendiente = null;
+    if(sel.pendienteId){
+      const pi = state.clasesPendientes.findIndex(x=>x.id===sel.pendienteId);
+      if(pi>-1){ removedPendiente = state.clasesPendientes[pi]; state.clasesPendientes.splice(pi,1); }
+    }
     addedCount++;
-    lastAdd = {arrKey:usedArrKey, value:usedValue, notaBefore, materiaLabel:mat.label, temaLabel:sel.temaLabel};
+    lastAdd = {arrKey:usedArrKey, value:usedValue, notaBefore, materiaLabel:mat.label, temaLabel:sel.temaLabel, removedPendiente};
     scheduleSave();
     renderClaseCalendar();
+    renderClasesPendientes();
     stepConfirm();
   }
 
   // Deshace justo la última clase guardada (por si te has equivocado de tema o de
   // materia): quita el último valor añadido a su lista y devuelve la nota a como
-  // estaba antes de este comentario.
+  // estaba antes de este comentario. Si esa clase venía del tablón de pendientes,
+  // la devuelve también al tablón.
   function deshacerUltima(){
     if(!lastAdd) return;
     const arr = entry[lastAdd.arrKey];
@@ -4473,12 +4696,17 @@ function renderClaseDayQuiz(entry, d, jsDow){
       if(i>-1) arr.splice(i,1);
     }
     entry.nota = lastAdd.notaBefore;
+    if(lastAdd.removedPendiente){
+      state.clasesPendientes.push(lastAdd.removedPendiente);
+    }
     addedCount = Math.max(0, addedCount-1);
     lastAdd = null;
     scheduleSave();
     renderClaseCalendar();
+    renderClasesPendientes();
     stepVisto(addedCount===0);
   }
+
 
   function stepConfirm(){
     clearBody();
@@ -4505,7 +4733,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     wrap.appendChild(q);
     const opts = document.createElement('div'); opts.className='clase-quiz-options';
     const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='clase-quiz-opt'; yesBtn.textContent='Sí, añadir otra';
-    yesBtn.onclick = ()=> stepMateria();
+    yesBtn.onclick = ()=> ((state.clasesPendientes||[]).length ? stepOrigen() : stepMateria());
     const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='clase-quiz-opt'; noBtn.textContent='No, he terminado';
     noBtn.onclick = ()=> renderClaseDayPreview(entry, d, jsDow);
     opts.appendChild(yesBtn); opts.appendChild(noBtn);
@@ -6251,6 +6479,7 @@ function renderAll(){
   renderClasesIngles();
   renderClasesPsico();
   renderClasesOrtoGram();
+  renderClasesPendientes();
   renderClasesCalMonthBar();
   renderClaseCalendar();
   renderSimulacrosList();
