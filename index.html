@@ -201,6 +201,11 @@
   .home-card-note{
     font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:6px;font-style:italic;
   }
+  .home-card-compact{padding:8px 14px;display:flex;align-items:baseline;gap:8px;}
+  .home-card-compact .home-card-label{margin-bottom:0;}
+  .home-card-compact .home-card-value{font-size:16px;}
+  .home-card-compact .home-card-sub{margin-top:0;font-size:10.5px;}
+  .home-clases-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;}
   .home-today-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}
   .home-today-list li{
     font-family:var(--font-mono);font-size:11.5px;color:var(--cream-dim);
@@ -3065,20 +3070,33 @@ function renderHomeDash(){
       arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>';
 
+  // Clases (academia) que tocan hoy, según el Calendario de clases.
+  const todayMonthKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
+  const todayDay = now.getDate();
+  const claseEntry = (state.claseCal[todayMonthKey] && state.claseCal[todayMonthKey][todayDay]) || {};
+  const clasesHoyHtml = '<div class="home-clases-pills">'+buildClasePillsHTML(claseEntry, 40)+'</div>'+
+    '<button class="btn small ghost" id="homeClasesBtn" style="margin-top:8px;">Ir a Clases →</button>';
+
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
       '<div class="home-card-value">'+exam.daysLeft+'</div>'+
       '<div class="home-card-sub">días para el examen (10 jul '+exam.year+')</div></div>'+
-    '<div class="home-card"><div class="home-card-label">Racha de estudio</div>'+
+    '<div class="home-card home-card-compact"><div class="home-card-label">Racha</div>'+
       '<div class="home-card-value">'+racha+'</div>'+
-      '<div class="home-card-sub">'+(racha===1?'día seguido completado':'días seguidos completados')+'</div>'+
-      rachaNota+'</div>'+
+      '<div class="home-card-sub">'+(racha===1?'día seguido':'días seguidos')+'</div></div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
 
   const arrastreBtn = document.getElementById('homeArrastreBtn');
   if(arrastreBtn) arrastreBtn.onclick = ()=>{
     const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
+    if(tabBtn) tabBtn.click();
+  };
+
+  const clasesBtn = document.getElementById('homeClasesBtn');
+  if(clasesBtn) clasesBtn.onclick = ()=>{
+    const tabBtn = document.querySelector('.tab-btn[data-tab="clases"]');
     if(tabBtn) tabBtn.click();
   };
 
