@@ -375,6 +375,7 @@
   .tag-leve{background:var(--green);color:#12241a;}
   .tag-ing{background:var(--blue);color:#0e2027;}
   .tag-psico{background:#8b6fae;color:#fff;}
+  .tag-manual{background:transparent;border:1px solid var(--amber-dim);color:var(--amber);}
   .grupo-tag{
     font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
     padding:2px 6px;border-radius:2px;display:inline-block;white-space:nowrap;
@@ -443,6 +444,9 @@
   .tema-row .tema-head{display:flex;justify-content:space-between;gap:10px;font-size:13px;}
   .tema-row .tema-name{font-weight:600;color:var(--cream);}
   .tema-row .tema-clase{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap;}
+  .tema-group-label{display:flex;align-items:center;gap:8px;margin:16px 0 2px;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  .tema-group-label:first-child{margin-top:6px;}
+  .tema-group-label .colorpill{margin:0;}
 
   section.temario-group{margin-top:26px;}
   section.temario-group > h3{
@@ -497,6 +501,14 @@
     font-family:var(--font-mono);font-size:11px;padding:4px 9px;cursor:pointer;white-space:nowrap;
   }
   .arrastre-copy-btn:hover{background:var(--bg-panel-2);}
+  .arrastre-add-form{display:none;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 4px;padding:10px;background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;}
+  .arrastre-add-form.open{display:flex;}
+  .arrastre-add-form select{background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;font-family:var(--font-mono);font-size:12px;padding:6px 8px;min-width:150px;max-width:100%;}
+  .arrastre-add-form .arrastre-add-confirm{background:var(--amber);color:#1b2b1f;border:none;border-radius:2px;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;}
+  .arrastre-add-form .arrastre-add-confirm:disabled{opacity:.4;cursor:default;}
+  .arrastre-add-form .arrastre-add-hint{width:100%;font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .arrastre-manual-remove{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0;}
+  .arrastre-manual-remove:hover{color:var(--red-text,#b23b3b);}
   .arrastre-reset-btn{
     background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);font-size:10px;
     text-decoration:underline;cursor:pointer;padding:0;margin-top:6px;
@@ -976,31 +988,29 @@
 
   <!-- CALENDARIO -->
   <div class="view active" id="view-calendario">
-    <div class="month-bar" id="monthBar"></div>
-    <div id="unifyBar"></div>
-    <div class="legend" id="legend"></div>
-    <div class="tick-help">☑ Marca la casilla de una tarea solo si <strong>NO</strong> la has completado ese día — así se repetirá el próximo día que toque, en vez de darse por hecha. El indicador ✓/número junto a la fecha te dice de un vistazo si el día está completo o tiene pendientes.</div>
-    <div class="view-toggle" id="calViewToggle" role="tablist" aria-label="Vista del calendario">
-      <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
-      <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+    <div class="view-toggle" id="calSelectorToggle" role="tablist" aria-label="Elegir qué calendario ver">
+      <button type="button" class="view-toggle-btn" data-cal="principal">📅 Calendario principal</button>
+      <button type="button" class="view-toggle-btn" data-cal="clases">🏫 Calendario de clases</button>
     </div>
-    <div class="cal-export-bar" id="calExportBar">
-      <button type="button" class="cal-export-btn" id="exportCalImageBtn">🖼️ Exportar imagen</button>
-      <button type="button" class="cal-export-btn" id="exportCalPdfBtn">📄 Exportar PDF</button>
+
+    <div id="calMainPanel">
+      <div class="month-bar" id="monthBar"></div>
+      <div id="unifyBar"></div>
+      <div class="legend" id="legend"></div>
+      <div class="tick-help">☑ Marca la casilla de una tarea solo si <strong>NO</strong> la has completado ese día — así se repetirá el próximo día que toque, en vez de darse por hecha. El indicador ✓/número junto a la fecha te dice de un vistazo si el día está completo o tiene pendientes.</div>
+      <div class="view-toggle" id="calViewToggle" role="tablist" aria-label="Vista del calendario">
+        <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+        <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+      </div>
+      <div class="cal-export-bar" id="calExportBar">
+        <button type="button" class="cal-export-btn" id="exportCalImageBtn">🖼️ Exportar imagen</button>
+        <button type="button" class="cal-export-btn" id="exportCalPdfBtn">📄 Exportar PDF</button>
+      </div>
+      <div id="calendarHost"></div>
+      <section class="temario-group" id="notasPendientesHost" style="margin-top:34px;"></section>
     </div>
-    <div id="calendarHost"></div>
-    <section class="temario-group" id="notasPendientesHost" style="margin-top:34px;"></section>
-  </div>
 
-  <!-- CLASES (visualización de clases: vueltas vistas + calendario propio) -->
-  <div class="view" id="view-clases">
-    <div id="clasesConocimientosHost"></div>
-    <section class="temario-group" id="clasesInglesHost"></section>
-    <section class="temario-group" id="clasesPsicoHost"></section>
-    <section class="temario-group" id="clasesOrtoGramHost"></section>
-    <section class="temario-group" id="clasesPendientesHost"></section>
-
-    <section class="temario-group" style="margin-top:34px;">
+    <div id="calClasesPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de clases</h3>
       <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
         Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario principal. Pulsa un día para elegir qué clase (conocimientos, inglés, psicotécnicos, ortografía, gramática) tocó ese día.
@@ -1011,7 +1021,16 @@
         <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
       </div>
       <div id="clasesCalHost"></div>
-    </section>
+    </div>
+  </div>
+
+  <!-- CLASES (visualización de clases: vueltas vistas) -->
+  <div class="view" id="view-clases">
+    <div id="clasesConocimientosHost"></div>
+    <section class="temario-group" id="clasesInglesHost"></section>
+    <section class="temario-group" id="clasesPsicoHost"></section>
+    <section class="temario-group" id="clasesOrtoGramHost"></section>
+    <section class="temario-group" id="clasesPendientesHost"></section>
   </div>
 
   <!-- TEMARIO -->
@@ -1424,7 +1443,7 @@ const firebaseAuthReady = (async ()=>{
 let accessCode = null;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacroCal:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[]} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1476,6 +1495,14 @@ function normalizeState(){
   state.notasPendientes.forEach(p=>{
     if(p.disponibleDesde === undefined) p.disponibleDesde = null;
     if(p.texto === undefined) p.texto = '';
+  });
+  // Temas añadidos a mano en Arrastre (desplegable), aparte de los que calcula la
+  // automatización a partir del calendario real.
+  if(!state.arrastreManual || typeof state.arrastreManual !== 'object' || Array.isArray(state.arrastreManual)){
+    state.arrastreManual = {graves:[], mgraves:[], leves:[], ingles:[], psico:[]};
+  }
+  ['graves','mgraves','leves','ingles','psico'].forEach(pk=>{
+    if(!Array.isArray(state.arrastreManual[pk])) state.arrastreManual[pk] = [];
   });
   // Migración: antes cada día solo admitía UN tema de "Conocimientos" (entry.conocimientos
   // era un número), UNA lesson de inglés y UNA prueba de psicotécnicos, y "ortografía"/
@@ -3552,7 +3579,23 @@ function renderBlocks(){
         </div>
         <div class="chev">▾</div>`;
       const bbody = document.createElement('div'); bbody.className='block-body';
-      b.temas.forEach((t,idx)=>{
+      // Reordenamos visualmente por color (azul primero, morado después) sin tocar el
+      // índice original de cada tema: las notas ya guardadas siguen ligadas a su mismo
+      // noteKey ('b'+num+'-'+idx), calculado siempre sobre la posición original en b.temas.
+      const temasOrdenados = b.temas
+        .map((t,idx)=>({t, idx}))
+        .sort((a,c)=>{
+          const rank = (color)=> color==='azul' ? 0 : (color==='morado' ? 1 : 2);
+          return rank(a.t.color) - rank(c.t.color);
+        });
+      let colorGrupoActual = null;
+      temasOrdenados.forEach(({t, idx})=>{
+        if(t.color && t.color!==colorGrupoActual){
+          colorGrupoActual = t.color;
+          const label = document.createElement('div'); label.className='tema-group-label';
+          label.innerHTML = '<span class="colorpill '+t.color+'">'+t.color+'</span><span>Grupo '+t.color+'</span>';
+          bbody.appendChild(label);
+        }
         if(t.type==='armas_explosivos'){
           [['armas', t.armas, 'ARM'], ['explosivos', t.explosivos, 'EXP']].forEach(([sub,label,tag])=>{
             const noteKey = 'b'+num+'-'+idx+'-'+sub;
@@ -3709,6 +3752,41 @@ const ARRASTRE_GROUPS = [
   {key:'ingles', title:'Inglés', pools:['ingles']},
   {key:'psico', title:'Psicotécnicos', pools:['psico']}
 ];
+// Catálogo de temas "elegibles" para añadir a mano en Arrastre, por pool: el mismo
+// contenido que ya usa la automatización (bloques/leves/inglés/psicotécnicos), para
+// poder añadir manualmente un tema concreto sin escribirlo a mano.
+function arrastreManualCatalog(poolKey){
+  const out = [];
+  if(poolKey==='graves' || poolKey==='mgraves'){
+    const nums = poolKey==='graves' ? GRAVES_ORDER : MGRAVES_ORDER;
+    nums.forEach(num=>{
+      const b = BLOCKS[num];
+      if(!b) return;
+      b.temas.forEach(t=>{
+        if(t.type==='armas_explosivos'){
+          out.push({value:'b'+num+'-arm-'+(t.clase||t.armas), nombre:t.armas, clase:t.clase, grupo:'B'+num, color:t.color});
+          out.push({value:'b'+num+'-exp-'+(t.clase||t.explosivos), nombre:t.explosivos, clase:t.clase, grupo:'B'+num, color:t.color});
+        } else {
+          out.push({value:'b'+num+'-'+(t.clase||t.nombre), nombre:t.nombre, clase:t.clase, grupo:'B'+num, color:t.color});
+        }
+      });
+    });
+  } else if(poolKey==='leves'){
+    LEVES.forEach((it,idx)=>{
+      if(it.type==='l39_l40'){
+        out.push({value:'leve-'+idx+'-l39', nombre:it.l39, clase:it.clase, grupo:'LEVE Nº'+(idx+1)});
+        out.push({value:'leve-'+idx+'-l40', nombre:it.l40, clase:it.clase, grupo:'LEVE Nº'+(idx+1)});
+      } else {
+        out.push({value:'leve-'+idx, nombre:it.nombre, clase:it.clase, grupo:'LEVE Nº'+(idx+1)});
+      }
+    });
+  } else if(poolKey==='ingles'){
+    for(let i=1;i<=INGLES_TOTAL;i++) out.push({value:'ingles-'+i, nombre:'Tema '+i, clase:'', grupo:''});
+  } else if(poolKey==='psico'){
+    PSICO_ITEMS.forEach((name,idx)=> out.push({value:'psico-'+idx, nombre:name, clase:'', grupo:''}));
+  }
+  return out;
+}
 function computeArrastreData(asOfDayKey){
   const pools = {};
   Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}}; });
@@ -3883,12 +3961,14 @@ function renderArrastre(){
     if(showPoolTag && it.pool && ARRASTRE_POOL_TAG[it.pool]){
       bits.push('<span class="mini-tag '+ARRASTRE_POOL_TAG[it.pool]+'">'+ARRASTRE_POOL_LABEL[it.pool]+'</span>');
     }
+    if(it.manual) bits.push('<span class="mini-tag tag-manual">AÑADIDO A MANO</span>');
     if(it.grupo) bits.push('<span class="grupo-txt">'+it.grupo.replace(/</g,'&lt;')+'</span>');
     if(it.color) bits.push('<span class="colorpill '+it.color+'">'+it.color+'</span>');
     return bits.length ? '<div class="arrastre-meta">'+bits.join('')+'</div>' : '';
   }
 
-  // Fila individual, clicable, para marcar "ya repasado" (efímero, solo en memoria).
+  // Fila individual, clicable, para marcar "ya repasado" (efímero, solo en memoria). Los
+  // temas añadidos a mano llevan además un botón "✕" para quitarlos (eso sí se guarda).
   function buildCheckRow(it, titleHtml, showPoolTag, extraClass, onToggle){
     const row = document.createElement('div');
     row.className = 'arrastre-item'+(extraClass?(' '+extraClass):'')+(arrastreChecked[it.key]?' done':'');
@@ -3899,6 +3979,7 @@ function renderArrastre(){
           '<div class="fi-head"><span class="fi-name">'+titleHtml+'</span></div>'+
           metaHtml(it, showPoolTag)+
         '</div>'+
+        (it.manual ? '<button type="button" class="arrastre-manual-remove" title="Quitar este tema añadido a mano">✕</button>' : '')+
       '</div>';
     const toggle = ()=>{
       arrastreChecked[it.key] = !arrastreChecked[it.key];
@@ -3908,9 +3989,21 @@ function renderArrastre(){
     };
     row.addEventListener('click', (e)=>{
       if(e.target.tagName==='INPUT') return; // el propio checkbox ya dispara 'change'
+      if(e.target.classList.contains('arrastre-manual-remove')) return; // se gestiona aparte
       toggle();
     });
     row.querySelector('.arrastre-check').addEventListener('change', toggle);
+    if(it.manual){
+      row.querySelector('.arrastre-manual-remove').addEventListener('click', (e)=>{
+        e.stopPropagation();
+        const arr = state.arrastreManual[it.manualPool] || [];
+        const i = arr.findIndex(m=>m.id===it.manualId);
+        if(i>-1) arr.splice(i,1);
+        delete arrastreChecked[it.key];
+        scheduleSave();
+        renderArrastre();
+      });
+    }
     return row;
   }
 
@@ -3925,10 +4018,16 @@ function renderArrastre(){
     const headRow = document.createElement('div'); headRow.className = 'arrastre-group-head';
     const h3 = document.createElement('h3'); h3.innerHTML = group.title;
     headRow.appendChild(h3);
+    const btnGroup = document.createElement('div'); btnGroup.style.cssText='display:flex;gap:6px;flex-wrap:wrap;';
+    const addToggleBtn = document.createElement('button');
+    addToggleBtn.type = 'button'; addToggleBtn.className = 'arrastre-copy-btn';
+    addToggleBtn.textContent = '➕ Añadir tema';
+    btnGroup.appendChild(addToggleBtn);
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button'; copyBtn.className = 'arrastre-copy-btn';
     copyBtn.textContent = '📋 Copiar lista';
-    headRow.appendChild(copyBtn);
+    btnGroup.appendChild(copyBtn);
+    headRow.appendChild(btnGroup);
     section.appendChild(headRow);
 
     const vueltaLine = document.createElement('div');
@@ -3940,16 +4039,88 @@ function renderArrastre(){
     sub.textContent = group.pools.map(pk=>ARRASTRE_POOL_META[pk].sub).join(' · ');
     section.appendChild(sub);
 
-    // Combina los temas de la vuelta actual de cada subgrupo en una sola lista.
+    // ---- Formulario "Añadir tema a mano": mismo catálogo que usa la automatización
+    // (bloques/leves/inglés/psicotécnicos), para añadir manualmente uno sin escribirlo.
+    // Es independiente de la vuelta automática: no la adelanta ni la altera.
+    const addForm = document.createElement('div'); addForm.className = 'arrastre-add-form';
+    let poolSelect = null;
+    if(group.pools.length > 1){
+      poolSelect = document.createElement('select');
+      poolSelect.setAttribute('aria-label','Tipo de tema a añadir');
+      group.pools.forEach(pk=>{
+        const opt = document.createElement('option'); opt.value = pk; opt.textContent = ARRASTRE_POOL_META[pk].shortTitle;
+        poolSelect.appendChild(opt);
+      });
+      addForm.appendChild(poolSelect);
+    }
+    const temaSelect = document.createElement('select');
+    temaSelect.setAttribute('aria-label','Tema a añadir');
+    function fillTemaSelect(){
+      const pk = poolSelect ? poolSelect.value : group.pools[0];
+      const catalog = arrastreManualCatalog(pk);
+      temaSelect.innerHTML = '';
+      let currentGrupo = null, optgroup = null;
+      catalog.forEach(c=>{
+        if(c.grupo !== currentGrupo){
+          currentGrupo = c.grupo;
+          optgroup = c.grupo ? document.createElement('optgroup') : null;
+          if(optgroup){ optgroup.label = c.grupo; temaSelect.appendChild(optgroup); }
+        }
+        const opt = document.createElement('option');
+        opt.value = c.value;
+        opt.textContent = (c.clase ? c.clase+' · ' : '') + c.nombre;
+        (optgroup || temaSelect).appendChild(opt);
+      });
+    }
+    fillTemaSelect();
+    if(poolSelect) poolSelect.onchange = fillTemaSelect;
+    addForm.appendChild(temaSelect);
+    const addConfirmBtn = document.createElement('button');
+    addConfirmBtn.type = 'button'; addConfirmBtn.className = 'arrastre-add-confirm'; addConfirmBtn.textContent = 'Añadir';
+    addConfirmBtn.onclick = ()=>{
+      const pk = poolSelect ? poolSelect.value : group.pools[0];
+      const catalog = arrastreManualCatalog(pk);
+      const chosen = catalog.find(c=>c.value===temaSelect.value);
+      if(!chosen) return;
+      if(!state.arrastreManual[pk]) state.arrastreManual[pk] = [];
+      state.arrastreManual[pk].push({
+        id: 'm'+Date.now()+Math.random().toString(36).slice(2,7),
+        value: chosen.value, nombre: chosen.nombre, clase: chosen.clase, grupo: chosen.grupo, color: chosen.color
+      });
+      scheduleSave();
+      renderArrastre();
+    };
+    addForm.appendChild(addConfirmBtn);
+    const addHint = document.createElement('div'); addHint.className = 'arrastre-add-hint';
+    addHint.textContent = 'Se suma a los que ya van saliendo solos con el calendario, sin afectar a la vuelta automática.';
+    addForm.appendChild(addHint);
+    section.appendChild(addForm);
+    addToggleBtn.onclick = ()=> addForm.classList.toggle('open');
+
+    // Combina los temas de la vuelta actual de cada subgrupo con los añadidos a mano.
     let items = [];
     group.pools.forEach(pk=>{
       const p = pools[pk];
       items = items.concat((p.items && p.items[p.lap]) || []);
+      ((state.arrastreManual && state.arrastreManual[pk]) || []).forEach(m=>{
+        items.push({
+          key: 'manual-'+pk+'-'+m.id,
+          clase: m.clase,
+          nombre: m.nombre,
+          grupo: m.grupo,
+          color: m.color,
+          pool: pk,
+          numTema: temaNumFromClase(m.clase),
+          manual: true,
+          manualId: m.id,
+          manualPool: pk
+        });
+      });
     });
 
     if(!items.length){
       const empty = document.createElement('div'); empty.className='empty-state';
-      empty.textContent = 'Todavía no has completado ningún tema de este grupo en la vuelta actual.';
+      empty.textContent = 'Todavía no has completado ningún tema de este grupo en la vuelta actual. Puedes añadir uno a mano con «➕ Añadir tema».';
       section.appendChild(empty);
       copyBtn.disabled = true; copyBtn.style.opacity = '.4'; copyBtn.style.cursor = 'default';
     } else {
@@ -6454,7 +6625,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[]} };
   currentMonthKey = null;
   invalidatePlan();
   scheduleSave();
@@ -6624,6 +6795,28 @@ function goToSearchResult(entry){
     if(e.key==='Escape'){ resultsEl.classList.remove('open'); input.blur(); }
   });
 })();
+
+/* ===================== SELECTOR: calendario principal / calendario de clases =====================
+   Ambos calendarios siguen existiendo tal cual (mismo host, mismas funciones de render); esto solo
+   decide cuál de los dos paneles se ve dentro de la pestaña "Calendario". */
+let calSelectorMode = 'principal';
+try{ calSelectorMode = localStorage.getItem('calSelectorMode') || 'principal'; }catch(e){}
+function syncCalSelectorToggle(){
+  document.querySelectorAll('#calSelectorToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.cal===calSelectorMode));
+  const mainPanel = document.getElementById('calMainPanel');
+  const clasesPanel = document.getElementById('calClasesPanel');
+  if(mainPanel) mainPanel.style.display = calSelectorMode==='clases' ? 'none' : '';
+  if(clasesPanel) clasesPanel.style.display = calSelectorMode==='clases' ? '' : 'none';
+}
+function setCalSelectorMode(mode){
+  calSelectorMode = mode;
+  try{ localStorage.setItem('calSelectorMode', mode); }catch(e){}
+  syncCalSelectorToggle();
+}
+document.querySelectorAll('#calSelectorToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setCalSelectorMode(btn.dataset.cal);
+});
+syncCalSelectorToggle();
 
 /* ===================== VISTA CALENDARIO: rejilla / lista ===================== */
 let calViewMode = 'grid';
