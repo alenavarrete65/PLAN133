@@ -2658,46 +2658,26 @@ function renderNotasPendientes(){
   if(!Array.isArray(state.notasPendientes)) state.notasPendientes = [];
   renderAccordionSection(host, 'notasPendientes', 'Notas pendientes (tablón)', (body)=>{
     const intro = document.createElement('div'); intro.className='sub'; intro.style.marginBottom='12px';
-    intro.textContent = 'Apunta aquí cosas sueltas que tengas pendientes (dudas, tareas, recordatorios…) sin saber todavía qué día vas a resolverlas. Al abrir un día del calendario podrás añadir cualquiera de estas notas directamente a ese día, y desaparecerá de aquí. Si le pones una fecha de "disponible a partir de", no podrás añadirla a un día anterior a esa fecha.';
+    intro.textContent = 'Apunta aquí cosas sueltas que tengas pendientes (dudas, tareas, recordatorios…) sin saber todavía qué día vas a resolverlas. Al abrir un día del calendario podrás añadir cualquiera de estas notas directamente a ese día, y desaparecerá de aquí.';
     body.appendChild(intro);
 
-    const addRow = document.createElement('div'); addRow.className='clase-multi-row';
+    const formHost = document.createElement('div');
+    body.appendChild(formHost);
 
-    const textRow = document.createElement('div'); textRow.className='clase-select-row';
-    const textLbl = document.createElement('label'); textLbl.textContent = 'Nota o cosa pendiente';
-    const textInp = document.createElement('input'); textInp.type='text'; textInp.placeholder = 'p. ej. "Preguntar por la revisión del tema 5"';
-    textRow.appendChild(textLbl); textRow.appendChild(textInp);
-    addRow.appendChild(textRow);
+    const listHost = document.createElement('div'); listHost.style.marginTop = '16px';
+    body.appendChild(listHost);
 
-    const dateRow = document.createElement('div'); dateRow.className='clase-select-row';
-    const dateLbl = document.createElement('label'); dateLbl.textContent = 'Disponible a partir de (opcional)';
-    const dateInp = document.createElement('input'); dateInp.type='date'; dateInp.setAttribute('aria-label','Disponible a partir de');
-    dateRow.appendChild(dateLbl); dateRow.appendChild(dateInp);
-    addRow.appendChild(dateRow);
-
-    const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add';
-    addBtn.textContent = '+ Añadir a pendientes';
-    addBtn.onclick = ()=>{
-      if(!textInp.value.trim()){ alert('Escribe algo antes de añadirlo.'); return; }
-      state.notasPendientes.push({
-        id: Date.now()+'-'+Math.random(),
-        texto: textInp.value.trim(),
-        disponibleDesde: dateInp.value || null
-      });
-      scheduleSave();
-      renderNotasPendientes();
-    };
-    addRow.appendChild(addBtn);
-    body.appendChild(addRow);
-
-    const list = state.notasPendientes.slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
-    if(!list.length){
-      const empty = document.createElement('div'); empty.className='clase-multi-empty'; empty.style.marginTop='10px';
-      empty.textContent = 'No tienes ninguna nota pendiente apuntada.';
-      body.appendChild(empty);
-    } else {
+    function refreshList(){
+      listHost.innerHTML = '';
+      const list = state.notasPendientes.slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+      if(!list.length){
+        const empty = document.createElement('div'); empty.className='clase-multi-empty';
+        empty.textContent = 'No tienes ninguna nota pendiente apuntada.';
+        listHost.appendChild(empty);
+        return;
+      }
       const todayISO = new Date().toISOString().slice(0,10);
-      const chips = document.createElement('div'); chips.className='clase-multi-chips'; chips.style.marginTop='12px';
+      const chips = document.createElement('div'); chips.className='clase-multi-chips';
       list.forEach(p=>{
         const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
         const chip = document.createElement('span'); chip.className='clase-multi-chip'+(isFuture?' future':'');
@@ -2710,14 +2690,102 @@ function renderNotasPendientes(){
           const i = state.notasPendientes.findIndex(x=>x.id===p.id);
           if(i>-1) state.notasPendientes.splice(i,1);
           scheduleSave();
-          renderNotasPendientes();
+          refreshList();
         };
         chip.appendChild(del);
         chips.appendChild(chip);
       });
-      body.appendChild(chips);
+      listHost.appendChild(chips);
     }
+    refreshList();
+
+    renderNotaPendienteForm(formHost, refreshList);
   });
+}
+// Formulario paso a paso (más sencillo que el de las clases, aquí no hay materia ni tema)
+// para añadir una nota al tablón de pendientes: "¿Qué quieres apuntar?" → "¿A partir de
+// qué fecha estará disponible?" → guardar, con opción de encadenar varias seguidas.
+function renderNotaPendienteForm(container, onSaved){
+  function clearC(){ container.innerHTML = ''; }
+  function addBackBtn(wrap, label, fn){
+    const back = document.createElement('button');
+    back.type='button'; back.className='clase-quiz-back'; back.textContent = label || '← Atrás';
+    back.onclick = fn;
+    wrap.appendChild(back);
+  }
+
+  function stepTexto(){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent='Nueva nota pendiente';
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Qué quieres apuntar?';
+    wrap.appendChild(q);
+    const ta = document.createElement('textarea'); ta.className='note-inline';
+    ta.placeholder = 'p. ej. "Preguntar por la revisión del tema 5"';
+    wrap.appendChild(ta);
+    const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn'; nextBtn.style.marginTop='10px';
+    nextBtn.textContent = 'Continuar';
+    nextBtn.onclick = ()=>{
+      if(!ta.value.trim()) return;
+      stepDisponible(ta.value.trim());
+    };
+    wrap.appendChild(nextBtn);
+    container.appendChild(wrap);
+  }
+
+  function stepDisponible(texto){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent=texto;
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿A partir de qué fecha estará disponible?';
+    wrap.appendChild(q);
+    const hint = document.createElement('div'); hint.className='clase-quiz-or'; hint.textContent='Déjalo en blanco si ya está disponible ahora mismo.';
+    wrap.appendChild(hint);
+    const dateInp = document.createElement('input'); dateInp.type='date'; dateInp.className='clase-quiz-text-input';
+    wrap.appendChild(dateInp);
+    const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn'; saveBtn.style.marginTop='10px';
+    saveBtn.textContent = 'Guardar en pendientes';
+    saveBtn.onclick = ()=> guardar(texto, dateInp.value || null);
+    wrap.appendChild(saveBtn);
+    addBackBtn(wrap, '← Atrás', stepTexto);
+    container.appendChild(wrap);
+  }
+
+  function guardar(texto, disponibleDesde){
+    state.notasPendientes.push({
+      id: Date.now()+'-'+Math.random(),
+      texto,
+      disponibleDesde: disponibleDesde || null
+    });
+    scheduleSave();
+    onSaved();
+    stepConfirm(texto);
+  }
+
+  function stepConfirm(texto){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const confirmBox = document.createElement('div'); confirmBox.className='clase-quiz-confirm';
+    const okQ = document.createElement('div'); okQ.className='clase-quiz-question'; okQ.textContent='✓ Añadida a pendientes';
+    confirmBox.appendChild(okQ);
+    const detail = document.createElement('div'); detail.className='clase-quiz-progress'; detail.textContent = texto;
+    confirmBox.appendChild(detail);
+    wrap.appendChild(confirmBox);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Añadir otra nota pendiente?';
+    wrap.appendChild(q);
+    const opts = document.createElement('div'); opts.className='clase-quiz-options';
+    const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='clase-quiz-opt'; yesBtn.textContent='Sí, añadir otra';
+    yesBtn.onclick = ()=> stepTexto();
+    const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='clase-quiz-opt'; noBtn.textContent='No, he terminado';
+    noBtn.onclick = ()=> stepTexto();
+    opts.appendChild(yesBtn); opts.appendChild(noBtn);
+    wrap.appendChild(opts);
+    container.appendChild(wrap);
+  }
+
+  stepTexto();
 }
 
 /* ===================== RENDER: CALENDARIO ===================== */
