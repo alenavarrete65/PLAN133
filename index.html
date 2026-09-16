@@ -1362,6 +1362,114 @@ const PSICO_ITEMS = [];
 for(let i=1;i<=23;i++) PSICO_ITEMS.push('Prueba '+i);
 PSICO_ITEMS.push('CONTROL 1'); PSICO_ITEMS.push('CONTROL 2');
 
+// Temario general "de Teoría" (el mismo que usas para elegir temas en los test), usado
+// SOLO como catálogo del desplegable "Añadir tema a mano" de Conocimientos en Arrastre —
+// no tiene relación con BLOCKS ni con la automatización del Calendario/Temario y notas.
+const TEMARIO_GENERAL = [
+  {num:'1', titulo:'Derechos Humanos', subtemas:[
+    'Carta de las Naciones Unidas','Órganos','Declaración Universal de Derechos Humanos',
+    'Convenio europeo para la protección de los derechos y de las libertades fundamentales',
+    'Tribunal Europeo de Derechos Humanos',
+    'Pacto Internacional de Derechos Económicos, Sociales y Culturales',
+    'Pacto internacional de Derechos Civiles y Políticos',
+    'Consejo de Derechos Humanos de la ONU',
+    'Convención contra la tortura y otros tratos o penas crueles, inhumanas o degradantes, de la Asamblea General de Naciones Unidas',
+    'Protocolo facultativo de la Convención contra la tortura y otros tratos o penas crueles, inhumanas o degradantes, de la Asamblea General de Naciones Unidas',
+    'Carta de los Derechos Fundamentales de la UE',
+    'Estatuto de Roma de la Corte Penal Internacional',
+    'Cooperación con la Corte Penal Internacional',
+    'Consejo Asesor del Mecanismo Nacional de Prevención de Tortura',
+    'Carta Social Europea (actualizada)'
+  ]},
+  {num:'2', titulo:'Igualdad', subtemas:[]},
+  {num:'3', titulo:'Prevención de Riesgos Laborales', subtemas:[
+    'Prevención de Riesgos Laborales','PRL en la Administración General del Estado','PRL en la Guardia Civil'
+  ]},
+  {num:'4.1', titulo:'Constitución Española de 1978', subtemas:[
+    'Preámbulo','Título Preliminar','Título I De los Derechos y Deberes Fundamentales','Título II De la Corona',
+    'Título III De las Cortes Generales','Título IV Del Gobierno y de la Administración',
+    'Título V De las relaciones entre el Gobierno y las Cortes Generales','Título VI Del Poder Judicial',
+    'Título VII Economía y Hacienda','Título VIII De la Organización Territorial del Estado',
+    'Título IX Del Tribunal Constitucional','Título X De la Reforma Constitucional','Disposiciones'
+  ]},
+  {num:'4.2', titulo:'Defensor del Pueblo', subtemas:[]},
+  {num:'4.3', titulo:'Protección Civil del Derecho al Honor, a la Intimidad Personal y Familiar y a la propia Imagen', subtemas:[]},
+  {num:'5.1', titulo:'Tratado de la Unión Europea', subtemas:[]},
+  {num:'5.2', titulo:'Tratado de Funcionamiento de la Unión Europea', subtemas:[]},
+  {num:'6', titulo:'Instituciones Internacionales', subtemas:[
+    'Organización de las Naciones Unidas (ONU)','El Consejo de Europa','Unión Europea',
+    'La Organización del Tratado del Atlántico Norte (OTAN o NATO)','INTERPOL','EUROPOL','EUROJUST','FRONTEX','CEPOL',
+    'ONU para la Alimentación y la Agricultura (FAO)','Fondo Monetario Internacional (FMI)','Organización Mundial de la Salud (OMS)'
+  ]},
+  {num:'7', titulo:'Derecho Civil', subtemas:[
+    'Fuentes del ordenamiento español y normas jurídicas','La persona','Circunstancias modificativas de la capacidad',
+    '7.1 TÍTULO PRELIMINAR. De las normas jurídicas, su aplicación y eficacia.',
+    '7.2 TÍTULO PRIMERO. De los españoles y extranjeros.',
+    '7.3 TÍTULO II. Del nacimiento y la extinción de la personalidad civil.',
+    '7.4 TÍTULO III. Del domicilio.','7.5 TÍTULO IV. Del matrimonio.','7.6 TÍTULO V. De la paternidad y filiación.',
+    '7.7 TÍTULO VI. De los alimentos entre parientes.','7.8 TÍTULO VII. De las relaciones paterno-filiales.',
+    '7.9 TÍTULO VIII. De la ausencia.','7.10 TÍTULO IX. De la tutela y de la guarda de los menores.',
+    '7.11 TÍTULO X. De la mayor edad y de la emancipación.',
+    '7.12 TÍTULO XI. De las medidas de apoyo a las personas con discapacidad para el ejercicio de su capacidad jurídica.',
+    '7.13 TÍTULO XII. Disposiciones comunes.'
+  ]},
+  {num:'8', titulo:'Derecho Penal', subtemas:[
+    'La infracción penal','Personas criminalmente responsables','Medidas de seguridad',
+    'Delitos contra la Administración Pública','Delitos contra la Constitución',
+    'Garantías penales y de la aplicación de la Ley penal','Infracción penal.',
+    'Personas criminalmente responsables de los delitos','Penas',
+    'Responsabilidad civil derivada de los delitos y de las costas procesales',
+    'Extinción de la responsabilidad criminal y sus efectos','Homicidio y sus formas.','Lesiones.',
+    'Delitos contra la libertad.','Torturas y otros delitos contra la integridad moral.',
+    'Trata de seres humanos.','Delitos contra la libertad e indemnidad sexuales.',
+    'Delitos contra las relaciones familiares.','Delitos contra la Comunidad Internacional.'
+  ]},
+  {num:'9', titulo:'Derecho Procesal', subtemas:[
+    'Ley de Enjuiciamiento Criminal','Habeas Corpus','Poder Judicial','Policía Judicial','Estatuto de la Víctima del Delito'
+  ]},
+  {num:'10.1', titulo:'Ley 39/2015 Procedimiento Administrativo', subtemas:[]},
+  {num:'10.2', titulo:'Ley 40/2015 Régimen jurídico del sector público', subtemas:[]},
+  {num:'11', titulo:'Protección de Datos', subtemas:[]},
+  {num:'12.1', titulo:'Extranjería. Inmigración', subtemas:[
+    'Derechos y Libertades Extranjeros','Infracciones'
+  ]},
+  {num:'12.2', titulo:'Entrada, Libre Circulación y Residencia en España de ciudadanos de la UE y del Espacio Económico Europeo', subtemas:[]},
+  {num:'13.1', titulo:'Seguridad Pública', subtemas:[
+    'Protección de la Seguridad Ciudadana','Infracciones'
+  ]},
+  {num:'13.2', titulo:'Seguridad Privada', subtemas:[]},
+  {num:'14.1', titulo:'Ministerio del Interior', subtemas:[
+    'Estructura Orgánica Básica','Funciones'
+  ]},
+  {num:'14.2', titulo:'Ministerio de Defensa', subtemas:[
+    'Estructura Orgánica Básica','Funciones'
+  ]},
+  {num:'15', titulo:'Fuerzas y Cuerpos de Seguridad. Guardia Civil', subtemas:[
+    'Fuerzas y Cuerpos de Seguridad','Régimen de Personal de la Guardia Civil','Dirección General de la Guardia Civil',
+    'Historia de la Guardia Civil','Derechos y Deberes de la Guardia Civil'
+  ]},
+  {num:'16.1', titulo:'Protección Civil', subtemas:[]},
+  {num:'16.2', titulo:'Desarrollo Sostenible', subtemas:[
+    'Ley 42/2007, de 13 de diciembre, del Patrimonio Natural y de la Biodiversidad','Definiciones'
+  ]},
+  {num:'16.3', titulo:'Eficiencia Energética', subtemas:[]},
+  {num:'17', titulo:'TIC', subtemas:[
+    'Tecnologías de la Información y las Comunicaciones','Firma Electrónica','Ciberseguridad del CCN-CERT',
+    'Esquema Nacional de Interoperabilidad','General de Telecomunicaciones'
+  ]},
+  {num:'18', titulo:'Topografía', subtemas:['Teoría','Definiciones','Ejercicios']},
+  {num:'19.1', titulo:'Empleo de la Fuerza y de Armas de Fuego', subtemas:[]},
+  {num:'19.2', titulo:'Código de Conducta de la Guardia Civil', subtemas:[
+    'Valores Fundamentales','Principios Institucionales','Normas de comportamiento','Decálogo'
+  ]},
+  {num:'20', titulo:'Responsabilidad Penal de los Menores', subtemas:[]},
+  {num:'21', titulo:'Violencia de Género', subtemas:[]},
+  {num:'22.1', titulo:'Armas', subtemas:['Reglamento','Definiciones','Categorías','Licencias']},
+  {num:'22.2', titulo:'Explosivos', subtemas:['Reglamento','Definiciones','Clasificación']},
+  {num:'23.1', titulo:'Contrabando', subtemas:['Represión del Contrabando','Infracciones Administrativas']},
+  {num:'23.2', titulo:'Código Aduanero de la Unión Europea', subtemas:['Definiciones']}
+];
+
 /* ===================== CONFIGURACIÓN FIREBASE ===================== */
 // 1) Crea un proyecto gratuito en https://console.firebase.google.com
 // 2) Añade una app web y activa Firestore (Databases & Storage > Firestore > Crear base de datos)
@@ -1443,7 +1551,7 @@ const firebaseAuthReady = (async ()=>{
 let accessCode = null;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[]} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1499,9 +1607,9 @@ function normalizeState(){
   // Temas añadidos a mano en Arrastre (desplegable), aparte de los que calcula la
   // automatización a partir del calendario real.
   if(!state.arrastreManual || typeof state.arrastreManual !== 'object' || Array.isArray(state.arrastreManual)){
-    state.arrastreManual = {graves:[], mgraves:[], leves:[], ingles:[], psico:[]};
+    state.arrastreManual = {graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]};
   }
-  ['graves','mgraves','leves','ingles','psico'].forEach(pk=>{
+  ['graves','mgraves','leves','ingles','psico','conocimientos'].forEach(pk=>{
     if(!Array.isArray(state.arrastreManual[pk])) state.arrastreManual[pk] = [];
   });
   // Migración: antes cada día solo admitía UN tema de "Conocimientos" (entry.conocimientos
@@ -3748,9 +3856,9 @@ let arrastreChecked = {};
 // psicotécnicos se quedan cada uno en su propio bloque. Así el test de arrastre queda en solo
 // 3 apartados en vez de 5.
 const ARRASTRE_GROUPS = [
-  {key:'conocimientos', title:'Conocimientos', pools:['graves','mgraves','leves']},
-  {key:'ingles', title:'Inglés', pools:['ingles']},
-  {key:'psico', title:'Psicotécnicos', pools:['psico']}
+  {key:'conocimientos', title:'Conocimientos', pools:['graves','mgraves','leves'], manualPools:['conocimientos']},
+  {key:'ingles', title:'Inglés', pools:['ingles'], manualPools:['ingles']},
+  {key:'psico', title:'Psicotécnicos', pools:['psico'], manualPools:['psico']}
 ];
 // Catálogo de temas "elegibles" para añadir a mano en Arrastre, por pool: el mismo
 // contenido que ya usa la automatización (bloques/leves/inglés/psicotécnicos), para
@@ -3784,6 +3892,19 @@ function arrastreManualCatalog(poolKey){
     for(let i=1;i<=INGLES_TOTAL;i++) out.push({value:'ingles-'+i, nombre:'Tema '+i, clase:'', grupo:''});
   } else if(poolKey==='psico'){
     PSICO_ITEMS.forEach((name,idx)=> out.push({value:'psico-'+idx, nombre:name, clase:'', grupo:''}));
+  } else if(poolKey==='conocimientos'){
+    // Temario real de Teoría (el mismo que usas para elegir temas en los test), no los
+    // bloques de esta app: es el catálogo que pediste para el desplegable de Conocimientos.
+    TEMARIO_GENERAL.forEach(tema=>{
+      const grupoLabel = tema.num+'. '+tema.titulo;
+      if(tema.subtemas && tema.subtemas.length){
+        tema.subtemas.forEach((sub,i)=>{
+          out.push({value:'tg-'+tema.num+'-'+i, nombre:sub, clase:tema.num, grupo:grupoLabel});
+        });
+      } else {
+        out.push({value:'tg-'+tema.num, nombre:tema.titulo, clase:tema.num, grupo:grupoLabel});
+      }
+    });
   }
   return out;
 }
@@ -4042,13 +4163,16 @@ function renderArrastre(){
     // ---- Formulario "Añadir tema a mano": mismo catálogo que usa la automatización
     // (bloques/leves/inglés/psicotécnicos), para añadir manualmente uno sin escribirlo.
     // Es independiente de la vuelta automática: no la adelanta ni la altera.
+    // Añadir a mano puede usar un catálogo distinto al de la automatización (p.ej. en
+    // Conocimientos: el temario real de Teoría, no los bloques 1-12 de esta app).
+    const manualPools = group.manualPools || group.pools;
     const addForm = document.createElement('div'); addForm.className = 'arrastre-add-form';
     let poolSelect = null;
-    if(group.pools.length > 1){
+    if(manualPools.length > 1){
       poolSelect = document.createElement('select');
       poolSelect.setAttribute('aria-label','Tipo de tema a añadir');
-      group.pools.forEach(pk=>{
-        const opt = document.createElement('option'); opt.value = pk; opt.textContent = ARRASTRE_POOL_META[pk].shortTitle;
+      manualPools.forEach(pk=>{
+        const opt = document.createElement('option'); opt.value = pk; opt.textContent = (ARRASTRE_POOL_META[pk]||{}).shortTitle || pk;
         poolSelect.appendChild(opt);
       });
       addForm.appendChild(poolSelect);
@@ -4056,7 +4180,7 @@ function renderArrastre(){
     const temaSelect = document.createElement('select');
     temaSelect.setAttribute('aria-label','Tema a añadir');
     function fillTemaSelect(){
-      const pk = poolSelect ? poolSelect.value : group.pools[0];
+      const pk = poolSelect ? poolSelect.value : manualPools[0];
       const catalog = arrastreManualCatalog(pk);
       temaSelect.innerHTML = '';
       let currentGrupo = null, optgroup = null;
@@ -4078,7 +4202,7 @@ function renderArrastre(){
     const addConfirmBtn = document.createElement('button');
     addConfirmBtn.type = 'button'; addConfirmBtn.className = 'arrastre-add-confirm'; addConfirmBtn.textContent = 'Añadir';
     addConfirmBtn.onclick = ()=>{
-      const pk = poolSelect ? poolSelect.value : group.pools[0];
+      const pk = poolSelect ? poolSelect.value : manualPools[0];
       const catalog = arrastreManualCatalog(pk);
       const chosen = catalog.find(c=>c.value===temaSelect.value);
       if(!chosen) return;
@@ -4097,11 +4221,14 @@ function renderArrastre(){
     section.appendChild(addForm);
     addToggleBtn.onclick = ()=> addForm.classList.toggle('open');
 
-    // Combina los temas de la vuelta actual de cada subgrupo con los añadidos a mano.
+    // Combina los temas de la vuelta actual de cada subgrupo (automatización) con los
+    // añadidos a mano (que pueden vivir en un pool propio, ver manualPools arriba).
     let items = [];
     group.pools.forEach(pk=>{
       const p = pools[pk];
       items = items.concat((p.items && p.items[p.lap]) || []);
+    });
+    manualPools.forEach(pk=>{
       ((state.arrastreManual && state.arrastreManual[pk]) || []).forEach(m=>{
         items.push({
           key: 'manual-'+pk+'-'+m.id,
@@ -6625,7 +6752,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[]} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
   currentMonthKey = null;
   invalidatePlan();
   scheduleSave();
