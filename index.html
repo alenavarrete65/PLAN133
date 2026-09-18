@@ -653,13 +653,12 @@
   .modal-tema-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;}
   .modal-tema-line .tema-line-txt{font-size:12px;flex:1;min-width:140px;}
   .modal-tema-line .quick-vuelta{margin-top:0;flex:0 0 auto;}
-  .tema-note-wrap{margin-top:4px;}
-  .tema-note-toggle{
-    background:none;border:none;color:var(--amber);opacity:.85;cursor:pointer;
-    font-family:var(--font-mono);font-size:10px;padding:2px 0;text-decoration:underline;text-underline-offset:2px;
+  .quick-vuelta-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+  .vuelta-pin{
+    font-family:var(--font-mono);font-size:9.5px;color:var(--amber);background:var(--bg-panel-2);
+    border:1px solid var(--amber-dim);border-radius:2px;padding:1px 6px;white-space:nowrap;
   }
-  .tema-note-toggle:hover{opacity:1;}
-  .tema-note-wrap .note-inline{margin-top:6px;min-height:56px;}
+  .vuelta-comentario{width:100%;margin-top:6px;min-height:44px;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
     font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
@@ -3811,8 +3810,7 @@ function openDayModal(d, info){
           const txt = document.createElement('span'); txt.className='tema-line-txt';
           txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
-          line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques));
-          line.appendChild(buildTemaNoteBox(t.key));
+          line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
           bLeft.appendChild(line);
         });
         const bFoot = document.createElement('div');
@@ -3831,13 +3829,13 @@ function openDayModal(d, info){
       }
 
       if(info.leveInfo){
-        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves});
+        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO);
       }
       if(info.inglesNum){
-        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']});
+        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO);
       }
       if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
-      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']});
+      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
       addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
     }catch(err){
       // Pase lo que pase con las tareas del día, las notas y el resto del modal siguen
@@ -4069,7 +4067,7 @@ function renderDayClasesEditor(host, d, jsDow){
   notaWrap.appendChild(ta);
   host.appendChild(notaWrap);
 }
-function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo){
+function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
   const row = document.createElement('div'); row.className='modal-row';
   if(vueltaInfo) row.style.flexWrap = 'wrap';
   const headWrap = document.createElement('div');
@@ -4088,36 +4086,19 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo){
   }
   // Igual que en el bloque: control de vuelta al lado del tema (Leve, Inglés, Psicotécnico),
   // escribiendo directamente en state.ticks para que Progreso lo recoja sin nada manual.
+  // La vuelta que se muestra/edita queda anclada a este día del calendario (ver
+  // resolveVueltaIndexParaDia): así la nota y la fecha de esta vuelta no se mueven aunque
+  // el tema vuelva a tocar más adelante en otro día.
   if(vueltaInfo){
-    const quick = buildQuickVueltaControl(vueltaInfo.key, vueltaInfo.maxNota);
+    const quick = buildQuickVueltaControl(vueltaInfo.key, vueltaInfo.maxNota, fechaISO);
     quick.style.width = '100%';
     row.appendChild(quick);
-    // Notas de este tema, escritas en el mismo sitio (state.notes[key]) que usa la pestaña
-    // «Temario y notas»: lo que escribas aquí se ve allí, y al revés — es la misma nota.
-    row.appendChild(buildTemaNoteBox(vueltaInfo.key));
   }
   body.appendChild(row);
 }
 /* Caja de notas de un tema/leve/inglés/psicotécnico, para usar dentro del modal del día.
    Empieza plegada (mostrando solo un botón) si todavía no hay nada escrito, y abierta si ya
    hay una nota guardada, para no alargar el modal de más en los temas sin comentarios. */
-function buildTemaNoteBox(key){
-  const wrap = document.createElement('div'); wrap.className='tema-note-wrap'; wrap.style.width='100%';
-  const yaTieneNota = !!(state.notes[key] && state.notes[key].trim());
-  const toggle = document.createElement('button'); toggle.type='button'; toggle.className='tema-note-toggle';
-  const ta = buildNoteBox(key, 'Notas de este tema (dudas, fallos, lo que quieras recordar)…');
-  ta.style.display = yaTieneNota ? '' : 'none';
-  function setOpen(open){
-    ta.style.display = open ? '' : 'none';
-    toggle.textContent = open ? '📝 Ocultar notas de este tema' : '📝 Añadir/ver notas de este tema';
-    if(open) ta.focus();
-  }
-  toggle.onclick = ()=> setOpen(ta.style.display==='none');
-  setOpen(yaTieneNota);
-  wrap.appendChild(toggle);
-  wrap.appendChild(ta);
-  return wrap;
-}
 /* Ortografía y gramática no tienen "vueltas" numeradas como el resto del temario — cada
    test es simplemente Apto/No apto (igual que en la pestaña Temario y notas). Aquí se puede
    añadir un test de cada uno directamente desde el día, sin ir a esa pestaña; escribe en el
@@ -4305,19 +4286,33 @@ const GROUP_MAX_NOTA = { Bloques:10, Leves:10, 'Inglés':20, 'Psicotécnicos':30
 // renderIngles/renderPsico cada vez que se pintan, y lo lee la pestaña «Progreso».
 const KEY_LABELS = {};
 function migrateTickEntry(v){
-  if(v && typeof v === 'object') return v;
-  return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
+  if(v && typeof v === 'object'){
+    if(v.mode===undefined || v.mode===null) v.mode = 'pendiente';
+    if(v.nota===undefined) v.nota = null;
+    if(v.comentario===undefined) v.comentario = '';
+    if(v.fecha===undefined) v.fecha = null;
+    return v;
+  }
+  return v ? {mode:'solo_lectura', nota:null, comentario:'', fecha:null} : {mode:'pendiente', nota:null, comentario:'', fecha:null};
 }
 function buildTicksRow(key, maxNota){
   maxNota = maxNota || 10;
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null}));
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
   const wrap = document.createElement('div'); wrap.className='ticks-row';
   arr.forEach((entry,i)=>{
     const row = document.createElement('div'); row.className='vuelta-row mode-'+entry.mode;
+    const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
     const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
-    row.appendChild(lbl);
+    headline.appendChild(lbl);
+    if(entry.fecha){
+      const pin = document.createElement('span'); pin.className='vuelta-pin';
+      pin.textContent = '📌 '+formatFechaEs(entry.fecha);
+      pin.title = 'Esta vuelta quedó anclada al día '+formatFechaEs(entry.fecha)+' del calendario.';
+      headline.appendChild(pin);
+    }
+    row.appendChild(headline);
 
     const sel = document.createElement('select'); sel.className='vuelta-select';
     sel.setAttribute('aria-label', 'Estado de la vuelta '+(i+1));
@@ -4329,6 +4324,7 @@ function buildTicksRow(key, maxNota){
     sel.onchange = ()=>{
       entry.mode = sel.value;
       if(entry.mode !== 'nota') entry.nota = null;
+      if(entry.mode === 'pendiente') entry.fecha = null; // libera el anclaje si se vuelve a dejar pendiente
       scheduleSave();
       wrap.replaceWith(buildTicksRow(key, maxNota));
     };
@@ -4349,6 +4345,15 @@ function buildTicksRow(key, maxNota){
       row.appendChild(maxLbl);
     }
 
+    // Comentario de esta vuelta en concreto (no el general del tema): dudas, fallos del
+    // test, lo que quieras recordar de este pase por el tema.
+    const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
+    comentIn.placeholder = 'Notas de esta vuelta (opcional)…';
+    comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(i+1));
+    comentIn.value = entry.comentario || '';
+    comentIn.oninput = ()=>{ entry.comentario = comentIn.value; scheduleSave(); };
+    row.appendChild(comentIn);
+
     if(arr.length > 1){
       const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
       delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
@@ -4359,7 +4364,7 @@ function buildTicksRow(key, maxNota){
     wrap.appendChild(row);
   });
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
-  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
   wrap.appendChild(addBtn);
   return wrap;
 }
@@ -4372,21 +4377,55 @@ function buildTicksRow(key, maxNota){
    "Pendiente" (si ya están todas usadas, añade una vuelta nueva), así siempre apunta al
    sitio correcto sin que tengas que ir a mirar el número de vuelta tú mismo. */
 function nextOpenVueltaIndex(key){
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null}));
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
   let idx = arr.findIndex(e=>e.mode==='pendiente');
-  if(idx===-1){ arr.push({mode:'pendiente', nota:null}); idx = arr.length-1; }
+  if(idx===-1){ arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null}); idx = arr.length-1; }
   return idx;
 }
-function buildQuickVueltaControl(key, maxNota, onChanged){
+/* Decide qué vuelta corresponde al día concreto que se está viendo en el calendario:
+     · si ese tema ya tiene una vuelta ANCLADA a ese mismo día (fecha === fechaISO), es esa
+       — así, si vuelves a abrir el mismo día más adelante, sigues viendo y editando la
+       MISMA vuelta, no una distinta ni la que esté abierta en ese momento en otro día;
+     · si no, es la siguiente vuelta libre (nextOpenVueltaIndex), sin anclar todavía: el
+       anclaje solo se fija en el momento en que de verdad escribes algo en ella (ver
+       marcarVueltaEnEsteDia más abajo), para que con solo mirar un día no se "reserve" nada.
+   Sin fechaISO (p. ej. desde la pestaña Temario y notas, donde no hay un día concreto) se
+   comporta igual que antes: siempre la siguiente vuelta libre. */
+function resolveVueltaIndexParaDia(key, fechaISO){
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
+  state.ticks[key] = state.ticks[key].map(migrateTickEntry);
+  if(fechaISO){
+    const arr = state.ticks[key];
+    const iAnclada = arr.findIndex(e=> e.fecha===fechaISO);
+    if(iAnclada>-1) return iAnclada;
+  }
+  return nextOpenVueltaIndex(key);
+}
+function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged){
   maxNota = maxNota || 10;
-  const idx = nextOpenVueltaIndex(key);
+  const idx = resolveVueltaIndexParaDia(key, fechaISO);
   const entry = state.ticks[key][idx];
   const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+entry.mode;
 
+  // Ancla esta vuelta al día que se está viendo, la primera vez que de verdad se escribe
+  // algo en ella (cambiar el modo, poner una nota o un comentario). A partir de ahí, esta
+  // vuelta concreta queda ligada a esta fecha para siempre — la próxima vez que el tema
+  // vuelva a tocar en el calendario, resolveVueltaIndexParaDia ya no encuentra ninguna
+  // vuelta anclada a la fecha nueva y devuelve la SIGUIENTE vuelta libre, sin tocar esta.
+  const anclarAEsteDia = ()=>{ if(fechaISO && !entry.fecha) entry.fecha = fechaISO; };
+
+  const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
   const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(idx+1);
-  wrap.appendChild(lbl);
+  headline.appendChild(lbl);
+  if(entry.fecha){
+    const pin = document.createElement('span'); pin.className='vuelta-pin';
+    pin.textContent = '📌 '+formatFechaEs(entry.fecha);
+    pin.title = 'Esta vuelta quedó anclada al día '+formatFechaEs(entry.fecha)+'. La siguiente vez que toque este tema, se abrirá una vuelta nueva sin tocar esta.';
+    headline.appendChild(pin);
+  }
+  wrap.appendChild(headline);
 
   const sel = document.createElement('select'); sel.className='vuelta-select';
   sel.setAttribute('aria-label', 'Estado de la vuelta '+(idx+1)+' de este tema');
@@ -4398,11 +4437,15 @@ function buildQuickVueltaControl(key, maxNota, onChanged){
   sel.onchange = ()=>{
     entry.mode = sel.value;
     if(entry.mode !== 'nota') entry.nota = null;
+    if(entry.mode === 'pendiente') entry.fecha = null; // se deja pendiente otra vez: libera el anclaje
+    else anclarAEsteDia();
     scheduleSave();
-    renderAll();
-    const fresh = buildQuickVueltaControl(key, maxNota, onChanged);
+    // Primero se actualiza este control (para que el desplegable no se quede "colgado"
+    // aunque falle algo más adelante), y solo después se repinta el resto de la app.
+    const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
     wrap.replaceWith(fresh);
     if(onChanged) onChanged(fresh);
+    try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras cambiar una vuelta', err); }catch(e){} }
   };
   wrap.appendChild(sel);
 
@@ -4410,19 +4453,44 @@ function buildQuickVueltaControl(key, maxNota, onChanged){
     const numIn = document.createElement('input');
     numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max=String(maxNota);
     numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
+    numIn.setAttribute('aria-label','Nota del test de la vuelta '+(idx+1));
     numIn.oninput = ()=>{
       entry.nota = numIn.value===''? null : Number(numIn.value);
+      anclarAEsteDia();
       scheduleSave();
     };
     // No refrescamos en cada pulsación (perderíamos el foco mientras escribes el número);
     // al salir del campo sí actualizamos Progreso y demás pestañas con la nota ya puesta.
-    numIn.onblur = ()=>{ renderAll(); };
+    numIn.onblur = ()=>{
+      const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
+      wrap.replaceWith(fresh);
+      if(onChanged) onChanged(fresh);
+      try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras guardar una nota', err); }catch(e){} }
+    };
     wrap.appendChild(numIn);
     const maxLbl = document.createElement('span');
     maxLbl.className = 'vuelta-nota-max';
     maxLbl.textContent = '/ '+maxNota;
     wrap.appendChild(maxLbl);
   }
+
+  // Comentario de esta vuelta en concreto: se escribe y se ve aquí mismo, en el propio
+  // día del calendario, sin tener que ir a la pestaña Temario y notas.
+  const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
+  comentIn.placeholder = 'Notas de esta vuelta / de este test (opcional)…';
+  comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(idx+1)+' de este tema');
+  comentIn.value = entry.comentario || '';
+  comentIn.oninput = ()=>{
+    entry.comentario = comentIn.value;
+    anclarAEsteDia();
+    scheduleSave();
+  };
+  comentIn.onblur = ()=>{
+    const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
+    wrap.replaceWith(fresh);
+    if(onChanged) onChanged(fresh);
+  };
+  wrap.appendChild(comentIn);
 
   return wrap;
 }

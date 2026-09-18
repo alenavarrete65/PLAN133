@@ -174,17 +174,28 @@ la app ya abierta verá una franja arriba avisando de que hay una versión nueva
 para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
 que recargue la pestaña por otro motivo.
 
-## Notas por tema, también desde el calendario
+## La nota del test, el comentario y la vuelta: todo desde el día del calendario
 
-En la lista de **Tareas del día** (dentro de la ficha de cada día), junto al desplegable de
-vuelta (Pendiente / Nota test / No test / No tiempo / Solo lectura) de cada bloque, leve,
-inglés o psicotécnico, hay ahora un enlace **📝 Añadir/ver notas de este tema**. Al pulsarlo se
-despliega una caja de texto para escribir ahí mismo tus notas de ese tema — dudas, fallos, lo
-que quieras recordar — **sin tener que ir a la pestaña «Temario y notas»**.
+Al lado del desplegable de vuelta (Pendiente / **Nota test** / No test / No tiempo / Solo
+lectura) de cada bloque, leve, inglés o psicotécnico, ahora hay:
 
-Es literalmente la misma nota que ves en «Temario y notas»: escribe en el mismo sitio, así que
-lo que apuntes desde el calendario aparece también allí, y al revés. Si el tema ya tenía algo
-escrito, la caja sale abierta de entrada; si no, sale plegada para no alargar el modal del día.
+- El número de la nota del test (ya estaba, pero ahora se actualiza al momento aunque falle
+  cualquier otra cosa de la app — antes, si algo fallaba al repintar, el campo del número
+  podía no llegar a aparecer aunque hubieras elegido «Nota test»).
+- Una **caja de texto siempre visible**, sin tener que pulsar nada para abrirla, para
+  escribir el comentario de esa vuelta en concreto (dudas, fallos del test, lo que quieras
+  recordar). Ya no hace falta ir a «Temario y notas» para esto.
+
+**La vuelta queda anclada al día real en que la rellenas.** Por ejemplo: el 15 de septiembre
+tocaba el Tema 4 y era la Vuelta 1 — metes ahí la nota y el comentario, y esa Vuelta 1 se
+queda ligada para siempre al 15 de septiembre (verás una etiqueta **📌 15 de septiembre**
+junto al nombre de la vuelta). La próxima vez que el Tema 4 vuelva a tocar en el calendario,
+en otro día, se te abre automáticamente la **Vuelta 2** — sin tocar ni pisar lo que ya
+guardaste el día 15, mires ese día cuando lo mires.
+
+Si vuelves a dejar una vuelta en «Pendiente», se libera su anclaje (por si te equivocaste de
+día o quieres reordenar). Este mismo anclaje y el comentario por vuelta también se ven, y se
+pueden editar igual, desde «Temario y notas» — es el mismo dato en los dos sitios.
 
 ## Cuarto calendario: «Todo incluido»
 
@@ -304,9 +315,10 @@ JSON técnico.
       descanso/trabajo (implementado: ver apartado «Todo el día desde el calendario principal»).
 - [x] Un calendario «todo incluido» que junte estudio, clases y simulacros en la misma vista
       (implementado: ver apartado «Cuarto calendario: Todo incluido»).
-- [x] Poder escribir y ver las notas de cada tema (bloque, leve, inglés, psicotécnico) desde
-      la propia ficha del día, sin ir a Temario y notas (implementado: ver apartado «Notas
-      por tema, también desde el calendario»).
+- [x] Meter y ver la nota del test y un comentario de cada vuelta directamente desde la ficha
+      del día, sin ir a Temario y notas, y que esa vuelta quede anclada al día real en que se
+      rellena (implementado: ver apartado «La nota del test, el comentario y la vuelta: todo
+      desde el día del calendario»).
 - [ ] Notificaciones push con recordatorios diarios de estudio/entreno — necesitaría configurar
       Firebase Cloud Messaging desde tu consola de Firebase (claves, permisos del navegador);
       no es algo que pueda dejar activado sin que completes tú esa parte primero.
