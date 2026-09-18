@@ -174,6 +174,59 @@ la app ya abierta verá una franja arriba avisando de que hay una versión nueva
 para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
 que recargue la pestaña por otro motivo.
 
+## La pestaña «Clases» ahora se rellena sola (y es solo informativa)
+
+Antes, en la pestaña **Clases** marcabas a mano los checks de cada tema. Ya no: esa pestaña
+**se calcula entera a partir del Calendario de clases**. Manda siempre el calendario, así que
+los dos sitios no pueden contradecirse:
+
+- Metes una clase en un día del calendario → su vuelta se marca sola **en cuanto ese día
+  termina**. Mientras el día sea hoy o esté por venir, sale como *programada* (◔ con el borde
+  a rayas); cuando pasa, se convierte en vista (✓).
+- Metes una clase **de un día que ya pasó** (retroactivo) → se marca **al momento**.
+- **Quitas una clase del calendario → su check se desmarca solo.**
+- Al añadir una clase de Conocimientos / Inglés / Psicotécnicos te sigue preguntando si con
+  esa clase **queda completo el tema** o quedan más partes. Si dices que quedan más partes,
+  esa clase se guarda marcada como «parte» dentro del día y **no** cierra ninguna vuelta
+  hasta que registres la clase que sí lo completa.
+- Debajo de cada tema se ven las **fechas concretas** de cada vuelta.
+- Ortografía y gramática no tienen temas numerados: se listan las clases agrupadas por
+  nombre, con las fechas en que las diste. Las fichas antiguas que había creadas a mano
+  aparecen abajo, marcadas como antiguas, por si quieres consultarlas o borrarlas (ya no
+  cuentan para nada).
+
+### Vaciar el calendario de clases de golpe
+
+En **Calendario → Calendario de clases**, junto a los botones de exportar, hay un botón
+**🗑️ Vaciar calendario de clases** (pide escribir `BORRAR`). Borra todas las clases de todos
+los meses y, como la pestaña Clases se calcula a partir de ahí, deja también todas las
+vueltas sin marcar — pensado justo para rehacer el calendario desde cero. **No toca** el
+calendario principal (estudio/descanso/trabajo, temario, notas del día) ni el tablón de
+clases pendientes.
+
+## Todo el día desde el calendario principal
+
+Al pulsar un día en el **Calendario principal** se abre su ficha, y ahora se abre en
+**cualquier día**, también en los de **descanso, trabajo o sin horario** (antes solo se abría
+en los de estudio, y por eso en esos días no había manera de ponerles una nota). Dentro de la
+ficha del día puedes hacer, sin salir del calendario:
+
+1. **Estado del día:** cambiarlo a estudio / descanso / trabajo / sin horario.
+2. **Notas del día:** escribirlas directamente (aparece un «guardado» verde al escribir),
+   traer una nota del tablón desde un **desplegable** —que ahora sale siempre, aunque el
+   tablón esté vacío, avisando de que no hay ninguna— y **apuntar una nota nueva** ahí mismo,
+   guardándola en pendientes o metiéndola directamente en ese día.
+3. **Clases de este día:** ver las que hay (con «×» para quitarlas), añadir una nueva
+   eligiendo materia y tema, tirar de una clase pendiente, y escribir las notas de clase.
+   Es el mismo calendario de clases, así que se ve igual en los dos sitios.
+4. **Simulacro:** abrir el simulacro de ese día (o marcar uno nuevo).
+5. **Tareas del día:** bloque, leve, inglés, entreno, psicotécnico y orto-grama, con sus
+   checks y sus controles de vuelta, igual que antes.
+
+Si alguna vez fallara el cálculo de las tareas de un día, el resto de la ficha (notas,
+clases, simulacro) sigue funcionando y aparece un aviso en rojo explicándolo, en vez de
+quedarse el día medio pintado.
+
 ## Exportar el calendario (imagen o PDF)
 
 En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Exportar imagen** y
@@ -211,6 +264,10 @@ JSON técnico.
       (implementado: ver apartado "Verificación de correo").
 - [x] Aviso visual (número en la pestaña Ajustes) cuando hay cuentas pendientes de aprobar.
 - [x] Aviso de nueva versión de la app disponible, con botón para recargar.
+- [x] La pestaña Clases calculada automáticamente desde el Calendario de clases, en vez de
+      con checks a mano (implementado: ver apartado «La pestaña Clases ahora se rellena sola»).
+- [x] Poder abrir y editar cualquier día desde el calendario principal, incluidos los de
+      descanso/trabajo (implementado: ver apartado «Todo el día desde el calendario principal»).
 - [ ] Notificaciones push con recordatorios diarios de estudio/entreno — necesitaría configurar
       Firebase Cloud Messaging desde tu consola de Firebase (claves, permisos del navegador);
       no es algo que pueda dejar activado sin que completes tú esa parte primero.
