@@ -3597,36 +3597,67 @@ function openDayModal(d, info){
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
 
-  const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
-  // Vuelve a abrir el modal con la información recalculada (después de cambiar el estado
-  // del día, por ejemplo, donde cambian las tareas que tocan).
-  const reabrir = ()=>{
-    const plan = computePlan();
-    const nuevo = (plan[currentMonthKey] && plan[currentMonthKey][d]) || {status:'ESTUDIO', dow:jsDow};
-    openDayModal(d, nuevo);
-  };
+  /* ---------- 1. Tareas del día (solo días de estudio) ---------- */
+  if(status === 'ESTUDIO'){
+    try{
+      const {body:sb} = daySection(body, 'Tareas del día');
+      const dticks = info.ticks || {};
+      const helpNote = document.createElement('div');
+      helpNote.className = 'tick-help';
+      helpNote.style.marginBottom = '12px';
+      helpNote.innerHTML = '☑ Marca la casilla solo si <strong>NO</strong> has completado esa tarea (se repetirá el próximo día que toque).';
+      sb.appendChild(helpNote);
 
-  /* ---------- 1. Estado del día ---------- */
-  {
-    const {body:sb} = daySection(body, 'Estado del día');
-    const sel = document.createElement('select'); sel.className='day-status-select';
-    sel.setAttribute('aria-label','Estado del día '+d);
-    [['ESTUDIO','Estudio'], ['DESCANSO','Descanso'], ['TRABAJO','Trabajo'], ['DESCONOCIDO','Sin horario']].forEach(([val,txt])=>{
-      const o = document.createElement('option'); o.value=val; o.textContent=txt;
-      if((daysData[d]||'ESTUDIO')===val) o.selected = true;
-      sel.appendChild(o);
-    });
-    sel.onchange = ()=>{
-      if(!state.months[currentMonthKey]) state.months[currentMonthKey] = {days:{}};
-      const dd = state.months[currentMonthKey].days;
-      if(sel.value==='ESTUDIO') delete dd[d];
-      else dd[d] = sel.value;
-      invalidatePlan(currentMonthKey);
-      scheduleSave();
-      renderCalendar();
-      reabrir();
-    };
-    sb.appendChild(sel);
+      if(Array.isArray(info.temasDelDia)){
+        const bRow = document.createElement('div'); bRow.className='modal-row'; bRow.style.flexWrap='wrap';
+        const bLeft = document.createElement('div'); bLeft.style.cssText='flex:1;min-width:0;';
+        const bHead = document.createElement('div');
+        bHead.innerHTML = '<span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
+          '<span class="colorpill '+info.color+'">'+info.color+'</span>';
+        bLeft.appendChild(bHead);
+        // Al lado de cada tema del bloque va su propio control de vuelta (Pendiente / Nota test /
+        // No test / No tiempo / Solo lectura), igual que en «Temario y notas» — escribe en el mismo
+        // sitio (state.ticks) así que se ve automáticamente en Progreso sin nada más que hacer aquí.
+        info.temasDelDia.forEach(t=>{
+          const line = document.createElement('div'); line.className='modal-tema-line';
+          const txt = document.createElement('span'); txt.className='tema-line-txt';
+          txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
+          line.appendChild(txt);
+          line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
+          bLeft.appendChild(line);
+        });
+        const bFoot = document.createElement('div');
+        bFoot.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);';
+        bFoot.textContent = info.unify
+          ? 'Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.'
+          : 'El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.';
+        bLeft.appendChild(bFoot);
+        bRow.appendChild(bLeft);
+        const bCb = document.createElement('input'); bCb.type='checkbox'; bCb.className='day-tick';
+        bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como NO completado';
+        bCb.setAttribute('aria-label', bCb.title);
+        bCb.onchange = ()=>{ setDayTick(currentMonthKey, d, 'bloque', bCb.checked); renderCalendar(); };
+        bRow.appendChild(bCb);
+        sb.appendChild(bRow);
+      }
+
+      if(info.leveInfo){
+        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO);
+      }
+      if(info.inglesNum){
+        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO);
+      }
+      if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
+      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
+      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
+    }catch(err){
+      // Pase lo que pase con las tareas del día, las notas siguen funcionando: el aviso es
+      // solo para saber que ahí ha fallado algo.
+      const warn = document.createElement('div'); warn.className='day-warn';
+      warn.textContent = 'No se han podido pintar las tareas de este día ('+(err && err.message ? err.message : 'error desconocido')+'). El resto del día sigue funcionando con normalidad.';
+      body.appendChild(warn);
+      try{ console.error('Error pintando las tareas del día', err); }catch(e){}
+    }
   }
 
   /* ---------- 2. Notas del día ---------- */
@@ -3749,99 +3780,6 @@ function openDayModal(d, info){
       };
     }
     renderPendingNotes();
-  }
-
-  /* ---------- 3. Clases de este día ---------- */
-  {
-    const {body:sb} = daySection(body, 'Clases de este día');
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-bottom:8px;line-height:1.5;';
-    hint.textContent = 'Lo que metas aquí es el mismo calendario de clases, y marca sola su vuelta en la pestaña «Clases» (al terminar el día; si el día ya pasó, al momento). Si quitas una clase, su vuelta se desmarca sola.';
-    sb.appendChild(hint);
-    const claseHost = document.createElement('div');
-    sb.appendChild(claseHost);
-    renderDayClasesEditor(claseHost, d, jsDow);
-  }
-
-  /* ---------- 4. Simulacro ---------- */
-  {
-    const {body:sb} = daySection(body, 'Simulacro');
-    const fechaSim = simFechaDia(currentMonthKey, d);
-    const sim = (typeof buscarSimulacroPorFecha === 'function') ? buscarSimulacroPorFecha(fechaSim) : null;
-    const txt = document.createElement('div');
-    txt.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:8px;';
-    txt.textContent = sim ? ('Este día tiene simulacro: '+(sim.nombre || 'sin nombre')+'.') : 'Este día no tiene simulacro.';
-    sb.appendChild(txt);
-    const btn = document.createElement('button'); btn.type='button'; btn.className='day-mini-btn primary';
-    btn.textContent = sim ? '🎯 Ver / editar el simulacro' : '🎯 Marcar simulacro en este día';
-    btn.onclick = ()=>{
-      document.getElementById('dayModal').classList.remove('open');
-      openSimDayModal(d, jsDow);
-    };
-    sb.appendChild(btn);
-  }
-
-  /* ---------- 5. Tareas del día (solo días de estudio) ---------- */
-  if(status === 'ESTUDIO'){
-    try{
-      const {body:sb} = daySection(body, 'Tareas del día');
-      const dticks = info.ticks || {};
-      const helpNote = document.createElement('div');
-      helpNote.className = 'tick-help';
-      helpNote.style.marginBottom = '12px';
-      helpNote.innerHTML = '☑ Marca la casilla solo si <strong>NO</strong> has completado esa tarea (se repetirá el próximo día que toque).';
-      sb.appendChild(helpNote);
-
-      if(Array.isArray(info.temasDelDia)){
-        const bRow = document.createElement('div'); bRow.className='modal-row'; bRow.style.flexWrap='wrap';
-        const bLeft = document.createElement('div'); bLeft.style.cssText='flex:1;min-width:0;';
-        const bHead = document.createElement('div');
-        bHead.innerHTML = '<span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
-          '<span class="colorpill '+info.color+'">'+info.color+'</span>';
-        bLeft.appendChild(bHead);
-        // Al lado de cada tema del bloque va su propio control de vuelta (Pendiente / Nota test /
-        // No test / No tiempo / Solo lectura), igual que en «Temario y notas» — escribe en el mismo
-        // sitio (state.ticks) así que se ve automáticamente en Progreso sin nada más que hacer aquí.
-        info.temasDelDia.forEach(t=>{
-          const line = document.createElement('div'); line.className='modal-tema-line';
-          const txt = document.createElement('span'); txt.className='tema-line-txt';
-          txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
-          line.appendChild(txt);
-          line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
-          bLeft.appendChild(line);
-        });
-        const bFoot = document.createElement('div');
-        bFoot.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);';
-        bFoot.textContent = info.unify
-          ? 'Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.'
-          : 'El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.';
-        bLeft.appendChild(bFoot);
-        bRow.appendChild(bLeft);
-        const bCb = document.createElement('input'); bCb.type='checkbox'; bCb.className='day-tick';
-        bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como NO completado';
-        bCb.setAttribute('aria-label', bCb.title);
-        bCb.onchange = ()=>{ setDayTick(currentMonthKey, d, 'bloque', bCb.checked); renderCalendar(); };
-        bRow.appendChild(bCb);
-        sb.appendChild(bRow);
-      }
-
-      if(info.leveInfo){
-        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO);
-      }
-      if(info.inglesNum){
-        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO);
-      }
-      if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
-      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
-      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
-    }catch(err){
-      // Pase lo que pase con las tareas del día, las notas y el resto del modal siguen
-      // funcionando: el aviso es solo para saber que ahí ha fallado algo.
-      const warn = document.createElement('div'); warn.className='day-warn';
-      warn.textContent = 'No se han podido pintar las tareas de este día ('+(err && err.message ? err.message : 'error desconocido')+'). El resto del día sigue funcionando con normalidad.';
-      body.appendChild(warn);
-      try{ console.error('Error pintando las tareas del día', err); }catch(e){}
-    }
   }
 
   document.getElementById('dayModal').classList.add('open');
