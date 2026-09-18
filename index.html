@@ -654,10 +654,7 @@
   .modal-tema-line .tema-line-txt{font-size:12px;flex:1;min-width:140px;}
   .modal-tema-line .quick-vuelta{margin-top:0;flex:0 0 auto;}
   .quick-vuelta-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-  .vuelta-pin{
-    font-family:var(--font-mono);font-size:9.5px;color:var(--amber);background:var(--bg-panel-2);
-    border:1px solid var(--amber-dim);border-radius:2px;padding:1px 6px;white-space:nowrap;
-  }
+  .vuelta-row select.vuelta-num-select{min-width:170px;}
   .vuelta-comentario{width:100%;margin-top:6px;min-height:44px;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
@@ -4086,9 +4083,8 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
   }
   // Igual que en el bloque: control de vuelta al lado del tema (Leve, Inglés, Psicotécnico),
   // escribiendo directamente en state.ticks para que Progreso lo recoja sin nada manual.
-  // La vuelta que se muestra/edita queda anclada a este día del calendario (ver
-  // resolveVueltaIndexParaDia): así la nota y la fecha de esta vuelta no se mueven aunque
-  // el tema vuelva a tocar más adelante en otro día.
+  // Un desplegable deja elegir directamente qué vuelta quieres ver/editar (Vuelta 1,
+  // Vuelta 2...) y muestra al momento su nota/comentario, esté pendiente o ya guardada.
   if(vueltaInfo){
     const quick = buildQuickVueltaControl(vueltaInfo.key, vueltaInfo.maxNota, fechaISO);
     quick.style.width = '100%';
@@ -4373,58 +4369,50 @@ function buildTicksRow(key, maxNota){
    calendario, al lado de cada tema concreto que toque ese día. Escribe en el MISMO sitio
    que lee la pestaña Temario y notas (state.ticks[key]), así que todo queda sincronizado
    automáticamente: no hay que "pasarlo" a ningún otro sitio a mano.
-   Detecta sola en qué vuelta estás: busca la primera vuelta de ese tema que siga
-   "Pendiente" (si ya están todas usadas, añade una vuelta nueva), así siempre apunta al
-   sitio correcto sin que tengas que ir a mirar el número de vuelta tú mismo. */
-function nextOpenVueltaIndex(key){
+   Sencillo y directo: un desplegable arriba deja elegir QUÉ vuelta quieres ver (Vuelta 1,
+   Vuelta 2...), y debajo aparece al momento su estado real (Pendiente / Nota test / No
+   test / No tiempo / Solo lectura), su nota si la tiene y su comentario — tal cual esté
+   guardado. Elegir una vuelta en el desplegable solo la muestra; no guarda ni ancla nada
+   por sí sola, ni salta nunca sola a otra vuelta distinta de la que tú elijas. */
+function ensureTicksArray(key){
   if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
-  const arr = state.ticks[key];
-  let idx = arr.findIndex(e=>e.mode==='pendiente');
-  if(idx===-1){ arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null}); idx = arr.length-1; }
-  return idx;
+  return state.ticks[key];
 }
-/* Decide qué vuelta corresponde al día concreto que se está viendo en el calendario:
-     · si ese tema ya tiene una vuelta ANCLADA a ese mismo día (fecha === fechaISO), es esa
-       — así, si vuelves a abrir el mismo día más adelante, sigues viendo y editando la
-       MISMA vuelta, no una distinta ni la que esté abierta en ese momento en otro día;
-     · si no, es la siguiente vuelta libre (nextOpenVueltaIndex), sin anclar todavía: el
-       anclaje solo se fija en el momento en que de verdad escribes algo en ella (ver
-       marcarVueltaEnEsteDia más abajo), para que con solo mirar un día no se "reserve" nada.
-   Sin fechaISO (p. ej. desde la pestaña Temario y notas, donde no hay un día concreto) se
-   comporta igual que antes: siempre la siguiente vuelta libre. */
-function resolveVueltaIndexParaDia(key, fechaISO){
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
-  state.ticks[key] = state.ticks[key].map(migrateTickEntry);
-  if(fechaISO){
-    const arr = state.ticks[key];
-    const iAnclada = arr.findIndex(e=> e.fecha===fechaISO);
-    if(iAnclada>-1) return iAnclada;
-  }
-  return nextOpenVueltaIndex(key);
+function vueltaResumenTxt(entry){
+  if(entry.mode==='pendiente') return 'pendiente';
+  if(entry.mode==='nota') return entry.nota==null ? 'nota test' : 'nota test: '+entry.nota;
+  const found = VUELTA_MODES.find(m=>m[0]===entry.mode);
+  return found ? found[1].toLowerCase() : entry.mode;
 }
-function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged){
+function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx){
   maxNota = maxNota || 10;
-  const idx = resolveVueltaIndexParaDia(key, fechaISO);
-  const entry = state.ticks[key][idx];
+  const arr = ensureTicksArray(key);
+  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=>e.mode==='pendiente');
+  if(idx===-1) idx = arr.length-1;
+  const entry = arr[idx];
   const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+entry.mode;
 
-  // Ancla esta vuelta al día que se está viendo, la primera vez que de verdad se escribe
-  // algo en ella (cambiar el modo, poner una nota o un comentario). A partir de ahí, esta
-  // vuelta concreta queda ligada a esta fecha para siempre — la próxima vez que el tema
-  // vuelva a tocar en el calendario, resolveVueltaIndexParaDia ya no encuentra ninguna
-  // vuelta anclada a la fecha nueva y devuelve la SIGUIENTE vuelta libre, sin tocar esta.
-  const anclarAEsteDia = ()=>{ if(fechaISO && !entry.fecha) entry.fecha = fechaISO; };
+  const refrescar = (nuevoIdx)=>{
+    const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, nuevoIdx===undefined?idx:nuevoIdx);
+    wrap.replaceWith(fresh);
+    if(onChanged) onChanged(fresh);
+    return fresh;
+  };
 
+  // Desplegable para elegir directamente qué vuelta quieres ver/editar, con un resumen de
+  // cada una para no tener que ir cambiando a ciegas.
   const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
-  const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(idx+1);
-  headline.appendChild(lbl);
-  if(entry.fecha){
-    const pin = document.createElement('span'); pin.className='vuelta-pin';
-    pin.textContent = '📌 '+formatFechaEs(entry.fecha);
-    pin.title = 'Esta vuelta quedó anclada al día '+formatFechaEs(entry.fecha)+'. La siguiente vez que toque este tema, se abrirá una vuelta nueva sin tocar esta.';
-    headline.appendChild(pin);
-  }
+  const numSel = document.createElement('select'); numSel.className='vuelta-select vuelta-num-select';
+  numSel.setAttribute('aria-label','Elegir vuelta de este tema');
+  arr.forEach((e,i)=>{
+    const o = document.createElement('option'); o.value=String(i);
+    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')';
+    if(i===idx) o.selected = true;
+    numSel.appendChild(o);
+  });
+  numSel.onchange = ()=>{ refrescar(Number(numSel.value)); };
+  headline.appendChild(numSel);
   wrap.appendChild(headline);
 
   const sel = document.createElement('select'); sel.className='vuelta-select';
@@ -4437,14 +4425,10 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged){
   sel.onchange = ()=>{
     entry.mode = sel.value;
     if(entry.mode !== 'nota') entry.nota = null;
-    if(entry.mode === 'pendiente') entry.fecha = null; // se deja pendiente otra vez: libera el anclaje
-    else anclarAEsteDia();
     scheduleSave();
     // Primero se actualiza este control (para que el desplegable no se quede "colgado"
     // aunque falle algo más adelante), y solo después se repinta el resto de la app.
-    const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
-    wrap.replaceWith(fresh);
-    if(onChanged) onChanged(fresh);
+    refrescar();
     try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras cambiar una vuelta', err); }catch(e){} }
   };
   wrap.appendChild(sel);
@@ -4456,15 +4440,12 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged){
     numIn.setAttribute('aria-label','Nota del test de la vuelta '+(idx+1));
     numIn.oninput = ()=>{
       entry.nota = numIn.value===''? null : Number(numIn.value);
-      anclarAEsteDia();
       scheduleSave();
     };
     // No refrescamos en cada pulsación (perderíamos el foco mientras escribes el número);
     // al salir del campo sí actualizamos Progreso y demás pestañas con la nota ya puesta.
     numIn.onblur = ()=>{
-      const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
-      wrap.replaceWith(fresh);
-      if(onChanged) onChanged(fresh);
+      refrescar();
       try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras guardar una nota', err); }catch(e){} }
     };
     wrap.appendChild(numIn);
@@ -4482,15 +4463,21 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged){
   comentIn.value = entry.comentario || '';
   comentIn.oninput = ()=>{
     entry.comentario = comentIn.value;
-    anclarAEsteDia();
     scheduleSave();
   };
-  comentIn.onblur = ()=>{
-    const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged);
-    wrap.replaceWith(fresh);
-    if(onChanged) onChanged(fresh);
-  };
+  comentIn.onblur = ()=> refrescar();
   wrap.appendChild(comentIn);
+
+  // Por si ya has usado todas las vueltas que había y necesitas una más.
+  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add';
+  addBtn.textContent = '+ Añadir vuelta'; addBtn.style.cssText='margin-top:2px;flex:0 0 100%;';
+  addBtn.onclick = (e)=>{
+    e.preventDefault();
+    arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null});
+    scheduleSave();
+    refrescar(arr.length-1);
+  };
+  wrap.appendChild(addBtn);
 
   return wrap;
 }
