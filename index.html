@@ -1025,6 +1025,10 @@
         <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
         <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
       </div>
+      <div class="cal-export-bar" id="clasesCalExportBar">
+        <button type="button" class="cal-export-btn" id="exportClasesCalImageBtn">🖼️ Exportar imagen</button>
+        <button type="button" class="cal-export-btn" id="exportClasesCalPdfBtn">📄 Exportar PDF</button>
+      </div>
       <div id="clasesCalHost"></div>
       <section class="temario-group" id="clasesPendientesHost" style="margin-top:24px;"></section>
     </div>
@@ -7236,8 +7240,11 @@ document.querySelectorAll('#claseCalViewToggle .view-toggle-btn').forEach(btn=>{
 });
 syncClaseViewToggleButtons();
 
-/* ===================== EXPORTAR CALENDARIO (imagen / PDF) ===================== */
-function calendarExportBaseName(){
+/* ===================== EXPORTAR CALENDARIO (imagen / PDF) =====================
+   Genérico: sirve tanto para el Calendario principal (host "calendarHost") como
+   para el Calendario de clases (host "clasesCalHost"); solo cambia el host que se
+   captura y la etiqueta que se añade al nombre del archivo. */
+function calendarExportBaseName(sufijo){
   // Usa el mes visible (p.ej. "2026-09") si existe, o la fecha de hoy como respaldo.
   let etiqueta = 'calendario';
   try{
@@ -7250,11 +7257,11 @@ function calendarExportBaseName(){
       etiqueta = hoy.toISOString().slice(0, 10);
     }
   }catch(e){ /* usamos el valor por defecto */ }
-  return `operacion-baeza-${etiqueta}`;
+  return `operacion-baeza-${sufijo ? sufijo + '-' : ''}${etiqueta}`;
 }
 
-async function capturarCalendarioComoCanvas(){
-  const host = document.getElementById('calendarHost');
+async function capturarHostComoCanvas(hostId){
+  const host = document.getElementById(hostId);
   if (!host || !host.firstChild) {
     showToast('No hay nada que exportar todavía.');
     return null;
@@ -7267,24 +7274,24 @@ async function capturarCalendarioComoCanvas(){
   });
 }
 
-function toggleExportButtonsDisabled(disabled){
-  ['exportCalImageBtn', 'exportCalPdfBtn'].forEach(id=>{
+function toggleExportButtonsDisabled(disabled, ids){
+  (ids || ['exportCalImageBtn', 'exportCalPdfBtn']).forEach(id=>{
     const b = document.getElementById(id);
     if (b) b.disabled = disabled;
   });
 }
 
-async function exportarCalendarioComoImagen(){
+async function exportarComoImagen(hostId, sufijo, btnIds){
   if (typeof html2canvas === 'undefined') {
     showToast('No se pudo cargar la herramienta de exportación. Revisa tu conexión.');
     return;
   }
-  toggleExportButtonsDisabled(true);
+  toggleExportButtonsDisabled(true, btnIds);
   try{
-    const canvas = await capturarCalendarioComoCanvas();
+    const canvas = await capturarHostComoCanvas(hostId);
     if (!canvas) return;
     const a = document.createElement('a');
-    a.download = calendarExportBaseName() + '.png';
+    a.download = calendarExportBaseName(sufijo) + '.png';
     a.href = canvas.toDataURL('image/png');
     document.body.appendChild(a);
     a.click();
@@ -7294,35 +7301,42 @@ async function exportarCalendarioComoImagen(){
     console.error(err);
     showToast('No se pudo exportar la imagen.');
   }finally{
-    toggleExportButtonsDisabled(false);
+    toggleExportButtonsDisabled(false, btnIds);
   }
 }
 
-async function exportarCalendarioComoPDF(){
+async function exportarComoPDF(hostId, sufijo, btnIds){
   if (typeof html2canvas === 'undefined' || !window.jspdf) {
     showToast('No se pudo cargar la herramienta de exportación. Revisa tu conexión.');
     return;
   }
-  toggleExportButtonsDisabled(true);
+  toggleExportButtonsDisabled(true, btnIds);
   try{
-    const canvas = await capturarCalendarioComoCanvas();
+    const canvas = await capturarHostComoCanvas(hostId);
     if (!canvas) return;
     const { jsPDF } = window.jspdf;
     const orientacion = canvas.width >= canvas.height ? 'landscape' : 'portrait';
     const pdf = new jsPDF({ orientation: orientacion, unit: 'pt', format: [canvas.width, canvas.height] });
     pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, canvas.width, canvas.height);
-    pdf.save(calendarExportBaseName() + '.pdf');
+    pdf.save(calendarExportBaseName(sufijo) + '.pdf');
     showToast('PDF exportado ✓');
   }catch(err){
     console.error(err);
     showToast('No se pudo exportar el PDF.');
   }finally{
-    toggleExportButtonsDisabled(false);
+    toggleExportButtonsDisabled(false, btnIds);
   }
 }
 
+function exportarCalendarioComoImagen(){ return exportarComoImagen('calendarHost', '', ['exportCalImageBtn', 'exportCalPdfBtn']); }
+function exportarCalendarioComoPDF(){ return exportarComoPDF('calendarHost', '', ['exportCalImageBtn', 'exportCalPdfBtn']); }
+function exportarClasesCalendarioComoImagen(){ return exportarComoImagen('clasesCalHost', 'clases', ['exportClasesCalImageBtn', 'exportClasesCalPdfBtn']); }
+function exportarClasesCalendarioComoPDF(){ return exportarComoPDF('clasesCalHost', 'clases', ['exportClasesCalImageBtn', 'exportClasesCalPdfBtn']); }
+
 document.getElementById('exportCalImageBtn').addEventListener('click', exportarCalendarioComoImagen);
 document.getElementById('exportCalPdfBtn').addEventListener('click', exportarCalendarioComoPDF);
+document.getElementById('exportClasesCalImageBtn').addEventListener('click', exportarClasesCalendarioComoImagen);
+document.getElementById('exportClasesCalPdfBtn').addEventListener('click', exportarClasesCalendarioComoPDF);
 
 
 /* ===================== INIT ===================== */
