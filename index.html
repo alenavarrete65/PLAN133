@@ -4940,6 +4940,23 @@ function removeClaseNotaTag(entry, materiaLabel, temaLabel){
   });
   entry.nota = kept.join('\n');
 }
+// Cuando se quita una clase ya colocada en el calendario, la devolvemos automáticamente
+// al tablón de "Clases pendientes" (el mismo tablón desde el que se colocan las clases),
+// en vez de perderla sin más. Es el mecanismo simétrico al que ya existía al revés: al
+// colocar una clase pendiente en un día del calendario, desaparecía del tablón.
+function devolverClaseAPendientes(materiaKey, temaValue, temaLabel, useExtra){
+  if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
+  state.clasesPendientes.push({
+    id: Date.now()+'-'+Math.random(),
+    materiaKey: materiaKey,
+    temaValue: (temaValue===undefined ? null : temaValue),
+    temaLabel: temaLabel || '',
+    useExtra: !!useExtra,
+    nota: '',
+    disponibleDesde: null
+  });
+  renderClasesPendientes();
+}
 function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
   body.innerHTML = '';
@@ -4985,32 +5002,32 @@ function renderClaseDayPreview(entry, d, jsDow){
 
   addRow('Conocimientos', (val)=> fillRow(val, (entry.conocimientos||[]).slice().sort((a,b)=>a-b).map(t=>({
     cls:'con', text:'Tema '+t,
-    onRemove: ()=>{ const i = entry.conocimientos.indexOf(t); if(i>-1) entry.conocimientos.splice(i,1); removeClaseNotaTag(entry, 'Conocimientos', 'Tema '+t); }
+    onRemove: ()=>{ const i = entry.conocimientos.indexOf(t); if(i>-1) entry.conocimientos.splice(i,1); removeClaseNotaTag(entry, 'Conocimientos', 'Tema '+t); devolverClaseAPendientes('conocimientos', t, 'Tema '+t, false); }
   }))));
   addRow('Inglés', (val)=> fillRow(val, (entry.ingles||[]).slice().sort((a,b)=>a-b).map(l=>({
     cls:'ing', text:'Lesson '+l,
-    onRemove: ()=>{ const i = entry.ingles.indexOf(l); if(i>-1) entry.ingles.splice(i,1); removeClaseNotaTag(entry, 'Inglés', 'Lesson '+l); }
+    onRemove: ()=>{ const i = entry.ingles.indexOf(l); if(i>-1) entry.ingles.splice(i,1); removeClaseNotaTag(entry, 'Inglés', 'Lesson '+l); devolverClaseAPendientes('ingles', l, 'Lesson '+l, false); }
   }))));
   addRow('Psicotécnicos', (val)=>{
     const psicoItems = [
       ...(entry.psico||[]).slice().sort((a,b)=>a-b).map(idx=>({
         cls:'psi', text:PSICO_ITEMS[idx],
-        onRemove: ()=>{ const i = entry.psico.indexOf(idx); if(i>-1) entry.psico.splice(i,1); removeClaseNotaTag(entry, 'Psicotécnicos', PSICO_ITEMS[idx]); }
+        onRemove: ()=>{ const i = entry.psico.indexOf(idx); if(i>-1) entry.psico.splice(i,1); removeClaseNotaTag(entry, 'Psicotécnicos', PSICO_ITEMS[idx]); devolverClaseAPendientes('psico', idx, PSICO_ITEMS[idx], false); }
       })),
       ...(entry.psicoExtra||[]).map((n,i)=>({n,i})).filter(o=>o.n && o.n.trim()).map(o=>({
         cls:'psi', text:o.n,
-        onRemove: ()=>{ entry.psicoExtra.splice(o.i,1); removeClaseNotaTag(entry, 'Psicotécnicos', o.n); }
+        onRemove: ()=>{ entry.psicoExtra.splice(o.i,1); removeClaseNotaTag(entry, 'Psicotécnicos', o.n); devolverClaseAPendientes('psico', null, o.n, true); }
       }))
     ];
     fillRow(val, psicoItems);
   });
   addRow('Ortografía', (val)=> fillRow(val, (entry.orto||[]).map((n,i)=>({
     cls:'orto', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía', tag); }
+    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía', tag); devolverClaseAPendientes('orto', n || '', n || '', false); }
   }))));
   addRow('Gramática', (val)=> fillRow(val, (entry.gram||[]).map((n,i)=>({
     cls:'gram', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); }
+    onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); devolverClaseAPendientes('gram', n || '', n || '', false); }
   }))));
   addRow('Notas', (val)=>{
     if(entry.nota && entry.nota.trim()){
@@ -5360,7 +5377,7 @@ function renderClaseDayEdit(entry, d, jsDow){
   // Fila "de varias veces": una materia donde puedes marcar más de una unidad (tema,
   // lesson, prueba...) el mismo día. Un desplegable para elegir + botón "Añadir", y
   // debajo, una etiqueta (chip) por cada unidad ya añadida con una "×" para quitarla.
-  function buildMultiRow(labelText, ariaBase, arrKey, optionsList, addLabel, materiaLabel){
+  function buildMultiRow(labelText, ariaBase, arrKey, optionsList, addLabel, materiaLabel, materiaKey){
     const row = document.createElement('div'); row.className='clase-multi-row';
     const lbl = document.createElement('label'); lbl.textContent = labelText; row.appendChild(lbl);
     const chips = document.createElement('div'); chips.className='clase-multi-chips';
@@ -5387,6 +5404,7 @@ function renderClaseDayEdit(entry, d, jsDow){
             const i = entry[arrKey].indexOf(v);
             if(i>-1) entry[arrKey].splice(i,1);
             removeClaseNotaTag(entry, materiaLabel, opt ? opt.label : String(v));
+            devolverClaseAPendientes(materiaKey, v, opt ? opt.label : String(v), false);
             scheduleSave(); renderClaseCalendar();
             renderClaseDayEdit(entry, d, jsDow); // re-pinta también las notas, por si se ha quitado un comentario
           };
@@ -5414,7 +5432,7 @@ function renderClaseDayEdit(entry, d, jsDow){
   // Fila "de nombres": una materia sin unidades numeradas (ortografía, gramática), donde
   // cada pulsación de "+ Añadir" crea una fila nueva con un cuadro de texto para escribir
   // cómo se llama esa clase (por ejemplo "Tema 3 - Acentuación").
-  function buildNamedListRow(labelText, arrKey, placeholder, materiaLabel){
+  function buildNamedListRow(labelText, arrKey, placeholder, materiaLabel, materiaKey){
     const row = document.createElement('div'); row.className='clase-multi-row';
     const lbl = document.createElement('label'); lbl.textContent = labelText; row.appendChild(lbl);
     const list = document.createElement('div'); list.className='clase-named-list';
@@ -5438,7 +5456,9 @@ function renderClaseDayEdit(entry, d, jsDow){
           const rm = document.createElement('button');
           rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar esta clase');
           rm.onclick = ()=>{
+            const isExtra = (arrKey==='psicoExtra');
             removeClaseNotaTag(entry, materiaLabel, entry[arrKey][i]);
+            devolverClaseAPendientes(materiaKey, isExtra ? null : (entry[arrKey][i] || ''), entry[arrKey][i] || '', isExtra);
             entry[arrKey].splice(i,1);
             scheduleSave(); renderClaseCalendar();
             renderClaseDayEdit(entry, d, jsDow); // re-pinta también las notas, por si se ha quitado un comentario
@@ -5460,17 +5480,17 @@ function renderClaseDayEdit(entry, d, jsDow){
   }
 
   const conOptions = []; for(let i=1;i<=23;i++) conOptions.push({value:i, label:'Tema '+i});
-  body.appendChild(buildMultiRow('Clase de conocimientos (temas 1–23)', 'tema de conocimientos', 'conocimientos', conOptions, null, 'Conocimientos'));
+  body.appendChild(buildMultiRow('Clase de conocimientos (temas 1–23)', 'tema de conocimientos', 'conocimientos', conOptions, null, 'Conocimientos', 'conocimientos'));
 
   const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
-  body.appendChild(buildMultiRow('Clase de inglés (lesson 1–32)', 'lesson de inglés', 'ingles', ingOptions, null, 'Inglés'));
+  body.appendChild(buildMultiRow('Clase de inglés (lesson 1–32)', 'lesson de inglés', 'ingles', ingOptions, null, 'Inglés', 'ingles'));
 
   const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
-  body.appendChild(buildMultiRow('Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos'));
-  body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)', 'Psicotécnicos'));
+  body.appendChild(buildMultiRow('Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
+  body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)', 'Psicotécnicos', 'psico'));
 
-  body.appendChild(buildNamedListRow('Clase de ortografía', 'orto', 'Nombre de la clase (opcional)', 'Ortografía'));
-  body.appendChild(buildNamedListRow('Clase de gramática', 'gram', 'Nombre de la clase (opcional)', 'Gramática'));
+  body.appendChild(buildNamedListRow('Clase de ortografía', 'orto', 'Nombre de la clase (opcional)', 'Ortografía', 'orto'));
+  body.appendChild(buildNamedListRow('Clase de gramática', 'gram', 'Nombre de la clase (opcional)', 'Gramática', 'gram'));
 
   const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
   notaRow.innerHTML = '<label for="claseNotaTa">Notas del día</label>';
