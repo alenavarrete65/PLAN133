@@ -424,7 +424,7 @@
   .modal-backdrop.open{display:flex;}
   .modal{
     background:var(--bg-panel);border:1px solid var(--amber-dim);max-width:440px;width:100%;
-    max-height:85vh;overflow-y:auto;border-radius:2px;padding:18px;
+    max-height:94vh;overflow-y:auto;border-radius:2px;padding:18px;
   }
   .modal h3{font-family:var(--font-display);text-transform:uppercase;margin:0 0 4px;color:var(--amber);font-size:20px;}
   .modal .sub{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:14px;}
@@ -5495,37 +5495,52 @@ function renderClasesPendientes(){
     const listHost = document.createElement('div'); listHost.style.marginTop = '16px';
     body.appendChild(listHost);
 
+    // Agrupadas por materia (Ortografía, Conocimientos, Inglés...) y, dentro de cada
+    // materia, ordenadas por fecha de disponibilidad, para poder ver de un vistazo cuántas
+    // quedan de cada tipo en vez de una lista larga mezclada.
     function refreshList(){
       listHost.innerHTML = '';
-      const list = state.clasesPendientes.slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
-      if(!list.length){
+      if(!state.clasesPendientes.length){
         const empty = document.createElement('div'); empty.className='clase-multi-empty';
         empty.textContent = 'No tienes ninguna clase pendiente apuntada.';
         listHost.appendChild(empty);
         return;
       }
       const todayISO = new Date().toISOString().slice(0,10);
-      const chips = document.createElement('div'); chips.className='clase-multi-chips';
-      list.forEach(p=>{
-        const mat = MATERIAS.find(m=>m.key===p.materiaKey);
-        const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
-        const chip = document.createElement('span'); chip.className='clase-multi-chip'+(isFuture?' future':'');
-        let txt = (mat ? mat.label : p.materiaKey)+' — '+p.temaLabel;
-        if(p.disponibleDesde) txt += ' · '+(isFuture ? 'disponible desde ' : 'desde ')+formatFechaEs(p.disponibleDesde);
-        if(p.nota && p.nota.trim()) txt += ' · 📝 '+p.nota.trim();
-        chip.appendChild(document.createTextNode(txt));
-        const del = document.createElement('button'); del.type='button'; del.textContent='×';
-        del.title = 'Quitar de pendientes'; del.setAttribute('aria-label','Quitar de pendientes: '+txt);
-        del.onclick = ()=>{
-          const i = state.clasesPendientes.findIndex(x=>x.id===p.id);
-          if(i>-1) state.clasesPendientes.splice(i,1);
-          scheduleSave();
-          refreshList();
-        };
-        chip.appendChild(del);
-        chips.appendChild(chip);
+      const porMateria = new Map();
+      state.clasesPendientes.forEach(p=>{
+        if(!porMateria.has(p.materiaKey)) porMateria.set(p.materiaKey, []);
+        porMateria.get(p.materiaKey).push(p);
       });
-      listHost.appendChild(chips);
+      MATERIAS.filter(mat=> porMateria.has(mat.key)).forEach(mat=>{
+        const group = porMateria.get(mat.key).sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+        const groupBox = document.createElement('div'); groupBox.style.marginBottom = '14px';
+        const groupTitle = document.createElement('div'); groupTitle.className='sub';
+        groupTitle.style.color = 'var(--amber)'; groupTitle.style.marginBottom = '6px';
+        groupTitle.textContent = mat.label+' ('+group.length+')';
+        groupBox.appendChild(groupTitle);
+        const chips = document.createElement('div'); chips.className='clase-multi-chips';
+        group.forEach(p=>{
+          const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
+          const chip = document.createElement('span'); chip.className='clase-multi-chip'+(isFuture?' future':'');
+          let txt = p.temaLabel;
+          if(p.disponibleDesde) txt += ' · '+(isFuture ? 'disponible desde ' : 'desde ')+formatFechaEs(p.disponibleDesde);
+          if(p.nota && p.nota.trim()) txt += ' · 📝 '+p.nota.trim();
+          chip.appendChild(document.createTextNode(txt));
+          const del = document.createElement('button'); del.type='button'; del.textContent='×';
+          del.title = 'Quitar de pendientes'; del.setAttribute('aria-label','Quitar de pendientes: '+txt);
+          del.onclick = ()=>{
+            const i = state.clasesPendientes.findIndex(x=>x.id===p.id);
+            if(i>-1) state.clasesPendientes.splice(i,1);
+            scheduleSave();
+            refreshList();
+          };
+          chip.appendChild(del);
+          chips.appendChild(chip);
+        });
+        groupBox.appendChild(chips);
+        listHost.appendChild(groupBox);
+      });
     }
     refreshList();
 
@@ -5636,22 +5651,46 @@ function renderClasePendienteForm(container, MATERIAS, onSaved){
     container.appendChild(wrap);
   }
 
+  // Paso explícito de disponibilidad: antes esto era un único campo de fecha opcional
+  // ("déjalo en blanco si ya está disponible"), y si por lo que sea el campo de fecha no
+  // llegaba a registrar el valor (algunos selectores de fecha en móvil no confirman bien
+  // el valor hasta que el campo pierde el foco), se guardaba con disponibleDesde=null y la
+  // clase quedaba disponible desde ya sin querer, sin ningún aviso. Ahora se elige primero
+  // una de las dos opciones a propósito, y si se elige "a partir de una fecha" no se puede
+  // guardar hasta que el campo de fecha tenga de verdad un valor.
   function stepDisponible(nota){
     clearC();
     const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
     const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow';
     eyebrow.textContent = sel.materia.label + (sel.temaLabel ? (' — '+sel.temaLabel) : '');
     wrap.appendChild(eyebrow);
-    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿A partir de qué fecha estará disponible?';
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Cuándo estará disponible esta clase?';
     wrap.appendChild(q);
-    const hint = document.createElement('div'); hint.className='clase-quiz-or'; hint.textContent='Déjalo en blanco si ya está disponible ahora mismo.';
-    wrap.appendChild(hint);
+    const opts = document.createElement('div'); opts.className='clase-quiz-options';
+    const nowBtn = document.createElement('button'); nowBtn.type='button'; nowBtn.className='clase-quiz-opt'; nowBtn.textContent='Ya está disponible ahora';
+    nowBtn.onclick = ()=> guardar(nota, null);
+    const laterBtn = document.createElement('button'); laterBtn.type='button'; laterBtn.className='clase-quiz-opt'; laterBtn.textContent='A partir de una fecha concreta';
+    opts.appendChild(nowBtn); opts.appendChild(laterBtn);
+    wrap.appendChild(opts);
+
+    const dateBox = document.createElement('div'); dateBox.style.display='none'; dateBox.style.marginTop='10px';
+    const dateHint = document.createElement('div'); dateHint.className='clase-quiz-or'; dateHint.textContent='Elige la fecha a partir de la cual quieres poder usar esta clase:';
+    dateBox.appendChild(dateHint);
     const dateInp = document.createElement('input'); dateInp.type='date'; dateInp.className='clase-quiz-text-input';
-    wrap.appendChild(dateInp);
+    dateBox.appendChild(dateInp);
     const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn'; saveBtn.style.marginTop='10px';
-    saveBtn.textContent = 'Guardar en pendientes';
-    saveBtn.onclick = ()=> guardar(nota, dateInp.value || null);
-    wrap.appendChild(saveBtn);
+    saveBtn.textContent = 'Guardar en pendientes'; saveBtn.disabled = true;
+    dateInp.addEventListener('input', ()=>{ saveBtn.disabled = !dateInp.value; });
+    dateInp.addEventListener('change', ()=>{ saveBtn.disabled = !dateInp.value; });
+    saveBtn.onclick = ()=>{
+      if(!dateInp.value) return; // por si acaso: nunca se guarda "en blanco" desde esta rama
+      guardar(nota, dateInp.value);
+    };
+    dateBox.appendChild(saveBtn);
+    wrap.appendChild(dateBox);
+
+    laterBtn.onclick = ()=>{ dateBox.style.display='block'; dateInp.focus(); };
+
     addBackBtn(wrap, '← Atrás', ()=> stepComentario());
     container.appendChild(wrap);
   }
@@ -6195,36 +6234,49 @@ function renderClaseDayQuiz(entry, d, jsDow){
     wrap.appendChild(q);
 
     const dayKeyStr = currentMonthKey+'-'+pad2(d);
-    const pendList = (state.clasesPendientes||[]).slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+    const pendList = (state.clasesPendientes||[]);
 
     if(!pendList.length){
       const info = document.createElement('div'); info.className='clase-multi-empty';
       info.textContent = 'Ya no te queda ninguna clase pendiente apuntada.';
       wrap.appendChild(info);
     } else {
-      const opts = document.createElement('div'); opts.className='clase-quiz-options';
+      // Agrupadas por materia, igual que en el tablón de la pestaña Clases, para
+      // encontrarlas rápido cuando hay muchas apuntadas.
+      const porMateria = new Map();
       pendList.forEach(p=>{
-        const matDef = MATERIAS.find(m=>m.key===p.materiaKey);
-        const isBlocked = !!(p.disponibleDesde && p.disponibleDesde > dayKeyStr);
-        const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt';
-        b.textContent = (matDef ? matDef.label : p.materiaKey)+' — '+p.temaLabel + (isBlocked ? ' (disponible desde '+formatFechaEs(p.disponibleDesde)+')' : '');
-        if(isBlocked){
-          b.disabled = true;
-          b.title = 'Esta clase estará disponible a partir del '+formatFechaEs(p.disponibleDesde);
-        } else {
-          b.onclick = ()=>{
-            sel.materia = matDef;
-            sel.temaValue = p.temaValue;
-            sel.temaLabel = p.temaLabel;
-            sel.useExtra = p.useExtra;
-            sel.pendienteId = p.id;
-            sel.nota = p.nota || '';
-            stepCompletaTema();
-          };
-        }
-        opts.appendChild(b);
+        if(!porMateria.has(p.materiaKey)) porMateria.set(p.materiaKey, []);
+        porMateria.get(p.materiaKey).push(p);
       });
-      wrap.appendChild(opts);
+      MATERIAS.filter(mat=> porMateria.has(mat.key)).forEach(mat=>{
+        const group = porMateria.get(mat.key).sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+        const groupTitle = document.createElement('div'); groupTitle.className='sub';
+        groupTitle.style.color = 'var(--amber)'; groupTitle.style.margin = '10px 0 4px';
+        groupTitle.textContent = mat.label;
+        wrap.appendChild(groupTitle);
+        const opts = document.createElement('div'); opts.className='clase-quiz-options';
+        group.forEach(p=>{
+          const isBlocked = !!(p.disponibleDesde && p.disponibleDesde > dayKeyStr);
+          const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt';
+          b.textContent = p.temaLabel + (isBlocked ? ' (disponible desde '+formatFechaEs(p.disponibleDesde)+')' : '');
+          if(isBlocked){
+            b.disabled = true;
+            b.title = 'Esta clase estará disponible a partir del '+formatFechaEs(p.disponibleDesde);
+          } else {
+            b.onclick = ()=>{
+              sel.materia = mat;
+              sel.temaValue = p.temaValue;
+              sel.temaLabel = p.temaLabel;
+              sel.useExtra = p.useExtra;
+              sel.pendienteId = p.id;
+              sel.nota = p.nota || '';
+              stepCompletaTema();
+            };
+          }
+          opts.appendChild(b);
+        });
+        wrap.appendChild(opts);
+      });
     }
     addBackBtn(wrap, '← Atrás', stepOrigen);
     body.appendChild(wrap);
