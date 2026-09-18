@@ -562,6 +562,19 @@
   }
   .vuelta-row .vuelta-nota-max{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
   .vuelta-row .vuelta-del{background:transparent;border:none;color:var(--red-text);cursor:pointer;font-size:12px;margin-left:auto;}
+  /* ---- Control rápido de vuelta dentro del modal del día (calendario) ---- */
+  .modal-tema-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;}
+  .modal-tema-line .tema-line-txt{font-size:12px;flex:1;min-width:140px;}
+  .modal-tema-line .quick-vuelta{margin-top:0;flex:0 0 auto;}
+  .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
+    background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
+    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+  .modal-quick-orto .oq-lbl{min-width:78px;color:var(--cream);}
+  .modal-quick-orto .oq-btn{background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--cream-dim);
+    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:10px;}
+  .modal-quick-orto .oq-btn.oq-apto:hover{border-color:var(--green);color:var(--green);}
+  .modal-quick-orto .oq-btn.oq-noapto:hover{border-color:var(--red-text);color:var(--red-text);}
+  .modal-quick-orto .oq-count{font-size:10px;color:var(--muted);margin-left:auto;}
   .tick-add{background:transparent;border:1px dashed var(--amber-dim);color:var(--amber);border-radius:2px;
     padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;align-self:flex-start;}
   .tick-add:hover{border-color:var(--amber);}
@@ -2529,20 +2542,26 @@ function computePlan(){
     carry = freshPlanCarry();
   }
 
-  function resolveTema(t, bloque){
+  // El "key" que se añade aquí a cada tema/leve resuelto es el mismo identificador que usan
+  // renderBlocks/renderLeves para guardar sus vueltas y notas (state.ticks[key]); así el
+  // calendario puede escribir directamente en el mismo sitio que lee la pestaña Temario y
+  // notas (y, por tanto, la pestaña Progreso), sin duplicar nada.
+  function resolveTema(t, bloque, idx){
     if(t.type==='armas_explosivos'){
       const turn = carry.azulCount[bloque];
-      return {nombre:(turn%2===0)?t.armas:t.explosivos, clase:t.clase, color:t.color, rotKey:'arm-'+bloque};
+      const esArmas = (turn%2===0);
+      return {nombre:esArmas?t.armas:t.explosivos, clase:t.clase, color:t.color, rotKey:'arm-'+bloque, key:'b'+bloque+'-'+idx+'-'+(esArmas?'armas':'explosivos')};
     }
-    return t;
+    return {nombre:t.nombre, clase:t.clase, color:t.color, key:'b'+bloque+'-'+idx};
   }
   function resolveLeve(idx){
     const item = LEVES[idx];
     if(item.type==='l39_l40'){
       const turn = carry.leveAppear[idx];
-      return {nombre:(turn%2===0)?item.l39:item.l40, clase:item.clase};
+      const esL39 = (turn%2===0);
+      return {nombre:esL39?item.l39:item.l40, clase:item.clase, key:'leve-'+idx+'-'+(esL39?'l39':'l40')};
     }
-    return item;
+    return {nombre:item.nombre, clase:item.clase, key:'leve-'+idx};
   }
 
   for(let ki=startIdx; ki<keys.length; ki++){
@@ -2579,11 +2598,16 @@ function computePlan(){
       if(unifyThisMonth){
         entry.color = 'unificado';
         const rawTemas = BLOCKS[entry.bloque].temas;
-        entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
+        entry.temasDelDia = rawTemas.map((t,idx)=>resolveTema(t, entry.bloque, idx));
       } else {
         entry.color = (carry.blockTurn[entry.bloque] % 2 === 0) ? 'azul' : 'morado';
-        const rawTemas = BLOCKS[entry.bloque].temas.filter(t=>t.color===entry.color);
-        entry.temasDelDia = rawTemas.map(t=>resolveTema(t, entry.bloque));
+        // Ojo: el índice hay que calcularlo ANTES de filtrar por color, porque el "key" de
+        // cada tema (b{bloque}-{idx}) tiene que coincidir con el índice que usa renderBlocks
+        // sobre el array completo b.temas, no con la posición dentro del subconjunto filtrado.
+        const rawTemas = BLOCKS[entry.bloque].temas
+          .map((t,idx)=>({t,idx}))
+          .filter(o=>o.t.color===entry.color);
+        entry.temasDelDia = rawTemas.map(o=>resolveTema(o.t, entry.bloque, o.idx));
       }
       // El tick de cada categoría marca "NO completado". Por defecto (sin marcar) se
       // asume hecho y la racha avanza con normalidad; solo si marcas que NO se ha
@@ -3368,13 +3392,30 @@ function openDayModal(d, info){
   helpNote.innerHTML = '☑ Marca la casilla solo si <strong>NO</strong> has completado esa tarea (se repetirá el próximo día que toque).';
   body.appendChild(helpNote);
   const bTemas = info.temasDelDia;
-  const bRow = document.createElement('div'); bRow.className='modal-row';
-  bRow.innerHTML = '<div style="flex:1;"><span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
-    '<span class="colorpill '+info.color+'">'+info.color+'</span><br>'+
-    bTemas.map(t=>'<div style="margin-top:4px;font-size:12px;">• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'')+'</div>').join('')+
-    (info.unify ? '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.</div>' :
-    '<div style="margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);">El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas abajo que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.</div>')+
-    '</div>';
+  const bRow = document.createElement('div'); bRow.className='modal-row'; bRow.style.flexWrap='wrap';
+  const bLeft = document.createElement('div'); bLeft.style.cssText='flex:1;min-width:0;';
+  const bHead = document.createElement('div');
+  bHead.innerHTML = '<span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
+    '<span class="colorpill '+info.color+'">'+info.color+'</span>';
+  bLeft.appendChild(bHead);
+  // Al lado de cada tema del bloque va su propio control de vuelta (Pendiente / Nota test /
+  // No test / No tiempo / Solo lectura), igual que en «Temario y notas» — escribe en el mismo
+  // sitio (state.ticks) así que se ve automáticamente en Progreso sin nada más que hacer aquí.
+  bTemas.forEach(t=>{
+    const line = document.createElement('div'); line.className='modal-tema-line';
+    const txt = document.createElement('span'); txt.className='tema-line-txt';
+    txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
+    line.appendChild(txt);
+    line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques));
+    bLeft.appendChild(line);
+  });
+  const bFoot = document.createElement('div');
+  bFoot.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);';
+  bFoot.textContent = info.unify
+    ? 'Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.'
+    : 'El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas abajo que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.';
+  bLeft.appendChild(bFoot);
+  bRow.appendChild(bLeft);
   const bCb = document.createElement('input'); bCb.type='checkbox'; bCb.className='day-tick';
   bCb.checked = !!dticks.bloque; bCb.title='Marcar bloque como NO completado';
   bCb.setAttribute('aria-label', bCb.title);
@@ -3382,11 +3423,11 @@ function openDayModal(d, info){
   bRow.appendChild(bCb);
   body.appendChild(bRow);
 
-  addModalRow(body, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve});
-  addModalRow(body, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles});
+  addModalRow(body, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves});
+  addModalRow(body, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']});
   if(info.entreno) addModalRow(body, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
-  if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico});
-  addModalRow(body, 'tag-orto', 'ORTO-GRAMA', 'Ortografía y gramática diaria', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
+  if(info.psico) addModalRow(body, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']});
+  addOrtoGramRow(body, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
 
   const notaRow = document.createElement('div'); notaRow.className='modal-row'; notaRow.style.flexDirection='column'; notaRow.style.alignItems='stretch';
   notaRow.innerHTML = '<label for="dayNotaTa" style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;display:block;">Notas del día</label>';
@@ -3440,9 +3481,16 @@ function openDayModal(d, info){
 
   document.getElementById('dayModal').classList.add('open');
 }
-function addModalRow(body, tagClass, tag, txt, tickInfo){
+function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo){
   const row = document.createElement('div'); row.className='modal-row';
-  row.innerHTML = '<span class="tag '+tagClass+'" style="margin-top:2px;">'+tag+'</span><span style="font-size:13px;flex:1;">'+txt+'</span>';
+  if(vueltaInfo) row.style.flexWrap = 'wrap';
+  const headWrap = document.createElement('div');
+  headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
+  const tagEl = document.createElement('span'); tagEl.className='tag '+tagClass; tagEl.style.marginTop='2px'; tagEl.textContent = tag;
+  headWrap.appendChild(tagEl);
+  const txtEl = document.createElement('span'); txtEl.style.cssText = 'font-size:13px;flex:1;'; txtEl.textContent = txt;
+  headWrap.appendChild(txtEl);
+  row.appendChild(headWrap);
   if(tickInfo){
     const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
     cb.checked = !!tickInfo.checked; cb.title='Marcar como NO completado';
@@ -3450,6 +3498,68 @@ function addModalRow(body, tagClass, tag, txt, tickInfo){
     cb.onchange = ()=>{ setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked); renderCalendar(); };
     row.appendChild(cb);
   }
+  // Igual que en el bloque: control de vuelta al lado del tema (Leve, Inglés, Psicotécnico),
+  // escribiendo directamente en state.ticks para que Progreso lo recoja sin nada manual.
+  if(vueltaInfo){
+    const quick = buildQuickVueltaControl(vueltaInfo.key, vueltaInfo.maxNota);
+    quick.style.width = '100%';
+    row.appendChild(quick);
+  }
+  body.appendChild(row);
+}
+/* Ortografía y gramática no tienen "vueltas" numeradas como el resto del temario — cada
+   test es simplemente Apto/No apto (igual que en la pestaña Temario y notas). Aquí se puede
+   añadir un test de cada uno directamente desde el día, sin ir a esa pestaña; escribe en el
+   mismo sitio (state.ortoTests), así que la cuenta de aptos/no aptos ya sale actualizada
+   también en «Ortografía y gramática». */
+function addOrtoGramRow(body, tickInfo){
+  const row = document.createElement('div'); row.className='modal-row'; row.style.flexWrap='wrap';
+  const headWrap = document.createElement('div');
+  headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
+  const tagEl = document.createElement('span'); tagEl.className='tag tag-orto'; tagEl.style.marginTop='2px'; tagEl.textContent='ORTO-GRAMA';
+  headWrap.appendChild(tagEl);
+  const txtEl = document.createElement('span'); txtEl.style.cssText='font-size:13px;flex:1;'; txtEl.textContent='Ortografía y gramática diaria';
+  headWrap.appendChild(txtEl);
+  row.appendChild(headWrap);
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
+  cb.checked = !!tickInfo.checked; cb.title='Marcar como NO completado';
+  cb.setAttribute('aria-label', 'Marcar "Ortografía y gramática diaria" como NO completado');
+  cb.onchange = ()=>{ setDayTick(tickInfo.monthKey, tickInfo.day, tickInfo.stream, cb.checked); renderCalendar(); };
+  row.appendChild(cb);
+
+  [['ortografia','Ortografía'], ['gramatica','Gramática']].forEach(([field,label])=>{
+    const q = document.createElement('div'); q.className='modal-quick-orto'; q.style.width='100%';
+    function paint(){
+      q.innerHTML = '';
+      const lbl = document.createElement('span'); lbl.className='oq-lbl'; lbl.textContent = label+':';
+      q.appendChild(lbl);
+      const addTest = (resultado)=>{
+        if(!state.ortoTests[field]) state.ortoTests[field] = [];
+        state.ortoTests[field].push({resultado});
+        scheduleSave();
+        renderAll();
+        paint();
+      };
+      const aptoBtn = document.createElement('button'); aptoBtn.type='button'; aptoBtn.className='oq-btn oq-apto';
+      aptoBtn.textContent = '✅ Apto'; aptoBtn.title = 'Añadir un test de '+label+' como Apto';
+      aptoBtn.onclick = ()=> addTest('APTO');
+      q.appendChild(aptoBtn);
+      const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='oq-btn oq-noapto';
+      noBtn.textContent = '❌ No apto'; noBtn.title = 'Añadir un test de '+label+' como No apto';
+      noBtn.onclick = ()=> addTest('NO_APTO');
+      q.appendChild(noBtn);
+      const tests = state.ortoTests[field] || [];
+      const noAptos = tests.filter(t=>t.resultado==='NO_APTO').length;
+      const count = document.createElement('span'); count.className='oq-count';
+      count.textContent = tests.length
+        ? (tests.length+' test'+(tests.length!==1?'s':'')+(noAptos?' · '+noAptos+' no apto'+(noAptos!==1?'s':''):''))
+        : 'Sin tests todavía';
+      q.appendChild(count);
+    }
+    paint();
+    row.appendChild(q);
+  });
+
   body.appendChild(row);
 }
 document.getElementById('closeDayModal').onclick = ()=> document.getElementById('dayModal').classList.remove('open');
@@ -3640,6 +3750,69 @@ function buildTicksRow(key, maxNota){
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
   addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
   wrap.appendChild(addBtn);
+  return wrap;
+}
+/* Control compacto para marcar el estado de un tema (nota test / no test / no tiempo /
+   solo lectura) desde fuera de la pestaña Temario — se usa en el modal del día del
+   calendario, al lado de cada tema concreto que toque ese día. Escribe en el MISMO sitio
+   que lee la pestaña Temario y notas (state.ticks[key]), así que todo queda sincronizado
+   automáticamente: no hay que "pasarlo" a ningún otro sitio a mano.
+   Detecta sola en qué vuelta estás: busca la primera vuelta de ese tema que siga
+   "Pendiente" (si ya están todas usadas, añade una vuelta nueva), así siempre apunta al
+   sitio correcto sin que tengas que ir a mirar el número de vuelta tú mismo. */
+function nextOpenVueltaIndex(key){
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null}));
+  state.ticks[key] = state.ticks[key].map(migrateTickEntry);
+  const arr = state.ticks[key];
+  let idx = arr.findIndex(e=>e.mode==='pendiente');
+  if(idx===-1){ arr.push({mode:'pendiente', nota:null}); idx = arr.length-1; }
+  return idx;
+}
+function buildQuickVueltaControl(key, maxNota, onChanged){
+  maxNota = maxNota || 10;
+  const idx = nextOpenVueltaIndex(key);
+  const entry = state.ticks[key][idx];
+  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+entry.mode;
+
+  const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(idx+1);
+  wrap.appendChild(lbl);
+
+  const sel = document.createElement('select'); sel.className='vuelta-select';
+  sel.setAttribute('aria-label', 'Estado de la vuelta '+(idx+1)+' de este tema');
+  VUELTA_MODES.forEach(([val,txt])=>{
+    const o = document.createElement('option'); o.value=val; o.textContent=txt;
+    if(entry.mode===val) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = ()=>{
+    entry.mode = sel.value;
+    if(entry.mode !== 'nota') entry.nota = null;
+    scheduleSave();
+    renderAll();
+    const fresh = buildQuickVueltaControl(key, maxNota, onChanged);
+    wrap.replaceWith(fresh);
+    if(onChanged) onChanged(fresh);
+  };
+  wrap.appendChild(sel);
+
+  if(entry.mode === 'nota'){
+    const numIn = document.createElement('input');
+    numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max=String(maxNota);
+    numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
+    numIn.oninput = ()=>{
+      entry.nota = numIn.value===''? null : Number(numIn.value);
+      scheduleSave();
+    };
+    // No refrescamos en cada pulsación (perderíamos el foco mientras escribes el número);
+    // al salir del campo sí actualizamos Progreso y demás pestañas con la nota ya puesta.
+    numIn.onblur = ()=>{ renderAll(); };
+    wrap.appendChild(numIn);
+    const maxLbl = document.createElement('span');
+    maxLbl.className = 'vuelta-nota-max';
+    maxLbl.textContent = '/ '+maxNota;
+    wrap.appendChild(maxLbl);
+  }
+
   return wrap;
 }
 function buildNoteBox(key, placeholder){
