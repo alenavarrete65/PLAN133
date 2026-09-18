@@ -1009,6 +1009,7 @@
     <div class="view-toggle" id="calSelectorToggle" role="tablist" aria-label="Elegir qué calendario ver">
       <button type="button" class="view-toggle-btn" data-cal="principal">📅 Calendario principal</button>
       <button type="button" class="view-toggle-btn" data-cal="clases">🏫 Calendario de clases</button>
+      <button type="button" class="view-toggle-btn" data-cal="simulacros">🎯 Calendario de simulacros</button>
     </div>
 
     <div id="calMainPanel">
@@ -1045,6 +1046,23 @@
       <div id="clasesCalHost"></div>
       <section class="temario-group" id="clasesPendientesHost" style="margin-top:24px;"></section>
     </div>
+
+    <div id="calSimPanel" style="display:none;">
+      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de simulacros</h3>
+      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+        Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario principal. Pulsa un día para marcar si tocaba simulacro: se crea (o edita) su ficha automáticamente en la pestaña Simulacros, y cualquier nota o dato que metas aquí o allí se queda sincronizado en los dos sitios.
+      </div>
+      <div class="month-bar" id="simCalMonthBar"></div>
+      <div class="view-toggle" id="simCalViewToggle" role="tablist" aria-label="Vista del calendario de simulacros">
+        <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+        <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+      </div>
+      <div class="cal-export-bar" id="simCalExportBar">
+        <button type="button" class="cal-export-btn" id="exportSimCalImageBtn">🖼️ Exportar imagen</button>
+        <button type="button" class="cal-export-btn" id="exportSimCalPdfBtn">📄 Exportar PDF</button>
+      </div>
+      <div id="simCalHost"></div>
+    </div>
   </div>
 
   <!-- CLASES (visualización de clases: vueltas vistas) -->
@@ -1067,15 +1085,6 @@
   <!-- SIMULACROS -->
   <div class="view" id="view-simulacros">
     <div id="simulacrosListHost"></div>
-
-    <section class="temario-group" style="margin-top:34px;">
-      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de simulacros</h3>
-      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
-        Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario principal. Pulsa un día para marcar si ese día tocaba simulacro.
-      </div>
-      <div class="month-bar" id="simCalMonthBar"></div>
-      <div id="simCalHost"></div>
-    </section>
   </div>
 
   <!-- ENTRENOS FÍSICOS (registro manual) -->
@@ -1674,6 +1683,28 @@ function normalizeState(){
   });
   if(!state.simulacros) state.simulacros = [];
   if(!state.simulacroCal) state.simulacroCal = {};
+  // Migración: el antiguo calendario de simulacros marcaba los días con un simple true/false
+  // (state.simulacroCal) y guardaba la nota del día suelta y aparte (state.notes), sin ninguna
+  // conexión con las fichas de la pestaña Simulacros. Ahora cada día marcado es directamente
+  // una ficha de state.simulacros (con su propia fecha), así que aquí convertimos, una sola vez,
+  // cualquier día antiguo marcado en una ficha nueva (o la dejamos tal cual si ya existe).
+  Object.keys(state.simulacroCal).forEach(mKey=>{
+    const monthObj = state.simulacroCal[mKey] || {};
+    Object.keys(monthObj).forEach(dStr=>{
+      if(!monthObj[dStr]) return;
+      const d = Number(dStr);
+      const fecha = mKey+'-'+pad2(d);
+      if(state.simulacros.some(s=> s.fecha===fecha)) return;
+      const [my,mm] = mKey.split('-').map(Number);
+      const notaAntigua = state.notes && state.notes['simnota-'+mKey+'-'+pad2(d)];
+      state.simulacros.push({
+        nombre: 'Simulacro '+pad2(d)+'/'+pad2(mm)+'/'+my,
+        fecha: fecha,
+        conocimientos: null, ingles: null, psico: null, orto: null, gram: null,
+        nota: notaAntigua || ''
+      });
+    });
+  });
   // Migración: antes el modo repaso final se activaba por mes (unifyFromKey = "YYYY-MM").
   // Ahora se activa desde un día concreto (unifyFromDate = "YYYY-MM-DD").
   if(state.settings.unifyFromKey && !state.settings.unifyFromDate){
@@ -5939,17 +5970,27 @@ function renderSimulacrosList(){
     nameInput.value = sim.nombre || '';
     nameInput.setAttribute('aria-label', 'Nombre del simulacro '+(i+1));
     nameInput.oninput = ()=>{ sim.nombre = nameInput.value; scheduleSave(); };
+    nameInput.onblur = ()=> renderSimCalendar();
     titleWrap.appendChild(nameInput);
+    if(sim.fecha){
+      const [fy,fm,fd] = sim.fecha.split('-').map(Number);
+      const fechaLbl = document.createElement('div');
+      fechaLbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:3px;';
+      fechaLbl.textContent = '📅 Día '+pad2(fd)+'/'+pad2(fm)+'/'+fy+' del calendario de simulacros';
+      titleWrap.appendChild(fechaLbl);
+    }
     head.appendChild(titleWrap);
     const delBtn = document.createElement('button');
     delBtn.className = 'btn danger small';
     delBtn.textContent = 'Eliminar';
     delBtn.onclick = ()=>{
       const label = sim.nombre ? sim.nombre : ('Simulacro '+(i+1));
-      if(confirm('¿Eliminar "'+label+'"?')){
+      const aviso = sim.fecha ? ('¿Eliminar "'+label+'"?\n\nTambién se quitará del día correspondiente en el calendario de simulacros.') : ('¿Eliminar "'+label+'"?');
+      if(confirm(aviso)){
         list.splice(i,1);
         scheduleSave();
         renderSimulacrosList();
+        renderSimCalendar();
       }
     };
     head.appendChild(delBtn);
@@ -6009,6 +6050,7 @@ function renderSimulacrosList(){
     notaTa.className = 'note-inline'; notaTa.placeholder = 'Cómo te fue, qué repasar, sensaciones del examen…';
     notaTa.value = sim.nota || '';
     notaTa.oninput = ()=>{ sim.nota = notaTa.value; scheduleSave(); };
+    notaTa.onblur = ()=> renderSimCalendar();
     notaWrap.appendChild(notaTa);
     card.appendChild(notaWrap);
 
@@ -6048,7 +6090,39 @@ function renderSimCalMonthBar(){
   info.textContent = 'Estado del día sincronizado con el Calendario principal';
   bar.appendChild(info);
 }
+/* ===================== CALENDARIO DE SIMULACROS: conectado con la pestaña Simulacros =====================
+   Cada día marcado como simulacro queda enlazado, por fecha ("YYYY-MM-DD"), con una ficha de
+   state.simulacros. Al marcar un día se crea (o reutiliza) esa ficha automáticamente y aparece
+   en la pestaña Simulacros; al editar el nombre o las notas desde aquí se edita el mismo objeto
+   que se ve allí, así que queda sincronizado en los dos sitios sin nada más que hacer. */
+function simFechaDia(monthKey, d){ return monthKey+'-'+pad2(d); }
+function buscarSimulacroPorFecha(fecha){ return (state.simulacros||[]).find(s=> s.fecha===fecha); }
+function crearSimulacroEnFecha(fecha, d, m, y){
+  if(!Array.isArray(state.simulacros)) state.simulacros = [];
+  const sim = { nombre:'Simulacro '+pad2(d)+'/'+pad2(m)+'/'+y, fecha:fecha, conocimientos:null, ingles:null, psico:null, orto:null, gram:null, nota:'' };
+  state.simulacros.push(sim);
+  return sim;
+}
+function eliminarSimulacroPorFecha(fecha){
+  const i = (state.simulacros||[]).findIndex(s=> s.fecha===fecha);
+  if(i>-1) state.simulacros.splice(i,1);
+}
+function simCalPillsHTML(sim){
+  if(!sim) return '<span class="cclase-empty">Sin simulacro</span>';
+  const nombre = sim.nombre ? sim.nombre : 'Simulacro';
+  const nombrePreview = nombre.length>28 ? nombre.slice(0,28)+'…' : nombre;
+  let html = '<span class="cclase-pill p-sim">'+nombrePreview.replace(/</g,'&lt;')+'</span>';
+  if(sim.nota){
+    const preview = sim.nota.length>28 ? sim.nota.slice(0,28)+'…' : sim.nota;
+    html += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>';
+  }
+  return html;
+}
 function renderSimCalendar(){
+  if(typeof simCalViewMode !== 'undefined' && simCalViewMode === 'list') renderSimCalendarList();
+  else renderSimCalendarGrid();
+}
+function renderSimCalendarGrid(){
   const host = document.getElementById('simCalHost');
   if(!host) return;
   host.innerHTML = '';
@@ -6059,7 +6133,6 @@ function renderSimCalendar(){
   const [y,m] = currentMonthKey.split('-').map(Number);
   const nDays = daysInMonth(y,m);
   const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
-  const monthSim = state.simulacroCal[currentMonthKey] || {};
 
   const grid = document.createElement('div'); grid.className='cal-grid';
   DOW.forEach(dname=>{
@@ -6094,17 +6167,9 @@ function renderSimCalendar(){
       cell.appendChild(lbl);
     }
 
+    const sim = buscarSimulacroPorFecha(simFechaDia(currentMonthKey, d));
     const pills = document.createElement('div'); pills.className='cclase-pills';
-    if(monthSim[d]){
-      pills.innerHTML = '<span class="cclase-pill p-sim">SIMULACRO</span>';
-    } else {
-      pills.innerHTML = '<span class="cclase-empty">Sin simulacro</span>';
-    }
-    const simNoteTxt = state.notes[simNoteKey(currentMonthKey, d)];
-    if(simNoteTxt){
-      const preview = simNoteTxt.length>28 ? simNoteTxt.slice(0,28)+'…' : simNoteTxt;
-      pills.innerHTML += '<span class="cclase-pill p-nota">📝 '+preview.replace(/</g,'&lt;')+'</span>';
-    }
+    pills.innerHTML = simCalPillsHTML(sim);
     cell.appendChild(pills);
 
     cell.onclick = ()=> openSimDayModal(d, jsDow);
@@ -6112,37 +6177,135 @@ function renderSimCalendar(){
   }
   host.appendChild(grid);
 }
+/* Vista alternativa tipo lista/agenda, igual que la del calendario de clases. */
+function renderSimCalendarList(){
+  const host = document.getElementById('simCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde la pestaña Calendario.</div>';
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const daysData = (state.months[currentMonthKey] && state.months[currentMonthKey].days) || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
+
+  const list = document.createElement('div'); list.className='cal-list';
+  for(let d=1; d<=nDays; d++){
+    const status = daysData[d] || 'ESTUDIO';
+    const jsDow = new Date(y, m-1, d).getDay();
+    const isToday = isCurrentMonth && d===now.getDate();
+
+    const item = document.createElement('div');
+    item.className = 'cal-list-item cclase-list-item status-'+status;
+    if(isToday){ item.classList.add('today'); item.id = 'todaySimListItem'; }
+
+    const head = document.createElement('div'); head.className='cal-list-head';
+    const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+    const wdName = DOW[(jsDow===0?6:jsDow-1)];
+    dateWrap.innerHTML = '<span class="cal-list-daynum">'+d+'</span><span class="cal-list-wd">'+wdName+'</span>';
+    head.appendChild(dateWrap);
+    if(status !== 'ESTUDIO'){
+      const lbl = document.createElement('span'); lbl.className='off-label';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      head.appendChild(lbl);
+    }
+    item.appendChild(head);
+
+    const sim = buscarSimulacroPorFecha(simFechaDia(currentMonthKey, d));
+    const pills = document.createElement('div'); pills.className='cclase-pills cclase-list-pills';
+    pills.innerHTML = simCalPillsHTML(sim);
+    item.appendChild(pills);
+
+    item.onclick = ()=> openSimDayModal(d, jsDow);
+    list.appendChild(item);
+  }
+  host.appendChild(list);
+}
 function openSimDayModal(d, jsDow){
   const [y,m] = currentMonthKey.split('-').map(Number);
   document.getElementById('simDayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
   document.getElementById('simDayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)];
+  const fecha = simFechaDia(currentMonthKey, d);
   const body = document.getElementById('simDayModalBody');
   body.innerHTML = '';
-  if(!state.simulacroCal[currentMonthKey]) state.simulacroCal[currentMonthKey] = {};
-  const monthSim = state.simulacroCal[currentMonthKey];
 
   const row = document.createElement('div'); row.className='clase-select-row';
   row.innerHTML = '<label>Simulacro</label>';
   const sel = document.createElement('select');
   sel.setAttribute('aria-label','Simulacro');
   sel.appendChild(new Option('— Ninguno —',''));
-  sel.appendChild(new Option('Simulacro','SIMULACRO'));
-  sel.value = monthSim[d] ? 'SIMULACRO' : '';
+  sel.appendChild(new Option('Sí, hubo simulacro','SIMULACRO'));
+  sel.value = buscarSimulacroPorFecha(fecha) ? 'SIMULACRO' : '';
   sel.onchange = ()=>{
-    if(sel.value==='SIMULACRO') monthSim[d] = true; else delete monthSim[d];
-    scheduleSave();
-    renderSimCalendar();
+    if(sel.value==='SIMULACRO'){
+      if(!buscarSimulacroPorFecha(fecha)) crearSimulacroEnFecha(fecha, d, m, y);
+      scheduleSave();
+      renderSimCalendar();
+      renderSimulacrosList();
+      openSimDayModal(d, jsDow); // repinta el modal ya con los campos de edición
+    } else {
+      const sim = buscarSimulacroPorFecha(fecha);
+      if(sim){
+        const label = sim.nombre || 'este simulacro';
+        const tieneAlgo = !!(sim.nota || sim.conocimientos!=null || sim.ingles!=null || sim.psico!=null || sim.orto || sim.gram);
+        if(tieneAlgo && !confirm('«'+label+'» tiene notas y/o datos guardados. ¿Seguro que quieres quitarlo de este día?\n\nTambién desaparecerá de la pestaña Simulacros.')){
+          sel.value = 'SIMULACRO';
+          return;
+        }
+        eliminarSimulacroPorFecha(fecha);
+        scheduleSave();
+        renderSimCalendar();
+        renderSimulacrosList();
+        openSimDayModal(d, jsDow);
+      }
+    }
   };
   row.appendChild(sel);
   body.appendChild(row);
 
-  const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
-  notaRow.innerHTML = '<label for="simNotaTa">Notas del día</label>';
-  const notaTa = buildNoteBox(simNoteKey(currentMonthKey, d), 'Sensaciones, aciertos, fallos a repasar…');
-  notaTa.id = 'simNotaTa';
-  notaTa.onblur = ()=> renderSimCalendar();
-  notaRow.appendChild(notaTa);
-  body.appendChild(notaRow);
+  const sim = buscarSimulacroPorFecha(fecha);
+  if(sim){
+    const nameRow = document.createElement('div'); nameRow.className='clase-note-row';
+    nameRow.innerHTML = '<label for="simNombreInp">Nombre del simulacro</label>';
+    const nameInp = document.createElement('input');
+    nameInp.type = 'text'; nameInp.id = 'simNombreInp'; nameInp.className='sim-name-input';
+    nameInp.value = sim.nombre || '';
+    nameInp.setAttribute('aria-label','Nombre del simulacro');
+    nameInp.oninput = ()=>{ sim.nombre = nameInp.value; scheduleSave(); };
+    nameInp.onblur = ()=>{ renderSimCalendar(); renderSimulacrosList(); };
+    nameRow.appendChild(nameInp);
+    body.appendChild(nameRow);
+
+    const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
+    notaRow.innerHTML = '<label for="simNotaTa">Sensaciones / notas</label>';
+    const notaTa = document.createElement('textarea');
+    notaTa.id = 'simNotaTa'; notaTa.className = 'note-inline';
+    notaTa.placeholder = 'Sensaciones, aciertos, fallos a repasar…';
+    notaTa.value = sim.nota || '';
+    notaTa.oninput = ()=>{ sim.nota = notaTa.value; scheduleSave(); };
+    notaTa.onblur = ()=>{ renderSimCalendar(); renderSimulacrosList(); };
+    notaRow.appendChild(notaTa);
+    body.appendChild(notaRow);
+
+    const hint = document.createElement('div');
+    hint.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;';
+    hint.textContent = 'Las notas de conocimientos, inglés, psicotécnico, ortografía y gramática se rellenan desde la pestaña Simulacros.';
+    body.appendChild(hint);
+
+    const goBtn = document.createElement('button');
+    goBtn.type = 'button'; goBtn.className = 'btn';
+    goBtn.style.marginTop = '10px';
+    goBtn.textContent = 'Ver ficha completa en Simulacros →';
+    goBtn.onclick = ()=>{
+      document.getElementById('simDayModal').classList.remove('open');
+      const tabBtn = document.querySelector('.tab-btn[data-tab="simulacros"]');
+      if(tabBtn) tabBtn.click();
+    };
+    body.appendChild(goBtn);
+  }
 
   document.getElementById('simDayModal').classList.add('open');
 }
@@ -7358,8 +7521,10 @@ function syncCalSelectorToggle(){
   document.querySelectorAll('#calSelectorToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.cal===calSelectorMode));
   const mainPanel = document.getElementById('calMainPanel');
   const clasesPanel = document.getElementById('calClasesPanel');
-  if(mainPanel) mainPanel.style.display = calSelectorMode==='clases' ? 'none' : '';
+  const simPanel = document.getElementById('calSimPanel');
+  if(mainPanel) mainPanel.style.display = calSelectorMode==='principal' ? '' : 'none';
   if(clasesPanel) clasesPanel.style.display = calSelectorMode==='clases' ? '' : 'none';
+  if(simPanel) simPanel.style.display = calSelectorMode==='simulacros' ? '' : 'none';
 }
 function setCalSelectorMode(mode){
   calSelectorMode = mode;
@@ -7412,6 +7577,27 @@ document.querySelectorAll('#claseCalViewToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setClaseCalViewMode(btn.dataset.view);
 });
 syncClaseViewToggleButtons();
+
+/* ===================== VISTA CALENDARIO DE SIMULACROS: rejilla / lista ===================== */
+let simCalViewMode = 'grid';
+try{
+  simCalViewMode = localStorage.getItem('simCalViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  simCalViewMode = window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid';
+}
+function syncSimCalViewToggleButtons(){
+  document.querySelectorAll('#simCalViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===simCalViewMode));
+}
+function setSimCalViewMode(mode){
+  simCalViewMode = mode;
+  try{ localStorage.setItem('simCalViewMode', mode); }catch(e){}
+  syncSimCalViewToggleButtons();
+  renderSimCalendar();
+}
+document.querySelectorAll('#simCalViewToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setSimCalViewMode(btn.dataset.view);
+});
+syncSimCalViewToggleButtons();
 
 /* ===================== EXPORTAR CALENDARIO (imagen / PDF) =====================
    Genérico: sirve tanto para el Calendario principal (host "calendarHost") como
@@ -7505,11 +7691,15 @@ function exportarCalendarioComoImagen(){ return exportarComoImagen('calendarHost
 function exportarCalendarioComoPDF(){ return exportarComoPDF('calendarHost', '', ['exportCalImageBtn', 'exportCalPdfBtn']); }
 function exportarClasesCalendarioComoImagen(){ return exportarComoImagen('clasesCalHost', 'clases', ['exportClasesCalImageBtn', 'exportClasesCalPdfBtn']); }
 function exportarClasesCalendarioComoPDF(){ return exportarComoPDF('clasesCalHost', 'clases', ['exportClasesCalImageBtn', 'exportClasesCalPdfBtn']); }
+function exportarSimCalendarioComoImagen(){ return exportarComoImagen('simCalHost', 'simulacros', ['exportSimCalImageBtn', 'exportSimCalPdfBtn']); }
+function exportarSimCalendarioComoPDF(){ return exportarComoPDF('simCalHost', 'simulacros', ['exportSimCalImageBtn', 'exportSimCalPdfBtn']); }
 
 document.getElementById('exportCalImageBtn').addEventListener('click', exportarCalendarioComoImagen);
 document.getElementById('exportCalPdfBtn').addEventListener('click', exportarCalendarioComoPDF);
 document.getElementById('exportClasesCalImageBtn').addEventListener('click', exportarClasesCalendarioComoImagen);
 document.getElementById('exportClasesCalPdfBtn').addEventListener('click', exportarClasesCalendarioComoPDF);
+document.getElementById('exportSimCalImageBtn').addEventListener('click', exportarSimCalendarioComoImagen);
+document.getElementById('exportSimCalPdfBtn').addEventListener('click', exportarSimCalendarioComoPDF);
 
 
 /* ===================== INIT ===================== */
