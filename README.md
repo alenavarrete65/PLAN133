@@ -174,6 +174,28 @@ la app ya abierta verá una franja arriba avisando de que hay una versión nueva
 para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
 que recargue la pestaña por otro motivo.
 
+## Cuarto calendario: «Todo incluido»
+
+Dentro de la pestaña **Calendario**, además del principal, el de clases y el de simulacros,
+hay ahora un cuarto botón: **🗂️ Todo incluido**. Ninguno de los otros tres desaparece — este
+es una vista más.
+
+Junta en la misma rejilla, día a día, las tres capas, cada una con su etiqueta y solo si
+tiene algo:
+
+- **Estudio:** las tareas del día (bloque, leve, inglés, entreno, psicotécnico, orto-grama)
+  con sus mismos checks de «NO completado», y la nota del día.
+- **Clases:** las clases registradas ese día en el calendario de clases.
+- **Simulacro:** el simulacro de ese día, si lo hay.
+
+No guarda nada por su cuenta: lee de los mismos sitios que los otros calendarios, así que
+cualquier cambio que hagas en cualquiera de ellos se ve aquí al momento, y al revés. Al
+**pulsar un día se abre su ficha completa** (la misma del calendario principal), desde donde
+se edita todo: estado del día, notas, clases y simulacro.
+
+Tiene sus propias vistas **rejilla / lista** (la lista va mejor en el móvil) y sus botones de
+**exportar imagen / PDF**, igual que los demás.
+
 ## La pestaña «Clases» ahora se rellena sola (y es solo informativa)
 
 Antes, en la pestaña **Clases** marcabas a mano los checks de cada tema. Ya no: esa pestaña
@@ -268,6 +290,8 @@ JSON técnico.
       con checks a mano (implementado: ver apartado «La pestaña Clases ahora se rellena sola»).
 - [x] Poder abrir y editar cualquier día desde el calendario principal, incluidos los de
       descanso/trabajo (implementado: ver apartado «Todo el día desde el calendario principal»).
+- [x] Un calendario «todo incluido» que junte estudio, clases y simulacros en la misma vista
+      (implementado: ver apartado «Cuarto calendario: Todo incluido»).
 - [ ] Notificaciones push con recordatorios diarios de estudio/entreno — necesitaría configurar
       Firebase Cloud Messaging desde tu consola de Firebase (claves, permisos del navegador);
       no es algo que pueda dejar activado sin que completes tú esa parte primero.

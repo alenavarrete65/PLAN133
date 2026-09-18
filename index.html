@@ -237,7 +237,14 @@
   .tabs-mobile-trigger{display:none;}
 
   /* ---- calendar view toggle (grid / list) ---- */
-  .view-toggle{display:inline-flex;gap:2px;background:var(--bg-panel);border:1px solid var(--line);border-radius:3px;padding:2px;margin-bottom:14px;}
+  .view-toggle{display:inline-flex;flex-wrap:wrap;gap:2px;background:var(--bg-panel);border:1px solid var(--line);border-radius:3px;padding:2px;margin-bottom:14px;}
+  /* Con cuatro calendarios el selector ya no cabe en una línea en el móvil: que se
+     reparta en dos filas en vez de salirse de la pantalla. */
+  #calSelectorToggle{display:flex;flex-wrap:wrap;}
+  #calSelectorToggle .view-toggle-btn{flex:1 1 auto;white-space:nowrap;}
+  @media (max-width:640px){
+    #calSelectorToggle .view-toggle-btn{padding:7px 9px;font-size:10px;}
+  }
   .view-toggle-btn{
     font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;text-transform:uppercase;
     background:none;border:none;color:var(--cream-dim);padding:7px 14px;border-radius:2px;cursor:pointer;
@@ -424,6 +431,22 @@
   textarea.note-inline{
     width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);
     font-family:var(--font-body);font-size:12px;padding:6px;border-radius:2px;resize:vertical;min-height:34px;margin-top:4px;
+  }
+
+  /* ---- Calendario "todo incluido" ---- */
+  .todo-grid .todo-cell{align-content:start;}
+  .todo-sec{margin-top:6px;}
+  .todo-sec:first-of-type{margin-top:2px;}
+  .todo-sec-label{
+    font-family:var(--font-mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--amber);opacity:.85;margin-bottom:2px;border-top:1px solid var(--line);padding-top:4px;
+  }
+  .todo-sec:first-of-type .todo-sec-label{border-top:none;padding-top:0;}
+  .todo-cell .cclase-pills{display:flex;flex-wrap:wrap;gap:3px;}
+  .todo-list-item .todo-sec-label{font-size:10px;margin-bottom:4px;}
+  .todo-list-item .todo-sec{margin-top:10px;}
+  @media (max-width:640px){
+    .todo-sec-label{font-size:9.5px;}
   }
 
   /* ---- Clases (resumen informativo calculado desde el calendario) ---- */
@@ -1074,6 +1097,7 @@
       <button type="button" class="view-toggle-btn" data-cal="principal">📅 Calendario principal</button>
       <button type="button" class="view-toggle-btn" data-cal="clases">🏫 Calendario de clases</button>
       <button type="button" class="view-toggle-btn" data-cal="simulacros">🎯 Calendario de simulacros</button>
+      <button type="button" class="view-toggle-btn" data-cal="todo">🗂️ Todo incluido</button>
     </div>
 
     <div id="calMainPanel">
@@ -1128,6 +1152,27 @@
       </div>
       <div id="simCalHost"></div>
       <section class="temario-group" id="simulacrosPendientesHost" style="margin-top:24px;"></section>
+    </div>
+
+    <!-- CALENDARIO "TODO INCLUIDO": estudio + clases + simulacros en la misma rejilla.
+         No sustituye a ninguno de los otros tres: es una vista más, de solo lectura,
+         desde la que al pulsar un día se abre la ficha completa de ese día. -->
+    <div id="calTodoPanel" style="display:none;">
+      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Todo incluido</h3>
+      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+        Todo lo del mes junto: las tareas de estudio del día, las clases que tocaron y los simulacros, con sus notas. Pulsa cualquier día para abrir su ficha completa y cambiar lo que quieras.
+      </div>
+      <div class="month-bar" id="todoCalMonthBar"></div>
+      <div class="legend" id="todoCalLegend"></div>
+      <div class="view-toggle" id="todoCalViewToggle" role="tablist" aria-label="Vista del calendario todo incluido">
+        <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+        <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+      </div>
+      <div class="cal-export-bar" id="todoCalExportBar">
+        <button type="button" class="cal-export-btn" id="exportTodoCalImageBtn">🖼️ Exportar imagen</button>
+        <button type="button" class="cal-export-btn" id="exportTodoCalPdfBtn">📄 Exportar PDF</button>
+      </div>
+      <div id="todoCalHost"></div>
     </div>
   </div>
 
@@ -1650,6 +1695,11 @@ const firebaseAuthReady = (async ()=>{
 // init(), en cuanto sabemos qué cuenta ha iniciado sesión). Así, cada correo aprobado ve
 // siempre y solo su propio calendario, tanto en la interfaz como a nivel de reglas de Firestore.
 let accessCode = null;
+
+/* Bandera para evitar repintados duplicados: mientras renderAll() está en marcha, los
+   render individuales no repintan además las vistas derivadas (pestaña Clases, calendario
+   «Todo incluido»), porque renderAll ya las repinta él. */
+let _renderAllEnCurso = false;
 
 /* ===================== ESTADO ===================== */
 let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
@@ -3065,6 +3115,9 @@ function renderCalendar(){
   else renderCalendarGrid();
   renderHomeDash();
   renderArrastre();
+  // El calendario "todo incluido" es un reflejo de los otros tres: cada vez que cambia
+  // alguno, se repinta también (salvo dentro de renderAll, que ya lo pinta él).
+  if(!_renderAllEnCurso) renderTodoCalendar();
 }
 /* Construye el bloque de tareas de un día (bloque, leve, inglés, entreno, psico, orto).
    Se reutiliza tanto en la vista de rejilla como en la vista de lista/agenda. */
@@ -5710,7 +5763,7 @@ function renderClaseCalendar(){
   invalidarClasesDerivadas();
   if(typeof claseCalViewMode !== 'undefined' && claseCalViewMode === 'list') renderClaseCalendarList();
   else renderClaseCalendarGrid();
-  if(!_renderAllEnCurso) refrescarPestanaClases();
+  if(!_renderAllEnCurso){ refrescarPestanaClases(); renderTodoCalendar(); }
 }
 function renderClaseCalendarGrid(){
   const host = document.getElementById('clasesCalHost');
@@ -6912,6 +6965,7 @@ function simCalPillsHTML(sim){
 function renderSimCalendar(){
   if(typeof simCalViewMode !== 'undefined' && simCalViewMode === 'list') renderSimCalendarList();
   else renderSimCalendarGrid();
+  if(!_renderAllEnCurso) renderTodoCalendar();
 }
 function renderSimCalendarGrid(){
   const host = document.getElementById('simCalHost');
@@ -7011,6 +7065,212 @@ function renderSimCalendarList(){
     item.appendChild(pills);
 
     item.onclick = ()=> openSimDayModal(d, jsDow);
+    list.appendChild(item);
+  }
+  host.appendChild(list);
+}
+/* ===================== CALENDARIO "TODO INCLUIDO" =====================
+   Cuarta vista de la pestaña Calendario: junta en la misma rejilla lo que hay repartido
+   en los otros tres calendarios (tareas de estudio del día + clases + simulacro + notas).
+   No guarda nada propio ni sustituye a ninguno: lee de los mismos sitios, y al pulsar un
+   día abre la ficha completa del día (openDayModal), desde donde se edita todo. */
+function renderTodoCalLegend(){
+  const el = document.getElementById('todoCalLegend');
+  if(!el) return;
+  el.innerHTML = `
+    <span><i style="background:var(--red)"></i>Bloque grave</span>
+    <span><i style="background:var(--amber)"></i>Bloque menos grave</span>
+    <span><i style="background:var(--green)"></i>Leve</span>
+    <span><i style="background:var(--blue)"></i>Inglés</span>
+    <span><i style="background:#8b6fae"></i>Psicotécnico</span>
+    <span><i style="background:#c0672f"></i>Entreno</span>
+    <span><i style="background:var(--muted)"></i>Orto-grama</span>
+    <span><i style="background:#7a9bb5"></i>Clases</span>
+    <span><i style="background:#b6543f"></i>Simulacro</span>
+  `;
+}
+function renderTodoCalMonthBar(){
+  const bar = document.getElementById('todoCalMonthBar');
+  if(!bar) return;
+  bar.innerHTML = '';
+  const keys = sortedMonthKeys();
+  if(!keys.length){
+    bar.innerHTML = '<span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">Añade un mes desde el Calendario principal para empezar.</span>';
+    return;
+  }
+  if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
+  const controls = document.createElement('div'); controls.className='month-controls';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹';
+  prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
+  controls.appendChild(prevBtn);
+  const sel = document.createElement('select');
+  sel.setAttribute('aria-label','Cambiar de mes');
+  keys.forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const opt = document.createElement('option'); opt.value=k; opt.textContent = MESES[m-1]+' '+y;
+    if(k===currentMonthKey) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
+  controls.appendChild(sel);
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›';
+  nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
+  controls.appendChild(nextBtn);
+  bar.appendChild(controls);
+  const info = document.createElement('span');
+  info.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:auto;';
+  info.textContent = 'Estudio + clases + simulacros';
+  bar.appendChild(info);
+}
+/* Bloque de contenido de un día en la vista "todo incluido": las tres capas, cada una con
+   su etiqueta, y solo las que tengan algo (las clases y el simulacro solo salen si existen,
+   para que un día normal no se llene de "sin nada"). */
+function buildTodoDayContent(d, info, compact){
+  const frag = document.createDocumentFragment();
+  const addSub = (label, node)=>{
+    const sec = document.createElement('div'); sec.className='todo-sec';
+    const lbl = document.createElement('div'); lbl.className='todo-sec-label'; lbl.textContent = label;
+    sec.appendChild(lbl);
+    sec.appendChild(node);
+    frag.appendChild(sec);
+  };
+
+  if(info.status === 'ESTUDIO' && Array.isArray(info.temasDelDia)){
+    addSub('Estudio', buildTasksBlock(d, info, compact));
+  } else {
+    // En los días que no son de estudio, la nota del día la pintamos aquí (en los de
+    // estudio ya la incluye buildTasksBlock al final de las tareas).
+    const noteTxt = state.notes[dayNoteKey(currentMonthKey, d)];
+    if(noteTxt){
+      const noteRow = document.createElement('div');
+      noteRow.className = 'task-row day-note-preview';
+      const maxLen = compact ? 34 : 140;
+      const preview = noteTxt.length>maxLen ? noteTxt.slice(0,maxLen)+'…' : noteTxt;
+      noteRow.innerHTML = '<span class="tag tag-nota">NOTA</span><span class="task-txt">'+preview.replace(/</g,'&lt;')+'</span>';
+      addSub('Notas', noteRow);
+    }
+  }
+
+  const claseEntry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
+  const tieneClase = ['conocimientos','ingles','psico','psicoExtra','orto','gram'].some(k=> Array.isArray(claseEntry[k]) && claseEntry[k].length) || !!claseEntry.nota;
+  if(tieneClase){
+    const pills = document.createElement('div'); pills.className='cclase-pills';
+    pills.innerHTML = buildClasePillsHTML(claseEntry, compact ? 24 : 120);
+    addSub('Clases', pills);
+  }
+
+  const sim = buscarSimulacroPorFecha(simFechaDia(currentMonthKey, d));
+  if(sim){
+    const pills = document.createElement('div'); pills.className='cclase-pills';
+    pills.innerHTML = simCalPillsHTML(sim);
+    addSub('Simulacro', pills);
+  }
+
+  return frag;
+}
+function renderTodoCalendar(){
+  if(typeof todoCalViewMode !== 'undefined' && todoCalViewMode === 'list') renderTodoCalendarList();
+  else renderTodoCalendarGrid();
+}
+function renderTodoCalendarGrid(){
+  const host = document.getElementById('todoCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde el Calendario principal.</div>';
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const plan = computePlan();
+  const monthPlan = plan[currentMonthKey] || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
+
+  const grid = document.createElement('div'); grid.className='cal-grid todo-grid';
+  DOW.forEach(dname=>{
+    const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
+    grid.appendChild(dow);
+  });
+  const firstDow = new Date(y, m-1, 1).getDay();
+  const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1;
+  for(let i=0;i<leadingBlanks;i++){
+    const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b);
+  }
+
+  for(let d=1; d<=nDays; d++){
+    const info = monthPlan[d] || {status:'ESTUDIO'};
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell todo-cell status-'+info.status;
+    if(isCurrentMonth && d===now.getDate()){ cell.classList.add('today'); cell.id = 'todayTodoCell'; }
+
+    const numRow = document.createElement('div'); numRow.className='cal-daynum';
+    const jsDow = (info.dow===undefined || info.dow===null) ? new Date(y, m-1, d).getDay() : info.dow;
+    const leftWrap = document.createElement('span'); leftWrap.className='cal-daynum-left';
+    const dnSpan = document.createElement('span'); dnSpan.textContent = d;
+    leftWrap.appendChild(dnSpan);
+    const badge = dayCompletionBadge(info);
+    if(badge) leftWrap.appendChild(badge);
+    numRow.appendChild(leftWrap);
+    const wdSpan = document.createElement('span'); wdSpan.className='wd'; wdSpan.textContent = DOW_SHORT[(jsDow===0?6:jsDow-1)];
+    numRow.appendChild(wdSpan);
+    cell.appendChild(numRow);
+
+    if(info.status !== 'ESTUDIO'){
+      const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
+      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      cell.appendChild(lbl);
+    }
+    cell.appendChild(buildTodoDayContent(d, info, true));
+
+    cell.style.cursor = 'pointer';
+    cell.onclick = ()=> openDayModal(d, info);
+    grid.appendChild(cell);
+  }
+  host.appendChild(grid);
+}
+function renderTodoCalendarList(){
+  const host = document.getElementById('todoCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde el Calendario principal.</div>';
+    return;
+  }
+  const [y,m] = currentMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const plan = computePlan();
+  const monthPlan = plan[currentMonthKey] || {};
+  const now = new Date();
+  const isCurrentMonth = (y===now.getFullYear() && m===(now.getMonth()+1));
+
+  const list = document.createElement('div'); list.className='cal-list';
+  for(let d=1; d<=nDays; d++){
+    const info = monthPlan[d] || {status:'ESTUDIO'};
+    const jsDow = (info.dow===undefined || info.dow===null) ? new Date(y, m-1, d).getDay() : info.dow;
+    const item = document.createElement('div');
+    item.className = 'cal-list-item todo-list-item status-'+info.status;
+    if(isCurrentMonth && d===now.getDate()){ item.classList.add('today'); item.id = 'todayTodoListItem'; }
+
+    const head = document.createElement('div'); head.className='cal-list-head';
+    const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+    dateWrap.innerHTML = '<span class="cal-list-daynum">'+d+'</span><span class="cal-list-wd">'+DOW[(jsDow===0?6:jsDow-1)]+'</span>';
+    head.appendChild(dateWrap);
+    const headRight = document.createElement('div'); headRight.className='cal-list-head-right';
+    const badge = dayCompletionBadge(info);
+    if(badge) headRight.appendChild(badge);
+    if(info.status !== 'ESTUDIO'){
+      const lbl = document.createElement('span'); lbl.className='off-label';
+      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      headRight.appendChild(lbl);
+    }
+    head.appendChild(headRight);
+    item.appendChild(head);
+
+    item.appendChild(buildTodoDayContent(d, info, false));
+
+    item.style.cursor = 'pointer';
+    item.onclick = ()=> openDayModal(d, info);
     list.appendChild(item);
   }
   host.appendChild(list);
@@ -8349,6 +8609,8 @@ function syncCalSelectorToggle(){
   if(mainPanel) mainPanel.style.display = calSelectorMode==='principal' ? '' : 'none';
   if(clasesPanel) clasesPanel.style.display = calSelectorMode==='clases' ? '' : 'none';
   if(simPanel) simPanel.style.display = calSelectorMode==='simulacros' ? '' : 'none';
+  const todoPanel = document.getElementById('calTodoPanel');
+  if(todoPanel) todoPanel.style.display = calSelectorMode==='todo' ? '' : 'none';
 }
 function setCalSelectorMode(mode){
   calSelectorMode = mode;
@@ -8422,6 +8684,27 @@ document.querySelectorAll('#simCalViewToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setSimCalViewMode(btn.dataset.view);
 });
 syncSimCalViewToggleButtons();
+
+/* ===================== VISTA CALENDARIO TODO INCLUIDO: rejilla / lista ===================== */
+let todoCalViewMode = 'grid';
+try{
+  todoCalViewMode = localStorage.getItem('todoCalViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  todoCalViewMode = window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid';
+}
+function syncTodoCalViewToggleButtons(){
+  document.querySelectorAll('#todoCalViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===todoCalViewMode));
+}
+function setTodoCalViewMode(mode){
+  todoCalViewMode = mode;
+  try{ localStorage.setItem('todoCalViewMode', mode); }catch(e){}
+  syncTodoCalViewToggleButtons();
+  renderTodoCalendar();
+}
+document.querySelectorAll('#todoCalViewToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setTodoCalViewMode(btn.dataset.view);
+});
+syncTodoCalViewToggleButtons();
 
 /* ===================== EXPORTAR CALENDARIO (imagen / PDF) =====================
    Genérico: sirve tanto para el Calendario principal (host "calendarHost") como
@@ -8569,12 +8852,15 @@ function vaciarCalendarioClases(){
   alert('Calendario de clases vaciado. Ya puedes montarlo de nuevo desde cero.');
 }
 document.getElementById('vaciarClasesCalBtn').addEventListener('click', vaciarCalendarioClases);
+function exportarTodoCalendarioComoImagen(){ return exportarComoImagen('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
+function exportarTodoCalendarioComoPDF(){ return exportarComoPDF('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
+document.getElementById('exportTodoCalImageBtn').addEventListener('click', exportarTodoCalendarioComoImagen);
+document.getElementById('exportTodoCalPdfBtn').addEventListener('click', exportarTodoCalendarioComoPDF);
 document.getElementById('exportSimCalImageBtn').addEventListener('click', exportarSimCalendarioComoImagen);
 document.getElementById('exportSimCalPdfBtn').addEventListener('click', exportarSimCalendarioComoPDF);
 
 
 /* ===================== INIT ===================== */
-let _renderAllEnCurso = false;
 function renderAll(){
   _renderAllEnCurso = true;
   try{
@@ -8600,6 +8886,9 @@ function renderAll(){
   renderSimulacrosPendientes();
   renderSimCalMonthBar();
   renderSimCalendar();
+  renderTodoCalMonthBar();
+  renderTodoCalLegend();
+  renderTodoCalendar();
   renderCiclo();
   renderProgreso();
   renderMarcas();
