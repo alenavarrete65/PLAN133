@@ -1062,6 +1062,7 @@
         <button type="button" class="cal-export-btn" id="exportSimCalPdfBtn">📄 Exportar PDF</button>
       </div>
       <div id="simCalHost"></div>
+      <section class="temario-group" id="simulacrosPendientesHost" style="margin-top:24px;"></section>
     </div>
   </div>
 
@@ -1582,7 +1583,7 @@ const firebaseAuthReady = (async ()=>{
 let accessCode = null;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1682,6 +1683,7 @@ function normalizeState(){
     });
   });
   if(!state.simulacros) state.simulacros = [];
+  if(!Array.isArray(state.simulacrosPendientes)) state.simulacrosPendientes = [];
   if(!state.simulacroCal) state.simulacroCal = {};
   // Migración: el antiguo calendario de simulacros marcaba los días con un simple true/false
   // (state.simulacroCal) y guardaba la nota del día suelta y aparte (state.notes), sin ninguna
@@ -3136,6 +3138,20 @@ function renderHomeDash(){
   const clasesHoyHtml = '<div class="home-clases-pills">'+buildClasePillsHTML(claseEntry, 40)+'</div>'+
     '<button class="btn small ghost" id="homeClasesBtn" style="margin-top:8px;">Ir a Clases →</button>';
 
+  // Simulacro (calendario de simulacros) de hoy, si lo hay, más aviso de pendientes por colocar.
+  const todayFecha = todayMonthKey+'-'+pad2(todayDay);
+  const simHoy = typeof buscarSimulacroPorFecha==='function' ? buscarSimulacroPorFecha(todayFecha) : null;
+  const simPendCount = (state.simulacrosPendientes||[]).length;
+  let simHoyHtml;
+  if(simHoy){
+    simHoyHtml = '<div class="home-clases-pills">'+simCalPillsHTML(simHoy)+'</div>'+
+      '<button class="btn small ghost" id="homeSimBtn" style="margin-top:8px;">Ir al calendario de simulacros →</button>';
+  } else {
+    simHoyHtml = '<div class="home-today-status">Hoy no toca simulacro.</div>'+
+      (simPendCount ? '<div class="home-card-note">'+simPendCount+' simulacro'+(simPendCount!==1?'s':'')+' pendiente'+(simPendCount!==1?'s':'')+' de colocar en el calendario.</div>' : '')+
+      '<button class="btn small ghost" id="homeSimBtn" style="margin-top:8px;">Ir al calendario de simulacros →</button>';
+  }
+
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
       '<div class="home-card-value">'+exam.daysLeft+'</div>'+
@@ -3145,6 +3161,7 @@ function renderHomeDash(){
       '<div class="home-card-sub">'+(racha===1?'día seguido':'días seguidos')+'</div></div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
 
   const arrastreBtn = document.getElementById('homeArrastreBtn');
@@ -3157,6 +3174,13 @@ function renderHomeDash(){
   if(clasesBtn) clasesBtn.onclick = ()=>{
     const tabBtn = document.querySelector('.tab-btn[data-tab="clases"]');
     if(tabBtn) tabBtn.click();
+  };
+
+  const simBtn = document.getElementById('homeSimBtn');
+  if(simBtn) simBtn.onclick = ()=>{
+    const tabBtn = document.querySelector('.tab-btn[data-tab="calendario"]');
+    if(tabBtn) tabBtn.click();
+    if(typeof setCalSelectorMode==='function') setCalSelectorMode('simulacros');
   };
 
   const entrenoBtn = document.getElementById('homeEntrenoBtn');
@@ -5991,58 +6015,13 @@ function renderSimulacrosList(){
         scheduleSave();
         renderSimulacrosList();
         renderSimCalendar();
+        renderHomeDash();
       }
     };
     head.appendChild(delBtn);
     card.appendChild(head);
 
-    const fields = document.createElement('div'); fields.className='sim-fields';
-
-    const mkNotaField = (label, prop, max)=>{
-      const f = document.createElement('div'); f.className='sim-field';
-      const lbl = document.createElement('label'); lbl.textContent = label+' (sobre '+max+')';
-      f.appendChild(lbl);
-      const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
-      const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.max=String(max);
-      inp.value = sim[prop]==null ? '' : sim[prop];
-      inp.placeholder = 'Nota';
-      const pillHolder = document.createElement('span');
-      const paintPill = ()=>{
-        pillHolder.innerHTML = (sim[prop]!=null && !isNaN(sim[prop]))
-          ? '<span class="nota-pill '+notaPillClass(sim[prop],max)+'">'+sim[prop]+'/'+max+'</span>' : '';
-      };
-      inp.oninput = ()=>{
-        sim[prop] = inp.value===''? null : Number(inp.value);
-        scheduleSave();
-        paintPill();
-      };
-      paintPill();
-      wrap.appendChild(inp); wrap.appendChild(pillHolder);
-      f.appendChild(wrap);
-      return f;
-    };
-    fields.appendChild(mkNotaField('Nota conocimientos','conocimientos',10));
-    fields.appendChild(mkNotaField('Nota inglés','ingles',20));
-    fields.appendChild(mkNotaField('Nota psicotécnico','psico',30));
-
-    const mkAptoField = (label, prop)=>{
-      const f = document.createElement('div'); f.className='sim-field';
-      const lbl = document.createElement('label'); lbl.textContent = label;
-      f.appendChild(lbl);
-      const sel = document.createElement('select');
-      sel.setAttribute('aria-label', label);
-      sel.appendChild(new Option('— Sin marcar —',''));
-      sel.appendChild(new Option('Apto','APTO'));
-      sel.appendChild(new Option('No apto','NO_APTO'));
-      sel.value = sim[prop] || '';
-      sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); };
-      f.appendChild(sel);
-      return f;
-    };
-    fields.appendChild(mkAptoField('Ortografía','orto'));
-    fields.appendChild(mkAptoField('Gramática','gram'));
-
-    card.appendChild(fields);
+    card.appendChild(buildSimScoreFields(sim, {onChange: ()=> renderSimCalendar()}));
 
     const notaWrap = document.createElement('div'); notaWrap.className='sim-note-row';
     notaWrap.innerHTML = '<label>Sensaciones / notas</label>';
@@ -6054,8 +6033,220 @@ function renderSimulacrosList(){
     notaWrap.appendChild(notaTa);
     card.appendChild(notaWrap);
 
+    if(sim.fecha){
+      const backBtn = document.createElement('button');
+      backBtn.type = 'button'; backBtn.className = 'btn small ghost';
+      backBtn.style.marginTop = '10px';
+      backBtn.textContent = '📥 Quitar del calendario (pasa a pendientes)';
+      backBtn.onclick = ()=>{
+        const label = sim.nombre || 'este simulacro';
+        if(confirm('«'+label+'» se quitará del día '+sim.fecha.split('-').reverse().join('/')+' del calendario y pasará al tablón de simulacros pendientes, sin perder nada de lo guardado. ¿Seguro?')){
+          devolverSimulacroAPendientes(sim);
+          renderSimulacrosList();
+          renderSimCalendar();
+          renderHomeDash();
+        }
+      };
+      card.appendChild(backBtn);
+    }
+
     host.appendChild(card);
   });
+}
+/* Bloque reutilizable de campos de notas (conocimientos/inglés/psicotécnico) y apto/no apto
+   (ortografía/gramática) de un simulacro. Se usa tanto en la ficha completa de la pestaña
+   Simulacros como directamente en el modal del día del calendario de simulacros, para poder
+   editarlo todo sin tener que cambiar de pestaña. */
+function buildSimScoreFields(sim, opts){
+  opts = opts || {};
+  const fields = document.createElement('div'); fields.className='sim-fields';
+  const mkNotaField = (label, prop, max)=>{
+    const f = document.createElement('div'); f.className='sim-field';
+    const lbl = document.createElement('label'); lbl.textContent = label+' (sobre '+max+')';
+    f.appendChild(lbl);
+    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
+    const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.max=String(max);
+    inp.value = sim[prop]==null ? '' : sim[prop];
+    inp.placeholder = 'Nota';
+    const pillHolder = document.createElement('span');
+    const paintPill = ()=>{
+      pillHolder.innerHTML = (sim[prop]!=null && !isNaN(sim[prop]))
+        ? '<span class="nota-pill '+notaPillClass(sim[prop],max)+'">'+sim[prop]+'/'+max+'</span>' : '';
+    };
+    inp.oninput = ()=>{
+      sim[prop] = inp.value===''? null : Number(inp.value);
+      scheduleSave();
+      paintPill();
+      if(opts.onChange) opts.onChange();
+    };
+    paintPill();
+    wrap.appendChild(inp); wrap.appendChild(pillHolder);
+    f.appendChild(wrap);
+    return f;
+  };
+  fields.appendChild(mkNotaField('Nota conocimientos','conocimientos',10));
+  fields.appendChild(mkNotaField('Nota inglés','ingles',20));
+  fields.appendChild(mkNotaField('Nota psicotécnico','psico',30));
+
+  const mkAptoField = (label, prop)=>{
+    const f = document.createElement('div'); f.className='sim-field';
+    const lbl = document.createElement('label'); lbl.textContent = label;
+    f.appendChild(lbl);
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label', label);
+    sel.appendChild(new Option('— Sin marcar —',''));
+    sel.appendChild(new Option('Apto','APTO'));
+    sel.appendChild(new Option('No apto','NO_APTO'));
+    sel.value = sim[prop] || '';
+    sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); if(opts.onChange) opts.onChange(); };
+    f.appendChild(sel);
+    return f;
+  };
+  fields.appendChild(mkAptoField('Ortografía','orto'));
+  fields.appendChild(mkAptoField('Gramática','gram'));
+  return fields;
+}
+/* Tablón de "Simulacros pendientes": simulacros que ya sabes que tienes por delante (p. ej.
+   "Simulacro completo mensual") sin saber todavía en qué día caerán. Vive justo debajo del
+   Calendario de simulacros, y desde el modal de un día se pueden colocar directamente en
+   ese día (desapareciendo de aquí). Si luego quitas un simulacro ya colocado, vuelve solo. */
+function renderSimulacrosPendientes(){
+  const host = document.getElementById('simulacrosPendientesHost');
+  if(!host) return;
+  ensureSimulacrosPendientes();
+  renderAccordionSection(host, 'simulacrosPendientes', 'Simulacros pendientes (tablón)', (body)=>{
+    const intro = document.createElement('div'); intro.className='sub'; intro.style.marginBottom='12px';
+    intro.textContent = 'Apunta aquí por adelantado los simulacros que ya sabes que tienes por delante, sin saber todavía qué día exacto caerán. Cuando llegue el día, desde el Calendario de simulacros podrás colocarlos directamente en vez de crear uno nuevo, y desaparecerán de aquí. Si más adelante quitas un simulacro ya colocado del calendario, vuelve automáticamente a este tablón sin perder nada.';
+    body.appendChild(intro);
+
+    const formHost = document.createElement('div');
+    body.appendChild(formHost);
+
+    const listHost = document.createElement('div'); listHost.style.marginTop = '16px';
+    body.appendChild(listHost);
+
+    function refreshList(){
+      listHost.innerHTML = '';
+      const list = state.simulacrosPendientes.slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+      if(!list.length){
+        const empty = document.createElement('div'); empty.className='clase-multi-empty';
+        empty.textContent = 'No tienes ningún simulacro pendiente apuntado.';
+        listHost.appendChild(empty);
+        return;
+      }
+      const todayISO = new Date().toISOString().slice(0,10);
+      const chips = document.createElement('div'); chips.className='clase-multi-chips';
+      list.forEach(p=>{
+        const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
+        const chip = document.createElement('span'); chip.className='clase-multi-chip'+(isFuture?' future':'');
+        let txt = p.nombre || 'Simulacro';
+        if(p.disponibleDesde) txt += ' · '+(isFuture ? 'disponible desde ' : 'desde ')+formatFechaEs(p.disponibleDesde);
+        if(p.nota && p.nota.trim()) txt += ' · 📝 '+p.nota.trim();
+        chip.appendChild(document.createTextNode(txt));
+        const del = document.createElement('button'); del.type='button'; del.textContent='×';
+        del.title = 'Quitar de pendientes'; del.setAttribute('aria-label','Quitar de pendientes: '+txt);
+        del.onclick = ()=>{
+          const i = state.simulacrosPendientes.findIndex(x=>x.id===p.id);
+          if(i>-1) state.simulacrosPendientes.splice(i,1);
+          scheduleSave();
+          refreshList();
+        };
+        chip.appendChild(del);
+        chips.appendChild(chip);
+      });
+      listHost.appendChild(chips);
+    }
+    refreshList();
+
+    renderSimulacroPendienteForm(formHost, refreshList);
+  });
+}
+// Formulario paso a paso (igual que el de notas pendientes) para añadir un simulacro nuevo
+// al tablón: nombre → fecha a partir de la cual está disponible → guardar, con opción de
+// encadenar varios seguidos.
+function renderSimulacroPendienteForm(container, onSaved){
+  function clearC(){ container.innerHTML = ''; }
+  function addBackBtn(wrap, label, fn){
+    const back = document.createElement('button');
+    back.type='button'; back.className='clase-quiz-back'; back.textContent = label || '← Atrás';
+    back.onclick = fn;
+    wrap.appendChild(back);
+  }
+
+  function stepNombre(){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent='Nuevo simulacro pendiente';
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Cómo se llama este simulacro?';
+    wrap.appendChild(q);
+    const inp = document.createElement('input'); inp.type='text'; inp.className='clase-quiz-text-input';
+    inp.placeholder = 'p. ej. "Simulacro completo mensual"';
+    wrap.appendChild(inp);
+    const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn'; nextBtn.style.marginTop='10px';
+    nextBtn.textContent = 'Continuar';
+    nextBtn.onclick = ()=>{
+      if(!inp.value.trim()) return;
+      stepDisponible(inp.value.trim());
+    };
+    wrap.appendChild(nextBtn);
+    container.appendChild(wrap);
+  }
+
+  function stepDisponible(nombre){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent=nombre;
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿A partir de qué fecha estará disponible para colocarlo en el calendario?';
+    wrap.appendChild(q);
+    const hint = document.createElement('div'); hint.className='clase-quiz-or'; hint.textContent='Déjalo en blanco si ya está disponible ahora mismo.';
+    wrap.appendChild(hint);
+    const dateInp = document.createElement('input'); dateInp.type='date'; dateInp.className='clase-quiz-text-input';
+    wrap.appendChild(dateInp);
+    const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn'; saveBtn.style.marginTop='10px';
+    saveBtn.textContent = 'Guardar en pendientes';
+    saveBtn.onclick = ()=> guardar(nombre, dateInp.value || null);
+    wrap.appendChild(saveBtn);
+    addBackBtn(wrap, '← Atrás', stepNombre);
+    container.appendChild(wrap);
+  }
+
+  function guardar(nombre, disponibleDesde){
+    ensureSimulacrosPendientes().push({
+      id: Date.now()+'-'+Math.random(),
+      nombre,
+      disponibleDesde: disponibleDesde || null,
+      conocimientos: null, ingles: null, psico: null, orto: null, gram: null,
+      nota: ''
+    });
+    scheduleSave();
+    onSaved();
+    stepConfirm(nombre);
+  }
+
+  function stepConfirm(nombre){
+    clearC();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const confirmBox = document.createElement('div'); confirmBox.className='clase-quiz-confirm';
+    const okQ = document.createElement('div'); okQ.className='clase-quiz-question'; okQ.textContent='✓ Añadido a pendientes';
+    confirmBox.appendChild(okQ);
+    const detail = document.createElement('div'); detail.className='clase-quiz-progress'; detail.textContent = nombre;
+    confirmBox.appendChild(detail);
+    wrap.appendChild(confirmBox);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿Añadir otro simulacro pendiente?';
+    wrap.appendChild(q);
+    const opts = document.createElement('div'); opts.className='clase-quiz-options';
+    const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='clase-quiz-opt'; yesBtn.textContent='Sí, añadir otro';
+    yesBtn.onclick = ()=> stepNombre();
+    const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='clase-quiz-opt'; noBtn.textContent='No, he terminado';
+    noBtn.onclick = ()=> stepNombre();
+    opts.appendChild(yesBtn); opts.appendChild(noBtn);
+    wrap.appendChild(opts);
+    container.appendChild(wrap);
+  }
+
+  stepNombre();
 }
 function renderSimCalMonthBar(){
   const bar = document.getElementById('simCalMonthBar');
@@ -6106,6 +6297,54 @@ function crearSimulacroEnFecha(fecha, d, m, y){
 function eliminarSimulacroPorFecha(fecha){
   const i = (state.simulacros||[]).findIndex(s=> s.fecha===fecha);
   if(i>-1) state.simulacros.splice(i,1);
+}
+/* ---- Simulacros pendientes: tablón de simulacros ya cargados de antemano (con o sin
+   fecha "disponible desde") que todavía no están colocados en ningún día del calendario.
+   Funciona igual que el tablón de "Clases pendientes": se cargan aquí, se colocan
+   directamente en un día desde el modal del calendario de simulacros (desapareciendo de
+   aquí), y si luego se quita un simulacro ya colocado, vuelve automáticamente a este
+   tablón en vez de perderse, con todos sus datos (notas, puntuaciones) intactos. */
+function ensureSimulacrosPendientes(){ if(!Array.isArray(state.simulacrosPendientes)) state.simulacrosPendientes = []; return state.simulacrosPendientes; }
+function devolverSimulacroAPendientes(sim){
+  const list = ensureSimulacrosPendientes();
+  list.push({
+    id: Date.now()+'-'+Math.random(),
+    nombre: sim.nombre || '',
+    disponibleDesde: null,
+    conocimientos: sim.conocimientos!=null ? sim.conocimientos : null,
+    ingles: sim.ingles!=null ? sim.ingles : null,
+    psico: sim.psico!=null ? sim.psico : null,
+    orto: sim.orto || null,
+    gram: sim.gram || null,
+    nota: sim.nota || ''
+  });
+  if(sim.fecha) eliminarSimulacroPorFecha(sim.fecha);
+  scheduleSave();
+  renderSimulacrosPendientes();
+}
+/* Coloca un simulacro pendiente en un día concreto del calendario: se convierte en una
+   ficha normal de state.simulacros (con esa fecha) conservando todo lo que tuviera
+   apuntado, y desaparece del tablón de pendientes. */
+function colocarSimulacroPendienteEnFecha(pendienteId, fecha){
+  const list = ensureSimulacrosPendientes();
+  const i = list.findIndex(x=> x.id===pendienteId);
+  if(i<0) return null;
+  const p = list[i];
+  if(!Array.isArray(state.simulacros)) state.simulacros = [];
+  const sim = {
+    nombre: p.nombre || '',
+    fecha: fecha,
+    conocimientos: p.conocimientos!=null ? p.conocimientos : null,
+    ingles: p.ingles!=null ? p.ingles : null,
+    psico: p.psico!=null ? p.psico : null,
+    orto: p.orto || null,
+    gram: p.gram || null,
+    nota: p.nota || ''
+  };
+  state.simulacros.push(sim);
+  list.splice(i,1);
+  scheduleSave();
+  return sim;
 }
 function simCalPillsHTML(sim){
   if(!sim) return '<span class="cclase-empty">Sin simulacro</span>';
@@ -6232,6 +6471,13 @@ function openSimDayModal(d, jsDow){
   const body = document.getElementById('simDayModalBody');
   body.innerHTML = '';
 
+  const refreshEverything = ()=>{
+    renderSimCalendar();
+    renderSimulacrosList();
+    renderSimulacrosPendientes();
+    renderHomeDash();
+  };
+
   const row = document.createElement('div'); row.className='clase-select-row';
   row.innerHTML = '<label>Simulacro</label>';
   const sel = document.createElement('select');
@@ -6243,22 +6489,19 @@ function openSimDayModal(d, jsDow){
     if(sel.value==='SIMULACRO'){
       if(!buscarSimulacroPorFecha(fecha)) crearSimulacroEnFecha(fecha, d, m, y);
       scheduleSave();
-      renderSimCalendar();
-      renderSimulacrosList();
+      refreshEverything();
       openSimDayModal(d, jsDow); // repinta el modal ya con los campos de edición
     } else {
       const sim = buscarSimulacroPorFecha(fecha);
       if(sim){
         const label = sim.nombre || 'este simulacro';
         const tieneAlgo = !!(sim.nota || sim.conocimientos!=null || sim.ingles!=null || sim.psico!=null || sim.orto || sim.gram);
-        if(tieneAlgo && !confirm('«'+label+'» tiene notas y/o datos guardados. ¿Seguro que quieres quitarlo de este día?\n\nTambién desaparecerá de la pestaña Simulacros.')){
+        if(tieneAlgo && !confirm('«'+label+'» se quitará de este día. No se pierde nada: pasa al tablón de «Simulacros pendientes», de donde podrás colocarlo en otro día más adelante. ¿Seguro?')){
           sel.value = 'SIMULACRO';
           return;
         }
-        eliminarSimulacroPorFecha(fecha);
-        scheduleSave();
-        renderSimCalendar();
-        renderSimulacrosList();
+        devolverSimulacroAPendientes(sim);
+        refreshEverything();
         openSimDayModal(d, jsDow);
       }
     }
@@ -6275,9 +6518,13 @@ function openSimDayModal(d, jsDow){
     nameInp.value = sim.nombre || '';
     nameInp.setAttribute('aria-label','Nombre del simulacro');
     nameInp.oninput = ()=>{ sim.nombre = nameInp.value; scheduleSave(); };
-    nameInp.onblur = ()=>{ renderSimCalendar(); renderSimulacrosList(); };
+    nameInp.onblur = refreshEverything;
     nameRow.appendChild(nameInp);
     body.appendChild(nameRow);
+
+    // Notas y puntuaciones (conocimientos, inglés, psicotécnico, ortografía, gramática)
+    // editables aquí mismo, sin tener que ir a la pestaña Simulacros.
+    body.appendChild(buildSimScoreFields(sim, {onChange: refreshEverything}));
 
     const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
     notaRow.innerHTML = '<label for="simNotaTa">Sensaciones / notas</label>';
@@ -6286,25 +6533,50 @@ function openSimDayModal(d, jsDow){
     notaTa.placeholder = 'Sensaciones, aciertos, fallos a repasar…';
     notaTa.value = sim.nota || '';
     notaTa.oninput = ()=>{ sim.nota = notaTa.value; scheduleSave(); };
-    notaTa.onblur = ()=>{ renderSimCalendar(); renderSimulacrosList(); };
+    notaTa.onblur = refreshEverything;
     notaRow.appendChild(notaTa);
     body.appendChild(notaRow);
 
-    const hint = document.createElement('div');
-    hint.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;';
-    hint.textContent = 'Las notas de conocimientos, inglés, psicotécnico, ortografía y gramática se rellenan desde la pestaña Simulacros.';
-    body.appendChild(hint);
-
     const goBtn = document.createElement('button');
-    goBtn.type = 'button'; goBtn.className = 'btn';
+    goBtn.type = 'button'; goBtn.className = 'btn small ghost';
     goBtn.style.marginTop = '10px';
-    goBtn.textContent = 'Ver ficha completa en Simulacros →';
+    goBtn.textContent = 'Ver todos los simulacros en su pestaña →';
     goBtn.onclick = ()=>{
       document.getElementById('simDayModal').classList.remove('open');
       const tabBtn = document.querySelector('.tab-btn[data-tab="simulacros"]');
       if(tabBtn) tabBtn.click();
     };
     body.appendChild(goBtn);
+  } else {
+    // Sin simulacro todavía en este día: si hay algo en el tablón de pendientes, se puede
+    // colocar aquí directamente en vez de crear uno nuevo desde cero.
+    const pendWrap = document.createElement('div'); pendWrap.style.marginTop = '16px';
+    body.appendChild(pendWrap);
+    const list = ensureSimulacrosPendientes().slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+    if(list.length){
+      const lbl = document.createElement('div');
+      lbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
+      lbl.textContent = 'O coloca aquí un simulacro pendiente';
+      pendWrap.appendChild(lbl);
+      const opts = document.createElement('div'); opts.className = 'clase-quiz-options';
+      list.forEach(item=>{
+        const isBlocked = !!(item.disponibleDesde && item.disponibleDesde > fecha);
+        const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt';
+        b.textContent = (item.nombre||'Simulacro') + (isBlocked ? ' (disponible desde '+formatFechaEs(item.disponibleDesde)+')' : '');
+        if(isBlocked){
+          b.disabled = true;
+          b.title = 'Este simulacro estará disponible a partir del '+formatFechaEs(item.disponibleDesde);
+        } else {
+          b.onclick = ()=>{
+            colocarSimulacroPendienteEnFecha(item.id, fecha);
+            refreshEverything();
+            openSimDayModal(d, jsDow);
+          };
+        }
+        opts.appendChild(b);
+      });
+      pendWrap.appendChild(opts);
+    }
   }
 
   document.getElementById('simDayModal').classList.add('open');
@@ -7341,7 +7613,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, simulacros:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
   currentMonthKey = null;
   invalidatePlan();
   scheduleSave();
@@ -7721,6 +7993,7 @@ function renderAll(){
   renderClasesCalMonthBar();
   renderClaseCalendar();
   renderSimulacrosList();
+  renderSimulacrosPendientes();
   renderSimCalMonthBar();
   renderSimCalendar();
   renderCiclo();
