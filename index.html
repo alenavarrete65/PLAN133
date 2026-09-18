@@ -3663,7 +3663,125 @@ function openDayModal(d, info){
     }
   }
 
-  /* ---------- 2. Notas del día ---------- */
+  /* ---------- 2. Clases de este día ---------- */
+  {
+    const {body:sb} = daySection(body, 'Clases de este día');
+    const host = document.createElement('div');
+    sb.appendChild(host);
+    renderDayClasesEditor(host, d, jsDow);
+  }
+
+  /* ---------- 3. Simulacro ---------- */
+  {
+    const {body:sb} = daySection(body, 'Simulacro');
+    const refreshSimEverything = ()=>{
+      renderSimCalendar();
+      renderSimulacrosList();
+      renderSimulacrosPendientes();
+      renderHomeDash();
+    };
+
+    const row = document.createElement('div'); row.className='clase-select-row';
+    row.innerHTML = '<label>¿Hubo simulacro este día?</label>';
+    const sel = document.createElement('select');
+    sel.setAttribute('aria-label','Simulacro este día');
+    sel.appendChild(new Option('— Ninguno —',''));
+    sel.appendChild(new Option('Sí, hubo simulacro','SIMULACRO'));
+    sel.value = buscarSimulacroPorFecha(fechaISO) ? 'SIMULACRO' : '';
+    sel.onchange = ()=>{
+      if(sel.value==='SIMULACRO'){
+        if(!buscarSimulacroPorFecha(fechaISO)) crearSimulacroEnFecha(fechaISO, d, m, y);
+        scheduleSave();
+        refreshSimEverything();
+        openDayModal(d, info); // repinta la ficha ya con los campos de edición del simulacro
+      } else {
+        const sim = buscarSimulacroPorFecha(fechaISO);
+        if(sim){
+          const label = sim.nombre || 'este simulacro';
+          const tieneAlgo = !!(sim.nota || sim.conocimientos!=null || sim.ingles!=null || sim.psico!=null || sim.orto || sim.gram);
+          if(tieneAlgo && !confirm('«'+label+'» se quitará de este día. No se pierde nada: pasa al tablón de «Simulacros pendientes», de donde podrás colocarlo en otro día más adelante. ¿Seguro?')){
+            sel.value = 'SIMULACRO';
+            return;
+          }
+          devolverSimulacroAPendientes(sim);
+          refreshSimEverything();
+          openDayModal(d, info);
+        }
+      }
+    };
+    row.appendChild(sel);
+    sb.appendChild(row);
+
+    const sim = buscarSimulacroPorFecha(fechaISO);
+    if(sim){
+      const nameRow = document.createElement('div'); nameRow.className='clase-note-row';
+      nameRow.innerHTML = '<label for="dayModalSimNombreInp">Nombre del simulacro</label>';
+      const nameInp = document.createElement('input');
+      nameInp.type = 'text'; nameInp.id = 'dayModalSimNombreInp'; nameInp.className='sim-name-input';
+      nameInp.value = sim.nombre || '';
+      nameInp.setAttribute('aria-label','Nombre del simulacro');
+      nameInp.oninput = ()=>{ sim.nombre = nameInp.value; scheduleSave(); };
+      nameInp.onblur = refreshSimEverything;
+      nameRow.appendChild(nameInp);
+      sb.appendChild(nameRow);
+
+      sb.appendChild(buildSimScoreFields(sim, {onChange: refreshSimEverything}));
+
+      const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
+      notaRow.innerHTML = '<label for="dayModalSimNotaTa">Sensaciones / notas</label>';
+      const notaTa = document.createElement('textarea');
+      notaTa.id = 'dayModalSimNotaTa'; notaTa.className = 'note-inline';
+      notaTa.placeholder = 'Sensaciones, aciertos, fallos a repasar…';
+      notaTa.value = sim.nota || '';
+      notaTa.oninput = ()=>{ sim.nota = notaTa.value; scheduleSave(); };
+      notaTa.onblur = refreshSimEverything;
+      notaRow.appendChild(notaTa);
+      sb.appendChild(notaRow);
+
+      const goBtn = document.createElement('button');
+      goBtn.type = 'button'; goBtn.className = 'btn small ghost';
+      goBtn.style.marginTop = '10px';
+      goBtn.textContent = 'Ver todos los simulacros en su pestaña →';
+      goBtn.onclick = ()=>{
+        document.getElementById('dayModal').classList.remove('open');
+        const tabBtn = document.querySelector('.tab-btn[data-tab="simulacros"]');
+        if(tabBtn) tabBtn.click();
+      };
+      sb.appendChild(goBtn);
+    } else {
+      // Sin simulacro todavía en este día: si hay algo en el tablón de pendientes, se puede
+      // colocar aquí directamente en vez de crear uno nuevo desde cero.
+      const pendWrap = document.createElement('div'); pendWrap.style.marginTop = '10px';
+      sb.appendChild(pendWrap);
+      const list = ensureSimulacrosPendientes().slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
+      if(list.length){
+        const lbl = document.createElement('div');
+        lbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
+        lbl.textContent = 'O coloca aquí un simulacro pendiente';
+        pendWrap.appendChild(lbl);
+        const opts = document.createElement('div'); opts.className = 'clase-quiz-options';
+        list.forEach(item=>{
+          const isBlocked = !!(item.disponibleDesde && item.disponibleDesde > fechaISO);
+          const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt';
+          b.textContent = (item.nombre||'Simulacro') + (isBlocked ? ' (disponible desde '+formatFechaEs(item.disponibleDesde)+')' : '');
+          if(isBlocked){
+            b.disabled = true;
+            b.title = 'Este simulacro estará disponible a partir del '+formatFechaEs(item.disponibleDesde);
+          } else {
+            b.onclick = ()=>{
+              colocarSimulacroPendienteEnFecha(item.id, fechaISO);
+              refreshSimEverything();
+              openDayModal(d, info);
+            };
+          }
+          opts.appendChild(b);
+        });
+        pendWrap.appendChild(opts);
+      }
+    }
+  }
+
+  /* ---------- 4. Notas del día ---------- */
   {
     const {body:sb, title} = daySection(body, 'Notas del día');
     const flash = document.createElement('span'); flash.className='day-saved-flash'; flash.textContent='guardado';
