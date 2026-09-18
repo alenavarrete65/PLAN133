@@ -4416,10 +4416,49 @@ function buildSimpleTicksRow(arr){
   });
   return wrap;
 }
+// Recupera, de una sola vez, las clases de Conocimientos/Inglés/Psicotécnicos que ya
+// tenías registradas en el calendario antes de que existiera la pregunta "¿completas el
+// tema?". Como entonces no se guardó esa respuesta, para cada tema/lesson/prueba que
+// tenga alguna clase registrada se marca la siguiente vuelta libre — como mucho una vez
+// por tema, aunque haya varias clases registradas de ese mismo tema en el calendario
+// (se asume que todas esas clases antiguas de un mismo tema son partes de la misma
+// vuelta, tal y como me explicaste). Devuelve cuántos temas ha marcado.
+function importarVueltasDesdeCalendario(cat){
+  const vistos = new Set();
+  Object.keys(state.claseCal||{}).forEach(monthKey=>{
+    const mes = state.claseCal[monthKey];
+    Object.keys(mes||{}).forEach(day=>{
+      const entry = mes[day];
+      if(!entry) return;
+      (entry[cat]||[]).forEach(v=> vistos.add(String(v)));
+    });
+  });
+  let marcadas = 0;
+  vistos.forEach(id=>{
+    const idx = marcarSiguienteVueltaClase(cat, id);
+    if(idx>-1) marcadas++;
+  });
+  return marcadas;
+}
+function buildImportarVueltasBtn(cat, renderFn){
+  const wrap = document.createElement('div'); wrap.style.marginBottom='14px';
+  const btn = document.createElement('button'); btn.type='button'; btn.className='tick-add';
+  btn.textContent = '↺ Importar desde el calendario';
+  btn.title = 'Marca la siguiente vuelta libre de cada tema que ya tengas registrado en el calendario (como mucho una vez por tema)';
+  btn.onclick = ()=>{
+    const n = importarVueltasDesdeCalendario(cat);
+    scheduleSave();
+    renderFn();
+    alert(n>0 ? ('Se ha marcado 1 vuelta en '+n+' tema'+(n>1?'s':'')+' a partir de lo ya registrado en el calendario.') : 'No hay ninguna vuelta nueva que marcar (o ya estaban todas al día).');
+  };
+  wrap.appendChild(btn);
+  return wrap;
+}
 function renderClasesConocimientos(){
   const host = document.getElementById('clasesConocimientosHost');
   if(!host) return;
   renderAccordionSection(host, 'clasesConocimientos', 'Clase de conocimientos (temas 1–23)', (body)=>{
+    body.appendChild(buildImportarVueltasBtn('conocimientos', renderClasesConocimientos));
     const grid = document.createElement('div'); grid.className='flat-grid';
     for(let i=1;i<=23;i++){
       const arr = ensureClaseTick('conocimientos', String(i));
@@ -4435,6 +4474,7 @@ function renderClasesIngles(){
   const host = document.getElementById('clasesInglesHost');
   if(!host) return;
   renderAccordionSection(host, 'clasesIngles', 'Clase de inglés (lesson 1–32)', (body)=>{
+    body.appendChild(buildImportarVueltasBtn('ingles', renderClasesIngles));
     const grid = document.createElement('div'); grid.className='flat-grid';
     for(let i=1;i<=INGLES_TOTAL;i++){
       const arr = ensureClaseTick('ingles', String(i));
@@ -4450,6 +4490,7 @@ function renderClasesPsico(){
   const host = document.getElementById('clasesPsicoHost');
   if(!host) return;
   renderAccordionSection(host, 'clasesPsico', 'Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', (body)=>{
+    body.appendChild(buildImportarVueltasBtn('psico', renderClasesPsico));
     const grid = document.createElement('div'); grid.className='flat-grid';
     PSICO_ITEMS.forEach((name, idx)=>{
       const arr = ensureClaseTick('psico', String(idx));
@@ -4460,6 +4501,35 @@ function renderClasesPsico(){
     });
     body.appendChild(grid);
   });
+}
+// Recupera, de una sola vez, las clases de Ortografía/Gramática que ya tenías registradas
+// en el calendario antes de que existiera la copia automática (o que se añadieron desde
+// el formulario completo saltándose por lo que sea la sincronización), y crea su entrada
+// correspondiente aquí si no hay ya una con el mismo nombre — para no duplicar las que ya
+// se copiaron solas o las que añadiste a mano. Devuelve cuántas ha importado.
+function importarClasesOrtoGramDesdeCalendario(){
+  if(!Array.isArray(state.clases.ortoGram)) state.clases.ortoGram = [];
+  const yaExisten = new Set(state.clases.ortoGram.map(e=> (e.nombre||'').trim().toLowerCase()));
+  let importadas = 0;
+  Object.keys(state.claseCal||{}).forEach(monthKey=>{
+    const mes = state.claseCal[monthKey];
+    Object.keys(mes||{}).forEach(day=>{
+      const entry = mes[day];
+      if(!entry) return;
+      ['orto','gram'].forEach(arrKey=>{
+        (entry[arrKey]||[]).forEach(nombre=>{
+          const limpio = (nombre||'').trim();
+          if(!limpio) return;
+          const key = limpio.toLowerCase();
+          if(yaExisten.has(key)) return;
+          state.clases.ortoGram.push({id: Date.now()+'-'+Math.random(), nombre: limpio, descripcion:'', ticks:[false,false,false]});
+          yaExisten.add(key);
+          importadas++;
+        });
+      });
+    });
+  });
+  return importadas;
 }
 function renderClasesOrtoGram(){
   const host = document.getElementById('clasesOrtoGramHost');
@@ -4480,6 +4550,17 @@ function renderClasesOrtoGram(){
       renderClasesOrtoGram();
     };
     addRow.appendChild(nameIn); addRow.appendChild(descIn); addRow.appendChild(addBtn);
+
+    const importBtn = document.createElement('button'); importBtn.type='button'; importBtn.className='tick-add'; importBtn.style.marginLeft='8px';
+    importBtn.textContent = '↺ Importar desde el calendario';
+    importBtn.title = 'Trae aquí, sin duplicar, las clases de ortografía/gramática que ya tuvieras registradas en el calendario';
+    importBtn.onclick = ()=>{
+      const n = importarClasesOrtoGramDesdeCalendario();
+      scheduleSave();
+      renderClasesOrtoGram();
+      alert(n>0 ? ('Se han importado '+n+' clase'+(n>1?'s':'')+' nueva'+(n>1?'s':'')+' desde el calendario.') : 'No hay ninguna clase nueva que importar (o ya estaban todas aquí).');
+    };
+    addRow.appendChild(importBtn);
     wrap.appendChild(addRow);
 
     if(!list.length){
@@ -4957,6 +5038,80 @@ function devolverClaseAPendientes(materiaKey, temaValue, temaLabel, useExtra){
   });
   renderClasesPendientes();
 }
+// --- Sincronización automática: pestaña Calendario de clases → pestaña Clases ---
+// Cada vez que registras en el calendario que has visto una clase de un tema/lesson/
+// prueba de Conocimientos, Inglés o Psicotécnicos, marcamos automáticamente la
+// siguiente "vuelta" (Vuelta 1, 2 o 3) que aún esté libre para ese tema en la pestaña
+// Clases. Así, si un mismo tema necesita varias clases, cada clase que registres en el
+// calendario va cubriendo una vuelta más (Vuelta 1 con la primera clase, Vuelta 2 con la
+// segunda...). Si las 3 vueltas ya estaban marcadas, no se toca nada. Esto es solo un
+// punto de partida automático: en la pestaña Clases puedes marcar o desmarcar cualquier
+// vuelta a mano en cualquier momento, sin que se deshaga ni se vuelva a tocar sola.
+function marcarSiguienteVueltaClase(cat, id){
+  const arr = ensureClaseTick(cat, String(id));
+  const i = arr.findIndex(v=>!v);
+  if(i>-1){ arr[i] = true; return i; }
+  return -1;
+}
+// Para Ortografía y Gramática no hay un tema numerado con "vueltas": cada clase es una
+// entrada suelta con su propio nombre, igual que cuando la añades a mano en la pestaña
+// Clases (botón "+ Añadir clase"). Así que aquí simplemente creamos esa entrada por ti,
+// con el mismo texto que escribiste en el calendario, lista para revisar/editar/marcar.
+function anadirClaseOrtoGramAuto(nombre){
+  if(!nombre || !nombre.trim()) return null;
+  if(!Array.isArray(state.clases.ortoGram)) state.clases.ortoGram = [];
+  const nueva = {id: Date.now()+'-'+Math.random(), nombre: nombre.trim(), descripcion:'', ticks:[false,false,false]};
+  state.clases.ortoGram.push(nueva);
+  return nueva;
+}
+// Punto único que llaman tanto el modo quiz como el formulario completo del calendario
+// de clases cada vez que se añade una clase a un día, para mantener la pestaña Clases
+// al día automáticamente. Un tema puede necesitar varias clases (partes) dentro de la
+// misma vuelta, así que solo se marca la vuelta cuando se confirma (completaTema=true)
+// que esa clase es la que termina el tema/lesson/prueba, no cada vez que se registra una
+// clase. useExtra=true (psico fuera de lista) no tiene equivalente en Clases, así que no
+// se toca nada en ese caso. Ortografía/Gramática no tienen "vueltas" (cada clase es una
+// entrada suelta), así que ahí se sincroniza siempre, sin preguntar. Devuelve qué se
+// sincronizó (o null si nada), para poder deshacerlo si luego se deshace la clase desde
+// el propio modo quiz.
+function sincronizarProgresoClase(materiaKey, temaValue, temaLabel, useExtra, completaTema){
+  if(materiaKey==='conocimientos'){
+    if(!completaTema) return null;
+    const idx = marcarSiguienteVueltaClase('conocimientos', temaValue);
+    renderClasesConocimientos();
+    return idx>-1 ? {tipo:'vuelta', cat:'conocimientos', id:String(temaValue), idx} : null;
+  } else if(materiaKey==='ingles'){
+    if(!completaTema) return null;
+    const idx = marcarSiguienteVueltaClase('ingles', temaValue);
+    renderClasesIngles();
+    return idx>-1 ? {tipo:'vuelta', cat:'ingles', id:String(temaValue), idx} : null;
+  } else if(materiaKey==='psico' && !useExtra){
+    if(!completaTema) return null;
+    const idx = marcarSiguienteVueltaClase('psico', temaValue);
+    renderClasesPsico();
+    return idx>-1 ? {tipo:'vuelta', cat:'psico', id:String(temaValue), idx} : null;
+  } else if(materiaKey==='orto' || materiaKey==='gram'){
+    const creada = anadirClaseOrtoGramAuto(temaLabel);
+    renderClasesOrtoGram();
+    return creada ? {tipo:'ortogram', entryId:creada.id} : null;
+  }
+  return null;
+}
+// Deshace justo lo que hizo sincronizarProgresoClase (usado solo por el botón "Me he
+// equivocado, deshacer" del modo quiz, que ya sabe exactamente qué se sincronizó).
+function deshacerSincronizacionProgreso(info){
+  if(!info) return;
+  if(info.tipo==='vuelta'){
+    const arr = state.clases[info.cat] && state.clases[info.cat][info.id];
+    if(arr && arr[info.idx]) arr[info.idx] = false;
+    if(info.cat==='conocimientos') renderClasesConocimientos();
+    else if(info.cat==='ingles') renderClasesIngles();
+    else if(info.cat==='psico') renderClasesPsico();
+  } else if(info.tipo==='ortogram'){
+    const i = state.clases.ortoGram.findIndex(e=>e.id===info.entryId);
+    if(i>-1){ state.clases.ortoGram.splice(i,1); renderClasesOrtoGram(); }
+  }
+}
 function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
   body.innerHTML = '';
@@ -5063,7 +5218,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
 
   const MATERIAS = getClaseMateriasDef();
 
-  const sel = {materia:null, temaValue:null, temaLabel:null, useExtra:false, pendienteId:null, nota:null};
+  const sel = {materia:null, temaValue:null, temaLabel:null, useExtra:false, pendienteId:null, nota:null, completaTema:null};
   let addedCount = 0;
   let lastAdd = null;
 
@@ -5081,6 +5236,37 @@ function renderClaseDayQuiz(entry, d, jsDow){
     link.textContent = 'Prefiero el formulario completo (editar o quitar clases) →';
     link.onclick = ()=> renderClaseDayEdit(entry, d, jsDow);
     wrap.appendChild(link);
+  }
+  // Solo tiene sentido preguntar "¿completas el tema?" para materias con temas numerados
+  // (Conocimientos, Inglés, Psicotécnicos de la lista): Ortografía/Gramática no tienen
+  // "vueltas" (cada clase es su propia entrada) y el psico "fuera de lista" tampoco.
+  function shouldPreguntarCompleta(){
+    return !!(sel.materia && sel.materia.kind!=='text' && !sel.useExtra);
+  }
+  // Paso: si el tema puede necesitar varias clases (partes) para cubrirse entero,
+  // preguntamos si con esta clase ya queda completo (y entonces se marca la vuelta
+  // correspondiente en la pestaña Clases) o si aún quedan más partes pendientes de este
+  // mismo tema (y entonces no se toca ninguna vuelta todavía). Para materias sin este
+  // concepto (Ortografía, Gramática, psico fuera de lista) se salta directo al comentario.
+  function stepCompletaTema(){
+    if(!shouldPreguntarCompleta()){ stepComentario(); return; }
+    clearBody();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow';
+    eyebrow.textContent = sel.materia.label + (sel.temaLabel ? (' — '+sel.temaLabel) : '');
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question';
+    q.textContent = '¿Con esta clase completas «'+sel.temaLabel+'», o quedan más partes pendientes de este mismo tema?';
+    wrap.appendChild(q);
+    const opts = document.createElement('div'); opts.className='clase-quiz-options';
+    const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='clase-quiz-opt'; yesBtn.textContent='Sí, ya está completo';
+    yesBtn.onclick = ()=>{ sel.completaTema = true; stepComentario(); };
+    const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='clase-quiz-opt'; noBtn.textContent='No, quedan más partes';
+    noBtn.onclick = ()=>{ sel.completaTema = false; stepComentario(); };
+    opts.appendChild(yesBtn); opts.appendChild(noBtn);
+    wrap.appendChild(opts);
+    addBackBtn(wrap, '← Atrás', ()=> sel.pendienteId ? stepPendiente() : stepTema());
+    body.appendChild(wrap);
   }
 
   function stepVisto(isFirst){
@@ -5116,7 +5302,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     const opts = document.createElement('div'); opts.className='clase-quiz-options';
     MATERIAS.forEach(mat=>{
       const b = document.createElement('button'); b.type='button'; b.className='clase-quiz-opt'; b.textContent=mat.label;
-      b.onclick = ()=>{ sel.materia=mat; sel.temaValue=null; sel.temaLabel=null; sel.useExtra=false; sel.pendienteId=null; sel.nota=null; stepTema(); };
+      b.onclick = ()=>{ sel.materia=mat; sel.temaValue=null; sel.temaLabel=null; sel.useExtra=false; sel.pendienteId=null; sel.nota=null; sel.completaTema=null; stepTema(); };
       opts.appendChild(b);
     });
     wrap.appendChild(opts);
@@ -5180,7 +5366,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
             sel.useExtra = p.useExtra;
             sel.pendienteId = p.id;
             sel.nota = p.nota || '';
-            stepComentario();
+            stepCompletaTema();
           };
         }
         opts.appendChild(b);
@@ -5206,7 +5392,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
       wrap.appendChild(inp);
       const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn'; nextBtn.style.marginTop='4px';
       nextBtn.textContent='Continuar';
-      nextBtn.onclick = ()=>{ sel.temaValue = inp.value.trim(); sel.temaLabel = inp.value.trim(); sel.pendienteId = null; stepComentario(); };
+      nextBtn.onclick = ()=>{ sel.temaValue = inp.value.trim(); sel.temaLabel = inp.value.trim(); sel.pendienteId = null; stepCompletaTema(); };
       wrap.appendChild(nextBtn);
     } else {
       const already = Array.isArray(entry[mat.arrKey]) ? entry[mat.arrKey] : [];
@@ -5224,7 +5410,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
           if(selEl.value==='') return;
           const opt = available.find(o=>String(o.value)===String(selEl.value));
           sel.temaValue = opt.value; sel.temaLabel = opt.label; sel.useExtra=false; sel.pendienteId=null;
-          stepComentario();
+          stepCompletaTema();
         };
         wrap.appendChild(nextBtn);
       } else {
@@ -5243,7 +5429,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
         writeBtn.onclick = ()=>{
           if(!inp.value.trim()) return;
           sel.temaValue = null; sel.temaLabel = inp.value.trim(); sel.useExtra = true; sel.pendienteId = null;
-          stepComentario();
+          stepCompletaTema();
         };
         wrap.appendChild(writeBtn);
       }
@@ -5268,7 +5454,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     saveBtn.textContent = 'Guardar clase';
     saveBtn.onclick = ()=> guardarSeleccion(ta.value.trim());
     wrap.appendChild(saveBtn);
-    addBackBtn(wrap, '← Atrás', ()=> sel.pendienteId ? stepPendiente() : stepTema());
+    addBackBtn(wrap, '← Atrás', ()=> shouldPreguntarCompleta() ? stepCompletaTema() : (sel.pendienteId ? stepPendiente() : stepTema()));
     body.appendChild(wrap);
   }
 
@@ -5293,6 +5479,9 @@ function renderClaseDayQuiz(entry, d, jsDow){
       const tag = '['+mat.label + (sel.temaLabel ? (' — '+sel.temaLabel) : '') + ']';
       entry.nota = (entry.nota && entry.nota.trim()) ? (entry.nota+'\n'+tag+' '+comentario) : (tag+' '+comentario);
     }
+    // Mantiene la pestaña Clases al día automáticamente: siguiente vuelta libre para
+    // Conocimientos/Inglés/Psicotécnicos, o entrada nueva para Ortografía/Gramática.
+    const syncInfo = sincronizarProgresoClase(mat.key, sel.temaValue, sel.temaLabel, sel.useExtra, sel.completaTema);
     // Si la clase venía del tablón de pendientes, la quitamos de ahí: ya se ha "colocado"
     // en este día del calendario. Guardamos una copia por si luego se deshace el añadido.
     let removedPendiente = null;
@@ -5301,7 +5490,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
       if(pi>-1){ removedPendiente = state.clasesPendientes[pi]; state.clasesPendientes.splice(pi,1); }
     }
     addedCount++;
-    lastAdd = {arrKey:usedArrKey, value:usedValue, notaBefore, materiaLabel:mat.label, temaLabel:sel.temaLabel, removedPendiente};
+    lastAdd = {arrKey:usedArrKey, value:usedValue, notaBefore, materiaLabel:mat.label, temaLabel:sel.temaLabel, removedPendiente, syncInfo};
     scheduleSave();
     renderClaseCalendar();
     renderClasesPendientes();
@@ -5320,6 +5509,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
       if(i>-1) arr.splice(i,1);
     }
     entry.nota = lastAdd.notaBefore;
+    deshacerSincronizacionProgreso(lastAdd.syncInfo);
     if(lastAdd.removedPendiente){
       state.clasesPendientes.push(lastAdd.removedPendiente);
     }
@@ -5420,7 +5610,14 @@ function renderClaseDayEdit(entry, d, jsDow){
     addBtn.onclick = ()=>{
       if(sel.value===''){ return; }
       if(!Array.isArray(entry[arrKey])) entry[arrKey] = [];
-      entry[arrKey].push(Number(sel.value));
+      const v = Number(sel.value);
+      entry[arrKey].push(v);
+      const opt = optionsList.find(o=>o.value===v);
+      const label = opt ? opt.label : String(v);
+      // Un tema puede necesitar varias clases (partes) dentro de la misma vuelta, así
+      // que preguntamos si esta ya lo completa antes de marcar la vuelta en Clases.
+      const completa = confirm('¿Con esta clase completas «'+label+'», o quedan más partes pendientes de este mismo tema?\n\nAceptar = sí, ya está completo (se marca la vuelta en la pestaña Clases)\nCancelar = no, quedan más partes (no se marca nada todavía)');
+      sincronizarProgresoClase(materiaKey, v, label, false, completa);
       scheduleSave(); repaint(); renderClaseCalendar();
     };
     addWrap.appendChild(sel); addWrap.appendChild(addBtn);
@@ -5452,7 +5649,21 @@ function renderClaseDayEdit(entry, d, jsDow){
           inp.type='text'; inp.placeholder = placeholder; inp.value = nombre || '';
           inp.setAttribute('aria-label', labelText+' #'+(i+1));
           inp.oninput = ()=>{ entry[arrKey][i] = inp.value; scheduleSave(); };
-          inp.onblur = ()=> renderClaseCalendar();
+          inp.onblur = ()=>{
+            // Al terminar de escribir el nombre de una clase de Ortografía/Gramática aquí,
+            // la copiamos también a la pestaña Clases (como harías a mano), pero solo una
+            // vez por fila para no duplicarla si solo entras y sales del campo sin cambiar nada.
+            if((arrKey==='orto' || arrKey==='gram') && inp.value.trim()){
+              const syncedKey = arrKey+'_synced';
+              if(!Array.isArray(entry[syncedKey])) entry[syncedKey] = [];
+              if(!entry[syncedKey][i]){
+                sincronizarProgresoClase(materiaKey, null, inp.value.trim(), false);
+                entry[syncedKey][i] = true;
+                scheduleSave();
+              }
+            }
+            renderClaseCalendar();
+          };
           const rm = document.createElement('button');
           rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar esta clase');
           rm.onclick = ()=>{
