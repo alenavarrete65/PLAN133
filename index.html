@@ -839,6 +839,8 @@
     padding:7px 8px;font-family:var(--font-mono);font-size:12px;
   }
   .sim-field .nota-pill{margin-left:6px;}
+  .sim-total-field{border-top:1px dashed var(--line);padding-top:10px;margin-top:2px;}
+  .sim-total-field label{color:var(--amber);font-size:11px;}
   .cclase-pill.p-sim{background:var(--red);color:#fff;}
 
   /* ---- progreso / notas ---- */
@@ -1828,7 +1830,7 @@ function normalizeState(){
       state.simulacros.push({
         nombre: 'Simulacro '+pad2(d)+'/'+pad2(mm)+'/'+my,
         fecha: fecha,
-        conocimientos: null, ingles: null, psico: null, orto: null, gram: null,
+        conocimientos: null, conAciertos: null, conFallos: null, conBlanco: null, ingles: null, psico: null, orto: null, gram: null, baremo: null,
         nota: notaAntigua || ''
       });
     });
@@ -6771,7 +6773,7 @@ function renderSimulacrosList(){
   addBtn.className = 'btn';
   addBtn.textContent = '+ Añadir simulacro';
   addBtn.onclick = ()=>{
-    list.push({nombre:'', conocimientos:null, ingles:null, psico:null, orto:null, gram:null, nota:''});
+    list.push({nombre:'', conocimientos:null, conAciertos:null, conFallos:null, conBlanco:null, ingles:null, psico:null, orto:null, gram:null, baremo:null, nota:''});
     scheduleSave();
     renderSimulacrosList();
   };
@@ -6859,9 +6861,29 @@ function renderSimulacrosList(){
    (ortografía/gramática) de un simulacro. Se usa tanto en la ficha completa de la pestaña
    Simulacros como directamente en el modal del día del calendario de simulacros, para poder
    editarlo todo sin tener que cambiar de pestaña. */
+function computeConocimientosNota(sim){
+  const ac = sim.conAciertos!=null ? Number(sim.conAciertos) : 0;
+  const fa = sim.conFallos!=null ? Number(sim.conFallos) : 0;
+  return Math.round((ac - fa*0.33)*100)/100;
+}
+/* Total del simulacro: suma de conocimientos (sobre 100), inglés (sobre 20), psicotécnico
+   (sobre 30) y el baremo extra que se añada a mano. Si ortografía o gramática están marcadas
+   como "No apto", el simulacro entero es NO APTO, da igual lo bien que vaya el resto. */
+function computeSimTotal(sim){
+  const noApto = sim.orto==='NO_APTO' || sim.gram==='NO_APTO';
+  const con = sim.conocimientos!=null && !isNaN(sim.conocimientos) ? Number(sim.conocimientos) : null;
+  const ing = sim.ingles!=null && !isNaN(sim.ingles) ? Number(sim.ingles) : null;
+  const psi = sim.psico!=null && !isNaN(sim.psico) ? Number(sim.psico) : null;
+  const bar = sim.baremo!=null && !isNaN(sim.baremo) ? Number(sim.baremo) : null;
+  const hasAny = con!=null || ing!=null || psi!=null || bar!=null;
+  const total = Math.round(((con||0)+(ing||0)+(psi||0)+(bar||0))*100)/100;
+  return {noApto, total, hasAny, con, ing, psi, bar};
+}
 function buildSimScoreFields(sim, opts){
   opts = opts || {};
   const fields = document.createElement('div'); fields.className='sim-fields';
+  let paintTotal = ()=>{};
+
   const mkNotaField = (label, prop, max)=>{
     const f = document.createElement('div'); f.className='sim-field';
     const lbl = document.createElement('label'); lbl.textContent = label+' (sobre '+max+')';
@@ -6879,6 +6901,7 @@ function buildSimScoreFields(sim, opts){
       sim[prop] = inp.value===''? null : Number(inp.value);
       scheduleSave();
       paintPill();
+      paintTotal();
       if(opts.onChange) opts.onChange();
     };
     paintPill();
@@ -6886,7 +6909,50 @@ function buildSimScoreFields(sim, opts){
     f.appendChild(wrap);
     return f;
   };
-  fields.appendChild(mkNotaField('Nota conocimientos','conocimientos',10));
+
+  // Conocimientos ya no es una nota suelta: se calcula sola a partir de aciertos, fallos y
+  // blancos (acierto +1, fallo -0,33, blanco 0), sobre 100, para poder ver de un vistazo
+  // cuántas preguntas conviene arriesgar en el examen real.
+  const mkConocimientosField = ()=>{
+    const f = document.createElement('div'); f.className='sim-field'; f.style.gridColumn='1 / -1';
+    const lbl = document.createElement('label'); lbl.textContent = 'Nota conocimientos (sobre 100)';
+    f.appendChild(lbl);
+    const row = document.createElement('div'); row.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;';
+    const pillHolder = document.createElement('span');
+    const paintPill = ()=>{
+      const n = sim.conocimientos;
+      pillHolder.innerHTML = (n!=null && !isNaN(n))
+        ? '<span class="nota-pill '+notaPillClass(n,100)+'">'+n+'/100</span>' : '';
+    };
+    const mkSub = (subLabel, prop)=>{
+      const wrap = document.createElement('div'); wrap.style.cssText='display:flex;flex-direction:column;gap:3px;';
+      const l = document.createElement('span');
+      l.style.cssText='font-family:var(--font-mono);font-size:9px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.05em;';
+      l.textContent = subLabel;
+      const inp = document.createElement('input'); inp.type='number'; inp.step='1'; inp.min='0'; inp.style.width='76px';
+      inp.value = sim[prop]==null ? '' : sim[prop];
+      inp.placeholder='0';
+      inp.setAttribute('aria-label', subLabel+' de conocimientos');
+      inp.oninput = ()=>{
+        sim[prop] = inp.value===''? null : Number(inp.value);
+        sim.conocimientos = computeConocimientosNota(sim);
+        scheduleSave();
+        paintPill();
+        paintTotal();
+        if(opts.onChange) opts.onChange();
+      };
+      wrap.appendChild(l); wrap.appendChild(inp);
+      return wrap;
+    };
+    row.appendChild(mkSub('Aciertos','conAciertos'));
+    row.appendChild(mkSub('Fallos','conFallos'));
+    row.appendChild(mkSub('En blanco','conBlanco'));
+    row.appendChild(pillHolder);
+    paintPill();
+    f.appendChild(row);
+    return f;
+  };
+  fields.appendChild(mkConocimientosField());
   fields.appendChild(mkNotaField('Nota inglés','ingles',20));
   fields.appendChild(mkNotaField('Nota psicotécnico','psico',30));
 
@@ -6900,12 +6966,54 @@ function buildSimScoreFields(sim, opts){
     sel.appendChild(new Option('Apto','APTO'));
     sel.appendChild(new Option('No apto','NO_APTO'));
     sel.value = sim[prop] || '';
-    sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); if(opts.onChange) opts.onChange(); };
+    sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); paintTotal(); if(opts.onChange) opts.onChange(); };
     f.appendChild(sel);
     return f;
   };
   fields.appendChild(mkAptoField('Ortografía','orto'));
   fields.appendChild(mkAptoField('Gramática','gram'));
+
+  // Baremo: puntos externos (méritos, etc.) que se suman a la nota total del simulacro.
+  const mkBaremoField = ()=>{
+    const f = document.createElement('div'); f.className='sim-field';
+    const lbl = document.createElement('label'); lbl.textContent = 'Baremo (puntos extra)';
+    f.appendChild(lbl);
+    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
+    const inp = document.createElement('input'); inp.type='number'; inp.step='0.01'; inp.min='0';
+    inp.value = sim.baremo==null ? '' : sim.baremo;
+    inp.placeholder = '0';
+    inp.oninput = ()=>{
+      sim.baremo = inp.value===''? null : Number(inp.value);
+      scheduleSave();
+      paintTotal();
+      if(opts.onChange) opts.onChange();
+    };
+    wrap.appendChild(inp);
+    f.appendChild(wrap);
+    return f;
+  };
+  fields.appendChild(mkBaremoField());
+
+  // Total: NO APTO manda sobre cualquier suma si ortografía o gramática han suspendido;
+  // si no, es la suma de conocimientos + inglés + psicotécnico + baremo.
+  const totalField = document.createElement('div'); totalField.className='sim-field sim-total-field'; totalField.style.gridColumn='1 / -1';
+  const totalLbl = document.createElement('label'); totalLbl.textContent = 'Total simulacro';
+  totalField.appendChild(totalLbl);
+  const totalDisplay = document.createElement('div'); totalDisplay.style.cssText='font-family:var(--font-mono);font-size:13px;';
+  totalField.appendChild(totalDisplay);
+  paintTotal = ()=>{
+    const r = computeSimTotal(sim);
+    if(r.noApto){
+      totalDisplay.innerHTML = '<span class="nota-pill bad">NO APTO</span> <span style="color:var(--muted);">— ortografía o gramática suspendidas</span>';
+    } else if(!r.hasAny){
+      totalDisplay.innerHTML = '<span style="color:var(--muted);">— añade alguna nota para ver el total —</span>';
+    } else {
+      totalDisplay.innerHTML = '<span class="nota-pill good">'+r.total+'</span> <span style="color:var(--muted);">= '+(r.con||0)+' con. + '+(r.ing||0)+' inglés + '+(r.psi||0)+' psico. + '+(r.bar||0)+' baremo</span>';
+    }
+  };
+  paintTotal();
+  fields.appendChild(totalField);
+
   return fields;
 }
 /* Tablón de "Simulacros pendientes": simulacros que ya sabes que tienes por delante (p. ej.
@@ -7019,7 +7127,7 @@ function renderSimulacroPendienteForm(container, onSaved){
       id: Date.now()+'-'+Math.random(),
       nombre,
       disponibleDesde: disponibleDesde || null,
-      conocimientos: null, ingles: null, psico: null, orto: null, gram: null,
+      conocimientos: null, conAciertos: null, conFallos: null, conBlanco: null, ingles: null, psico: null, orto: null, gram: null, baremo: null,
       nota: ''
     });
     scheduleSave();
@@ -7114,10 +7222,14 @@ function devolverSimulacroAPendientes(sim){
     nombre: sim.nombre || '',
     disponibleDesde: null,
     conocimientos: sim.conocimientos!=null ? sim.conocimientos : null,
+    conAciertos: sim.conAciertos!=null ? sim.conAciertos : null,
+    conFallos: sim.conFallos!=null ? sim.conFallos : null,
+    conBlanco: sim.conBlanco!=null ? sim.conBlanco : null,
     ingles: sim.ingles!=null ? sim.ingles : null,
     psico: sim.psico!=null ? sim.psico : null,
     orto: sim.orto || null,
     gram: sim.gram || null,
+    baremo: sim.baremo!=null ? sim.baremo : null,
     nota: sim.nota || ''
   });
   if(sim.fecha) eliminarSimulacroPorFecha(sim.fecha);
@@ -7137,10 +7249,14 @@ function colocarSimulacroPendienteEnFecha(pendienteId, fecha){
     nombre: p.nombre || '',
     fecha: fecha,
     conocimientos: p.conocimientos!=null ? p.conocimientos : null,
+    conAciertos: p.conAciertos!=null ? p.conAciertos : null,
+    conFallos: p.conFallos!=null ? p.conFallos : null,
+    conBlanco: p.conBlanco!=null ? p.conBlanco : null,
     ingles: p.ingles!=null ? p.ingles : null,
     psico: p.psico!=null ? p.psico : null,
     orto: p.orto || null,
     gram: p.gram || null,
+    baremo: p.baremo!=null ? p.baremo : null,
     nota: p.nota || ''
   };
   state.simulacros.push(sim);
@@ -7779,6 +7895,69 @@ function renderProgreso(){
     host.appendChild(sTrend);
   }
 
+  // Comparativa de simulacros: de mejor a peor resultado, según el total (conocimientos +
+  // inglés + psicotécnico + baremo), con los NO APTO siempre al final. Se muestra en cuanto
+  // haya algún simulacro con datos, independientemente de si hay notas de temario o no.
+  const simsConDatos = (state.simulacros||[])
+    .map((sim,i)=>({sim, i, ...computeSimTotal(sim)}))
+    .filter(x=> x.hasAny || x.noApto);
+  if(simsConDatos.length){
+    const sSim = document.createElement('div');
+    appendAccordionSection(sSim, 'comparativaSimulacros', progresoOpen, 'Comparativa de simulacros', (body)=>{
+      const sub = document.createElement('div'); sub.className='sub'; sub.style.marginBottom='10px';
+      sub.textContent = 'Tus simulacros ordenados de mejor a peor resultado (conocimientos + inglés + psicotécnico + baremo; NO APTO manda sobre cualquier nota si ortografía o gramática han suspendido).';
+      body.appendChild(sub);
+
+      const ranked = simsConDatos.slice().sort((a,b)=>{
+        if(a.noApto && !b.noApto) return 1;
+        if(!a.noApto && b.noApto) return -1;
+        return b.total - a.total;
+      });
+      const aptos = ranked.filter(x=> !x.noApto);
+      const bestEntry = aptos.length ? aptos[0] : null;
+      const worstEntry = aptos.length>1 ? aptos[aptos.length-1] : null;
+      const noAptoCount = ranked.length - aptos.length;
+
+      if(bestEntry || worstEntry || noAptoCount){
+        const verdict = document.createElement('div');
+        verdict.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-bottom:12px;line-height:1.7;';
+        const nombreDe = (e)=> e.sim.nombre || ('Simulacro '+(e.i+1));
+        let txt = '';
+        if(bestEntry) txt += '🏆 Mejor resultado: '+nombreDe(bestEntry)+' ('+bestEntry.total+' puntos).<br>';
+        if(worstEntry) txt += '📉 El más complicado (entre los aptos): '+nombreDe(worstEntry)+' ('+worstEntry.total+' puntos).<br>';
+        if(noAptoCount) txt += '⚠️ '+noAptoCount+' simulacro'+(noAptoCount!==1?'s':'')+' quedaron NO APTO por ortografía o gramática.';
+        verdict.innerHTML = txt;
+        body.appendChild(verdict);
+      }
+
+      const table = document.createElement('table'); table.className='nota-table';
+      table.innerHTML = '<thead><tr><th>Simulacro</th><th>Conocimientos</th><th>Inglés</th><th>Psicotécnico</th><th>Baremo</th><th>Total</th></tr></thead>';
+      const tbody = document.createElement('tbody');
+      ranked.forEach((entry)=>{
+        const {sim, i, noApto, total} = entry;
+        const nombre = sim.nombre || ('Simulacro '+(i+1));
+        const isBest = bestEntry===entry;
+        const isWorst = worstEntry===entry;
+        const totalCell = noApto
+          ? '<span class="nota-pill bad">NO APTO</span>'
+          : '<span class="nota-pill '+(isBest?'good':(isWorst?'bad':'mid'))+'">'+total+'</span>';
+        const tr = document.createElement('tr');
+        tr.innerHTML = `<td>${nombre}${isBest?' 🏆':''}${isWorst?' 📉':''}</td>`+
+          `<td>${sim.conocimientos!=null?sim.conocimientos+'/100':'—'}</td>`+
+          `<td>${sim.ingles!=null?sim.ingles+'/20':'—'}</td>`+
+          `<td>${sim.psico!=null?sim.psico+'/30':'—'}</td>`+
+          `<td>${sim.baremo!=null?sim.baremo:'—'}</td>`+
+          `<td>${totalCell}</td>`;
+        tbody.appendChild(tr);
+      });
+      table.appendChild(tbody);
+      const tableWrap = document.createElement('div'); tableWrap.style.overflowX='auto';
+      tableWrap.appendChild(table);
+      body.appendChild(tableWrap);
+    });
+    host.appendChild(sSim);
+  }
+
   const data = collectNotaData();
   const grupos = Object.keys(data.porGrupo);
 
@@ -7893,7 +8072,7 @@ function renderProgreso(){
   });
   host.appendChild(s4);
 }
-const progresoOpen = {detalleTema:false, tendenciaArrastre:true};
+const progresoOpen = {detalleTema:false, tendenciaArrastre:true, comparativaSimulacros:true};
 /* ===================== MARCAS FÍSICAS MÍNIMAS (oposición Guardia Civil) ===================== */
 function parseTiempoASegundos(v){
   if(v==null || v==='') return NaN;
