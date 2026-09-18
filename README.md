@@ -174,6 +174,18 @@ la app ya abierta verá una franja arriba avisando de que hay una versión nueva
 para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
 que recargue la pestaña por otro motivo.
 
+## Notas por tema, también desde el calendario
+
+En la lista de **Tareas del día** (dentro de la ficha de cada día), junto al desplegable de
+vuelta (Pendiente / Nota test / No test / No tiempo / Solo lectura) de cada bloque, leve,
+inglés o psicotécnico, hay ahora un enlace **📝 Añadir/ver notas de este tema**. Al pulsarlo se
+despliega una caja de texto para escribir ahí mismo tus notas de ese tema — dudas, fallos, lo
+que quieras recordar — **sin tener que ir a la pestaña «Temario y notas»**.
+
+Es literalmente la misma nota que ves en «Temario y notas»: escribe en el mismo sitio, así que
+lo que apuntes desde el calendario aparece también allí, y al revés. Si el tema ya tenía algo
+escrito, la caja sale abierta de entrada; si no, sale plegada para no alargar el modal del día.
+
 ## Cuarto calendario: «Todo incluido»
 
 Dentro de la pestaña **Calendario**, además del principal, el de clases y el de simulacros,
@@ -292,6 +304,9 @@ JSON técnico.
       descanso/trabajo (implementado: ver apartado «Todo el día desde el calendario principal»).
 - [x] Un calendario «todo incluido» que junte estudio, clases y simulacros en la misma vista
       (implementado: ver apartado «Cuarto calendario: Todo incluido»).
+- [x] Poder escribir y ver las notas de cada tema (bloque, leve, inglés, psicotécnico) desde
+      la propia ficha del día, sin ir a Temario y notas (implementado: ver apartado «Notas
+      por tema, también desde el calendario»).
 - [ ] Notificaciones push con recordatorios diarios de estudio/entreno — necesitaría configurar
       Firebase Cloud Messaging desde tu consola de Firebase (claves, permisos del navegador);
       no es algo que pueda dejar activado sin que completes tú esa parte primero.

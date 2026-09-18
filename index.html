@@ -653,6 +653,13 @@
   .modal-tema-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;}
   .modal-tema-line .tema-line-txt{font-size:12px;flex:1;min-width:140px;}
   .modal-tema-line .quick-vuelta{margin-top:0;flex:0 0 auto;}
+  .tema-note-wrap{margin-top:4px;}
+  .tema-note-toggle{
+    background:none;border:none;color:var(--amber);opacity:.85;cursor:pointer;
+    font-family:var(--font-mono);font-size:10px;padding:2px 0;text-decoration:underline;text-underline-offset:2px;
+  }
+  .tema-note-toggle:hover{opacity:1;}
+  .tema-note-wrap .note-inline{margin-top:6px;min-height:56px;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
     font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
@@ -3805,6 +3812,7 @@ function openDayModal(d, info){
           txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
           line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques));
+          line.appendChild(buildTemaNoteBox(t.key));
           bLeft.appendChild(line);
         });
         const bFoot = document.createElement('div');
@@ -4084,8 +4092,31 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo){
     const quick = buildQuickVueltaControl(vueltaInfo.key, vueltaInfo.maxNota);
     quick.style.width = '100%';
     row.appendChild(quick);
+    // Notas de este tema, escritas en el mismo sitio (state.notes[key]) que usa la pestaña
+    // «Temario y notas»: lo que escribas aquí se ve allí, y al revés — es la misma nota.
+    row.appendChild(buildTemaNoteBox(vueltaInfo.key));
   }
   body.appendChild(row);
+}
+/* Caja de notas de un tema/leve/inglés/psicotécnico, para usar dentro del modal del día.
+   Empieza plegada (mostrando solo un botón) si todavía no hay nada escrito, y abierta si ya
+   hay una nota guardada, para no alargar el modal de más en los temas sin comentarios. */
+function buildTemaNoteBox(key){
+  const wrap = document.createElement('div'); wrap.className='tema-note-wrap'; wrap.style.width='100%';
+  const yaTieneNota = !!(state.notes[key] && state.notes[key].trim());
+  const toggle = document.createElement('button'); toggle.type='button'; toggle.className='tema-note-toggle';
+  const ta = buildNoteBox(key, 'Notas de este tema (dudas, fallos, lo que quieras recordar)…');
+  ta.style.display = yaTieneNota ? '' : 'none';
+  function setOpen(open){
+    ta.style.display = open ? '' : 'none';
+    toggle.textContent = open ? '📝 Ocultar notas de este tema' : '📝 Añadir/ver notas de este tema';
+    if(open) ta.focus();
+  }
+  toggle.onclick = ()=> setOpen(ta.style.display==='none');
+  setOpen(yaTieneNota);
+  wrap.appendChild(toggle);
+  wrap.appendChild(ta);
+  return wrap;
 }
 /* Ortografía y gramática no tienen "vueltas" numeradas como el resto del temario — cada
    test es simplemente Apto/No apto (igual que en la pestaña Temario y notas). Aquí se puede
