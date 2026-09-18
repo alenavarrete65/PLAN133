@@ -1583,7 +1583,7 @@ const firebaseAuthReady = (async ()=>{
 let accessCode = null;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1684,6 +1684,7 @@ function normalizeState(){
   });
   if(!state.simulacros) state.simulacros = [];
   if(!Array.isArray(state.simulacrosPendientes)) state.simulacrosPendientes = [];
+  if(!Array.isArray(state.clasesSyncPendiente)) state.clasesSyncPendiente = [];
   if(!state.simulacroCal) state.simulacroCal = {};
   // Migración: el antiguo calendario de simulacros marcaba los días con un simple true/false
   // (state.simulacroCal) y guardaba la nota del día suelta y aparte (state.notes), sin ninguna
@@ -3135,7 +3136,9 @@ function renderHomeDash(){
   const todayMonthKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
   const todayDay = now.getDate();
   const claseEntry = (state.claseCal[todayMonthKey] && state.claseCal[todayMonthKey][todayDay]) || {};
+  const todaySyncPend = (state.clasesSyncPendiente||[]).filter(x=> x.fecha === (todayMonthKey+'-'+pad2(todayDay))).length;
   const clasesHoyHtml = '<div class="home-clases-pills">'+buildClasePillsHTML(claseEntry, 40)+'</div>'+
+    (todaySyncPend ? '<div class="home-card-note">Se marcará'+(todaySyncPend!==1?'n':'')+' como vista'+(todaySyncPend!==1?'s':'')+' en la pestaña Clases cuando termine hoy.</div>' : '')+
     '<button class="btn small ghost" id="homeClasesBtn" style="margin-top:8px;">Ir a Clases →</button>';
 
   // Simulacro (calendario de simulacros) de hoy, si lo hay, más aviso de pendientes por colocar.
@@ -5296,6 +5299,26 @@ function anadirClaseOrtoGramAuto(nombre){
   state.clases.ortoGram.push(nueva);
   return nueva;
 }
+// Cola de sincronizaciones "a día vencido": cuando registras en el calendario una clase de
+// HOY (o de un día futuro), la vuelta correspondiente en la pestaña Clases todavía NO se
+// marca al momento — se queda aquí en espera, igual que la racha o el arrastre, que solo
+// cuentan un día como terminado cuando ya ha pasado. En cuanto ese día quede atrás (es
+// decir, en cuanto sea ayer o antes), se marca sola, sin que tengas que hacer nada.
+function ensureClasesSyncPendiente(){ if(!Array.isArray(state.clasesSyncPendiente)) state.clasesSyncPendiente = []; return state.clasesSyncPendiente; }
+function encolarSincronizacionClase(data){
+  const item = Object.assign({id: Date.now()+'-'+Math.random()}, data);
+  ensureClasesSyncPendiente().push(item);
+  return {tipo:'diferido', id:item.id};
+}
+// Si quitas una clase de un día antes de que ese día termine (y por tanto antes de que su
+// vuelta llegara a marcarse de verdad en la pestaña Clases), esto cancela la sincronización
+// que seguía en espera para que no se marque sola más adelante una clase que ya no está.
+function cancelarSincronizacionClasePendiente(materiaKey, temaValue, temaLabel, fecha){
+  const list = ensureClasesSyncPendiente();
+  const i = list.findIndex(x=> x.materiaKey===materiaKey && x.fecha===fecha &&
+    (temaValue!=null ? String(x.temaValue)===String(temaValue) : x.temaLabel===temaLabel));
+  if(i>-1) list.splice(i,1);
+}
 // Punto único que llaman tanto el modo quiz como el formulario completo del calendario
 // de clases cada vez que se añade una clase a un día, para mantener la pestaña Clases
 // al día automáticamente. Un tema puede necesitar varias clases (partes) dentro de la
@@ -5303,26 +5326,35 @@ function anadirClaseOrtoGramAuto(nombre){
 // que esa clase es la que termina el tema/lesson/prueba, no cada vez que se registra una
 // clase. useExtra=true (psico fuera de lista) no tiene equivalente en Clases, así que no
 // se toca nada en ese caso. Ortografía/Gramática no tienen "vueltas" (cada clase es una
-// entrada suelta), así que ahí se sincroniza siempre, sin preguntar. Devuelve qué se
-// sincronizó (o null si nada), para poder deshacerlo si luego se deshace la clase desde
-// el propio modo quiz.
-function sincronizarProgresoClase(materiaKey, temaValue, temaLabel, useExtra, completaTema){
+// entrada suelta), así que ahí se sincroniza siempre, sin preguntar (pero también en
+// diferido si el día todavía no ha terminado). Si "fecha" (YYYY-MM-DD) es hoy o una fecha
+// futura, la sincronización real no ocurre todavía: se encola y se marcará automáticamente
+// cuando ese día pase (ver procesarSincronizacionesClaseVencidas). Devuelve qué se
+// sincronizó (o se encoló), para poder deshacerlo si luego se deshace la clase desde el
+// propio modo quiz.
+function sincronizarProgresoClase(materiaKey, temaValue, temaLabel, useExtra, completaTema, fecha){
+  const todayISO = new Date().toISOString().slice(0,10);
+  const diferir = !!fecha && fecha >= todayISO;
   if(materiaKey==='conocimientos'){
     if(!completaTema) return null;
+    if(diferir) return encolarSincronizacionClase({materiaKey, temaValue, temaLabel, useExtra:!!useExtra, completaTema, fecha});
     const idx = marcarSiguienteVueltaClase('conocimientos', temaValue);
     renderClasesConocimientos();
     return idx>-1 ? {tipo:'vuelta', cat:'conocimientos', id:String(temaValue), idx} : null;
   } else if(materiaKey==='ingles'){
     if(!completaTema) return null;
+    if(diferir) return encolarSincronizacionClase({materiaKey, temaValue, temaLabel, useExtra:!!useExtra, completaTema, fecha});
     const idx = marcarSiguienteVueltaClase('ingles', temaValue);
     renderClasesIngles();
     return idx>-1 ? {tipo:'vuelta', cat:'ingles', id:String(temaValue), idx} : null;
   } else if(materiaKey==='psico' && !useExtra){
     if(!completaTema) return null;
+    if(diferir) return encolarSincronizacionClase({materiaKey, temaValue, temaLabel, useExtra:false, completaTema, fecha});
     const idx = marcarSiguienteVueltaClase('psico', temaValue);
     renderClasesPsico();
     return idx>-1 ? {tipo:'vuelta', cat:'psico', id:String(temaValue), idx} : null;
   } else if(materiaKey==='orto' || materiaKey==='gram'){
+    if(diferir) return encolarSincronizacionClase({materiaKey, temaValue, temaLabel, useExtra:!!useExtra, completaTema:true, fecha});
     const creada = anadirClaseOrtoGramAuto(temaLabel);
     renderClasesOrtoGram();
     return creada ? {tipo:'ortogram', entryId:creada.id} : null;
@@ -5342,7 +5374,42 @@ function deshacerSincronizacionProgreso(info){
   } else if(info.tipo==='ortogram'){
     const i = state.clases.ortoGram.findIndex(e=>e.id===info.entryId);
     if(i>-1){ state.clases.ortoGram.splice(i,1); renderClasesOrtoGram(); }
+  } else if(info.tipo==='diferido'){
+    const list = ensureClasesSyncPendiente();
+    const i = list.findIndex(x=>x.id===info.id);
+    if(i>-1) list.splice(i,1);
   }
+}
+// Revisa la cola de sincronizaciones diferidas y marca ya, de verdad, las que correspondan
+// a un día que ya ha pasado (fecha < hoy). Se llama al cargar la app y también cada minuto
+// / al volver a primer plano, por si la app se queda abierta y cruza la medianoche, para
+// que la vuelta se marque sola sin tener que recargar la página.
+function procesarSincronizacionesClaseVencidas(){
+  const list = ensureClasesSyncPendiente();
+  if(!list.length) return;
+  const todayISO = new Date().toISOString().slice(0,10);
+  const vencidas = list.filter(item=> item.fecha < todayISO);
+  if(!vencidas.length) return;
+  vencidas.forEach(item=>{
+    const i = list.indexOf(item);
+    if(i>-1) list.splice(i,1);
+    // Vuelve a llamar a la sincronización real, ya sin fecha (o con una fecha ya pasada:
+    // da igual, aquí solo importa que "diferir" salga false porque ya no es hoy ni futuro).
+    if(item.materiaKey==='conocimientos'){
+      const idx = marcarSiguienteVueltaClase('conocimientos', item.temaValue);
+      if(idx>-1) renderClasesConocimientos();
+    } else if(item.materiaKey==='ingles'){
+      const idx = marcarSiguienteVueltaClase('ingles', item.temaValue);
+      if(idx>-1) renderClasesIngles();
+    } else if(item.materiaKey==='psico' && !item.useExtra){
+      const idx = marcarSiguienteVueltaClase('psico', item.temaValue);
+      if(idx>-1) renderClasesPsico();
+    } else if(item.materiaKey==='orto' || item.materiaKey==='gram'){
+      const creada = anadirClaseOrtoGramAuto(item.temaLabel);
+      if(creada) renderClasesOrtoGram();
+    }
+  });
+  scheduleSave();
 }
 function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
@@ -5389,17 +5456,17 @@ function renderClaseDayPreview(entry, d, jsDow){
 
   addRow('Conocimientos', (val)=> fillRow(val, (entry.conocimientos||[]).slice().sort((a,b)=>a-b).map(t=>({
     cls:'con', text:'Tema '+t,
-    onRemove: ()=>{ const i = entry.conocimientos.indexOf(t); if(i>-1) entry.conocimientos.splice(i,1); removeClaseNotaTag(entry, 'Conocimientos', 'Tema '+t); devolverClaseAPendientes('conocimientos', t, 'Tema '+t, false); }
+    onRemove: ()=>{ const i = entry.conocimientos.indexOf(t); if(i>-1) entry.conocimientos.splice(i,1); removeClaseNotaTag(entry, 'Conocimientos', 'Tema '+t); cancelarSincronizacionClasePendiente('conocimientos', t, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('conocimientos', t, 'Tema '+t, false); }
   }))));
   addRow('Inglés', (val)=> fillRow(val, (entry.ingles||[]).slice().sort((a,b)=>a-b).map(l=>({
     cls:'ing', text:'Lesson '+l,
-    onRemove: ()=>{ const i = entry.ingles.indexOf(l); if(i>-1) entry.ingles.splice(i,1); removeClaseNotaTag(entry, 'Inglés', 'Lesson '+l); devolverClaseAPendientes('ingles', l, 'Lesson '+l, false); }
+    onRemove: ()=>{ const i = entry.ingles.indexOf(l); if(i>-1) entry.ingles.splice(i,1); removeClaseNotaTag(entry, 'Inglés', 'Lesson '+l); cancelarSincronizacionClasePendiente('ingles', l, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('ingles', l, 'Lesson '+l, false); }
   }))));
   addRow('Psicotécnicos', (val)=>{
     const psicoItems = [
       ...(entry.psico||[]).slice().sort((a,b)=>a-b).map(idx=>({
         cls:'psi', text:PSICO_ITEMS[idx],
-        onRemove: ()=>{ const i = entry.psico.indexOf(idx); if(i>-1) entry.psico.splice(i,1); removeClaseNotaTag(entry, 'Psicotécnicos', PSICO_ITEMS[idx]); devolverClaseAPendientes('psico', idx, PSICO_ITEMS[idx], false); }
+        onRemove: ()=>{ const i = entry.psico.indexOf(idx); if(i>-1) entry.psico.splice(i,1); removeClaseNotaTag(entry, 'Psicotécnicos', PSICO_ITEMS[idx]); cancelarSincronizacionClasePendiente('psico', idx, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('psico', idx, PSICO_ITEMS[idx], false); }
       })),
       ...(entry.psicoExtra||[]).map((n,i)=>({n,i})).filter(o=>o.n && o.n.trim()).map(o=>({
         cls:'psi', text:o.n,
@@ -5410,11 +5477,11 @@ function renderClaseDayPreview(entry, d, jsDow){
   });
   addRow('Ortografía', (val)=> fillRow(val, (entry.orto||[]).map((n,i)=>({
     cls:'orto', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía', tag); devolverClaseAPendientes('orto', n || '', n || '', false); }
+    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía', tag); cancelarSincronizacionClasePendiente('orto', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('orto', n || '', n || '', false); }
   }))));
   addRow('Gramática', (val)=> fillRow(val, (entry.gram||[]).map((n,i)=>({
     cls:'gram', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); devolverClaseAPendientes('gram', n || '', n || '', false); }
+    onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); cancelarSincronizacionClasePendiente('gram', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('gram', n || '', n || '', false); }
   }))));
   addRow('Notas', (val)=>{
     if(entry.nota && entry.nota.trim()){
@@ -5713,7 +5780,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
     }
     // Mantiene la pestaña Clases al día automáticamente: siguiente vuelta libre para
     // Conocimientos/Inglés/Psicotécnicos, o entrada nueva para Ortografía/Gramática.
-    const syncInfo = sincronizarProgresoClase(mat.key, sel.temaValue, sel.temaLabel, sel.useExtra, sel.completaTema);
+    const syncInfo = sincronizarProgresoClase(mat.key, sel.temaValue, sel.temaLabel, sel.useExtra, sel.completaTema, currentMonthKey+'-'+pad2(d));
     // Si la clase venía del tablón de pendientes, la quitamos de ahí: ya se ha "colocado"
     // en este día del calendario. Guardamos una copia por si luego se deshace el añadido.
     let removedPendiente = null;
@@ -5826,6 +5893,7 @@ function renderClaseDayEdit(entry, d, jsDow){
             const i = entry[arrKey].indexOf(v);
             if(i>-1) entry[arrKey].splice(i,1);
             removeClaseNotaTag(entry, materiaLabel, opt ? opt.label : String(v));
+            cancelarSincronizacionClasePendiente(materiaKey, v, null, currentMonthKey+'-'+pad2(d));
             devolverClaseAPendientes(materiaKey, v, opt ? opt.label : String(v), false);
             scheduleSave(); renderClaseCalendar();
             renderClaseDayEdit(entry, d, jsDow); // re-pinta también las notas, por si se ha quitado un comentario
@@ -5849,7 +5917,7 @@ function renderClaseDayEdit(entry, d, jsDow){
       // Un tema puede necesitar varias clases (partes) dentro de la misma vuelta, así
       // que preguntamos si esta ya lo completa antes de marcar la vuelta en Clases.
       const completa = confirm('¿Con esta clase completas «'+label+'», o quedan más partes pendientes de este mismo tema?\n\nAceptar = sí, ya está completo (se marca la vuelta en la pestaña Clases)\nCancelar = no, quedan más partes (no se marca nada todavía)');
-      sincronizarProgresoClase(materiaKey, v, label, false, completa);
+      sincronizarProgresoClase(materiaKey, v, label, false, completa, currentMonthKey+'-'+pad2(d));
       scheduleSave(); repaint(); renderClaseCalendar();
     };
     addWrap.appendChild(sel); addWrap.appendChild(addBtn);
@@ -5889,7 +5957,7 @@ function renderClaseDayEdit(entry, d, jsDow){
               const syncedKey = arrKey+'_synced';
               if(!Array.isArray(entry[syncedKey])) entry[syncedKey] = [];
               if(!entry[syncedKey][i]){
-                sincronizarProgresoClase(materiaKey, null, inp.value.trim(), false);
+                sincronizarProgresoClase(materiaKey, null, inp.value.trim(), false, true, currentMonthKey+'-'+pad2(d));
                 entry[syncedKey][i] = true;
                 scheduleSave();
               }
@@ -5901,6 +5969,7 @@ function renderClaseDayEdit(entry, d, jsDow){
           rm.onclick = ()=>{
             const isExtra = (arrKey==='psicoExtra');
             removeClaseNotaTag(entry, materiaLabel, entry[arrKey][i]);
+            cancelarSincronizacionClasePendiente(materiaKey, null, entry[arrKey][i] || '', currentMonthKey+'-'+pad2(d));
             devolverClaseAPendientes(materiaKey, isExtra ? null : (entry[arrKey][i] || ''), entry[arrKey][i] || '', isExtra);
             entry[arrKey].splice(i,1);
             scheduleSave(); renderClaseCalendar();
@@ -7613,7 +7682,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]} };
   currentMonthKey = null;
   invalidatePlan();
   scheduleSave();
@@ -7976,6 +8045,7 @@ document.getElementById('exportSimCalPdfBtn').addEventListener('click', exportar
 
 /* ===================== INIT ===================== */
 function renderAll(){
+  procesarSincronizacionesClaseVencidas(); // marca ya las vueltas cuyo día ha quedado atrás
   renderMonthBar();
   renderLegend();
   renderNotasPendientes();
@@ -8009,6 +8079,11 @@ function renderAll(){
   renderBackupBox();
   renderHistoryBox();
 }
+// Por si la app se queda abierta y cruza la medianoche: revisamos cada minuto (y al volver
+// a primer plano) si alguna sincronización diferida de Clases ya ha vencido, para que la
+// vuelta se marque sola sin que haga falta recargar la página.
+setInterval(()=>{ procesarSincronizacionesClaseVencidas(); }, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) procesarSincronizacionesClaseVencidas(); });
 // Segunda mitad del arranque: construye la interfaz normal una vez sabemos qué mostrar
 // (usuario aprobado, datos cargados y, si tenía PIN, ya desbloqueado).
 function startApp(){
