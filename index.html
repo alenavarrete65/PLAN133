@@ -426,6 +426,8 @@
     background:var(--bg-panel);border:1px solid var(--amber-dim);max-width:440px;width:100%;
     max-height:94vh;overflow-y:auto;border-radius:2px;padding:18px;
   }
+  /* El modal del día es más ancho que el resto de modales (en móvil sigue ocupando todo el ancho). */
+  #dayModal .modal{max-width:780px;padding:22px 24px;}
   .modal h3{font-family:var(--font-display);text-transform:uppercase;margin:0 0 4px;color:var(--amber);font-size:20px;}
   .modal .sub{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:14px;}
   .modal-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);}
@@ -655,10 +657,12 @@
   /* ---- Control rápido de vuelta dentro del modal del día (calendario) ---- */
   .modal-tema-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;}
   .modal-tema-line .tema-line-txt{font-size:12px;flex:1;min-width:140px;}
-  .modal-tema-line .quick-vuelta{margin-top:0;flex:0 0 auto;}
+  .modal-tema-line .quick-vuelta{margin-top:0;flex:1 1 420px;min-width:0;max-width:100%;}
   .quick-vuelta-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .vuelta-row select.vuelta-num-select{min-width:170px;}
-  .vuelta-comentario{width:100%;margin-top:6px;min-height:44px;}
+  .vuelta-comentario{width:100%;flex:1 1 100%;margin-top:4px;min-height:54px;}
+  .vuelta-row .tick-add{align-self:center;padding:4px 9px;font-size:10px;white-space:nowrap;}
+  .vuelta-row .tick-add-vuelta{margin-left:auto;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
     font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
@@ -4468,7 +4472,7 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   numSel.setAttribute('aria-label','Elegir vuelta de este tema');
   arr.forEach((e,i)=>{
     const o = document.createElement('option'); o.value=String(i);
-    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')';
+    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')'+((e.comentario && e.comentario.trim()) ? ' 📝' : '');
     if(i===idx) o.selected = true;
     numSel.appendChild(o);
   });
@@ -4516,22 +4520,43 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
     wrap.appendChild(maxLbl);
   }
 
-  // Comentario de esta vuelta en concreto: se escribe y se ve aquí mismo, en el propio
-  // día del calendario, sin tener que ir a la pestaña Temario y notas.
-  const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
-  comentIn.placeholder = 'Notas de esta vuelta / de este test (opcional)…';
-  comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(idx+1)+' de este tema');
-  comentIn.value = entry.comentario || '';
-  comentIn.oninput = ()=>{
-    entry.comentario = comentIn.value;
-    scheduleSave();
+  // Nota de esta vuelta en concreto. Para no llenar el día de cajas vacías, la caja solo se
+  // ve si ya hay algo escrito; si no, aparece un botón «Añadir nota» que la despliega (y si
+  // la dejas vacía, vuelve a plegarse sola). Se guarda en el mismo sitio de siempre
+  // (entry.comentario), así que lo ya escrito sigue apareciendo igual en Temario y notas.
+  let cajaNota = null;
+  const notaBtn = document.createElement('button'); notaBtn.type='button';
+  notaBtn.className='tick-add tick-add-nota'; notaBtn.textContent = '📝 Añadir nota';
+  notaBtn.setAttribute('aria-label', 'Añadir nota a la vuelta '+(idx+1)+' de este tema');
+  const cerrarNota = ()=>{
+    if(cajaNota && !cajaNota.value.trim()){ cajaNota.remove(); cajaNota = null; notaBtn.style.display = ''; }
   };
-  comentIn.onblur = ()=> refrescar();
-  wrap.appendChild(comentIn);
+  const abrirNota = (enfocar)=>{
+    const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
+    comentIn.placeholder = 'Notas de esta vuelta / de este test…';
+    comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(idx+1)+' de este tema');
+    comentIn.value = entry.comentario || '';
+    comentIn.oninput = ()=>{
+      entry.comentario = comentIn.value;
+      scheduleSave();
+      // Pone/quita la marca 📝 de esta vuelta en el desplegable sin reconstruir el control.
+      const opt = numSel.options[idx];
+      if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+(entry.comentario.trim() ? ' 📝' : '');
+    };
+    // Si al salir de la caja no hay nada escrito, se pliega otra vez (con un pequeño margen
+    // para no "comerse" el clic si justo pulsabas otro botón).
+    comentIn.onblur = ()=>{ setTimeout(cerrarNota, 180); };
+    cajaNota = comentIn;
+    notaBtn.style.display = 'none';
+    wrap.appendChild(comentIn);
+    if(enfocar) comentIn.focus();
+  };
+  notaBtn.onclick = (e)=>{ e.preventDefault(); abrirNota(true); };
+  wrap.appendChild(notaBtn);
 
   // Por si ya has usado todas las vueltas que había y necesitas una más.
-  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add';
-  addBtn.textContent = '+ Añadir vuelta'; addBtn.style.cssText='margin-top:2px;flex:0 0 100%;';
+  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add tick-add-vuelta';
+  addBtn.textContent = '+ Añadir vuelta';
   addBtn.onclick = (e)=>{
     e.preventDefault();
     arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null});
@@ -4539,6 +4564,9 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
     refrescar(arr.length-1);
   };
   wrap.appendChild(addBtn);
+
+  // Si esta vuelta ya tiene nota, la caja se muestra abierta desde el principio.
+  if(entry.comentario && entry.comentario.trim()) abrirNota(false);
 
   return wrap;
 }
