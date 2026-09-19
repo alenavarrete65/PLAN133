@@ -8416,37 +8416,103 @@ function renderProgreso(){
         drawTrendChart(canvas, points, '#6f9a6a');
       }
 
-      // Lista de las últimas notas, con flecha de mejora respecto a la anterior — igual que en
-      // «Detalle por tema», pero comparando por fecha real en vez de por vuelta.
+      // Notas agrupadas por mes: con el tiempo una lista diaria se haría interminable, así que
+      // cada mes es un bloque plegable con su media, su nº de tests y cómo va respecto al mes
+      // anterior. Por defecto solo está abierto el mes más reciente; el resto se despliega al
+      // pulsar. Dentro de cada mes, cada día sigue mostrando su flecha de mejora respecto a la
+      // nota anterior (aunque esa nota fuera del mes pasado).
       const listTitle = document.createElement('div');
       listTitle.style.cssText = 'font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.03em;margin:14px 0 6px;';
-      listTitle.textContent = 'Últimas notas'+(arrastreTestEntries.length>15 ? ' (15 de '+arrastreTestEntries.length+')' : '');
+      listTitle.textContent = 'Notas por mes';
       body.appendChild(listTitle);
 
-      const list = document.createElement('div'); list.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
-      const recientes = arrastreTestEntries.slice(-15).reverse();
-      recientes.forEach((e)=>{
-        const idxReal = arrastreTestEntries.indexOf(e);
-        const anterior = arrastreTestEntries[idxReal-1];
-        let deltaTxt = '';
-        if(anterior){
-          const diff = Math.round((e.valor - anterior.valor)*10)/10;
-          if(diff>0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
-          else if(diff<0) deltaTxt = ' <span style="color:var(--red-text);">▼'+diff+'</span>';
-          else deltaTxt = ' <span style="color:var(--muted);">=</span>';
-        }
-        const rowEl = document.createElement('div');
-        rowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:12px;border-bottom:1px solid var(--line);padding:5px 2px;';
-        rowEl.innerHTML = '<span style="color:var(--cream-dim);">'+fechaCorta(e.fecha)+'</span>'+
-          '<span><span class="nota-pill '+notaPillClass(e.valor, 10)+'">'+e.valor+'/10</span>'+deltaTxt+'</span>';
-        list.appendChild(rowEl);
+      const deltaHtml = (diff)=>{
+        if(diff>0) return ' <span style="color:var(--green);">▲+'+diff+'</span>';
+        if(diff<0) return ' <span style="color:var(--red-text);">▼'+diff+'</span>';
+        return ' <span style="color:var(--muted);">=</span>';
+      };
+
+      const porMes = {};
+      arrastreTestEntries.forEach((e, idx)=>{
+        const k = e.fecha.slice(0,7);
+        if(!porMes[k]) porMes[k] = [];
+        porMes[k].push({e, idx});
       });
-      body.appendChild(list);
+      const mesesAsc = Object.keys(porMes).sort();
+      const mediaDeMes = {};
+      mesesAsc.forEach(k=>{
+        mediaDeMes[k] = porMes[k].reduce((a,x)=>a+x.e.valor,0) / porMes[k].length;
+      });
+
+      const mesesWrap = document.createElement('div'); mesesWrap.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+      mesesAsc.slice().reverse().forEach((k, posDesc)=>{
+        const items = porMes[k];
+        const [yy, mm] = k.split('-');
+        const nombreMes = MESES[parseInt(mm,10)-1]+' '+yy;
+        const media = mediaDeMes[k];
+        const kAnt = mesesAsc[mesesAsc.indexOf(k)-1];
+        let deltaMes = '';
+        if(kAnt !== undefined){
+          const diffMes = Math.round((media - mediaDeMes[kAnt])*10)/10;
+          deltaMes = '<span title="Media respecto al mes anterior">'+deltaHtml(diffMes)+'</span>';
+        }
+
+        let abierto = arrastreMesesOpen[k] !== undefined ? arrastreMesesOpen[k] : (posDesc===0);
+
+        const mesEl = document.createElement('div');
+        mesEl.style.cssText = 'border:1px solid var(--line);border-radius:8px;overflow:hidden;';
+
+        const head = document.createElement('button'); head.type = 'button';
+        head.style.cssText = 'width:100%;display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;background:var(--bg-panel-2);color:var(--cream);border:none;cursor:pointer;padding:8px 10px;font-family:var(--font-mono);font-size:12px;text-align:left;';
+        head.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+        head.innerHTML = '<span style="font-weight:700;"><span class="mes-chev">'+(abierto?'▴':'▾')+'</span> '+nombreMes+'</span>'+
+          '<span><span class="nota-pill '+notaPillClass(media, 10)+'">'+media.toFixed(1)+'/10</span>'+
+          '<span style="color:var(--muted);">'+items.length+' test'+(items.length!==1?'s':'')+'</span>'+deltaMes+'</span>';
+        mesEl.appendChild(head);
+
+        const cuerpo = document.createElement('div');
+        cuerpo.style.cssText = 'padding:4px 10px 8px;display:'+(abierto?'block':'none')+';';
+
+        if(items.length > 1){
+          const mejorMes = items.reduce((a,x)=> x.e.valor>a.e.valor?x:a);
+          const peorMes = items.reduce((a,x)=> x.e.valor<a.e.valor?x:a);
+          const resumen = document.createElement('div');
+          resumen.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:4px 2px 6px;';
+          resumen.textContent = 'Mejor: '+mejorMes.e.valor+'/10 ('+fechaCorta(mejorMes.e.fecha)+') · Peor: '+peorMes.e.valor+'/10 ('+fechaCorta(peorMes.e.fecha)+')';
+          cuerpo.appendChild(resumen);
+        }
+
+        const lista = document.createElement('div'); lista.style.cssText = 'display:flex;flex-direction:column;gap:2px;';
+        items.slice().reverse().forEach(({e, idx})=>{
+          const anterior = arrastreTestEntries[idx-1];
+          const dTxt = anterior ? deltaHtml(Math.round((e.valor - anterior.valor)*10)/10) : '';
+          const rowEl = document.createElement('div');
+          rowEl.style.cssText = 'display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:12px;border-bottom:1px solid var(--line);padding:5px 2px;';
+          rowEl.innerHTML = '<span style="color:var(--cream-dim);">'+fechaCorta(e.fecha)+'</span>'+
+            '<span><span class="nota-pill '+notaPillClass(e.valor, 10)+'">'+e.valor+'/10</span>'+dTxt+'</span>';
+          lista.appendChild(rowEl);
+        });
+        cuerpo.appendChild(lista);
+        mesEl.appendChild(cuerpo);
+
+        head.onclick = ()=>{
+          abierto = !abierto;
+          arrastreMesesOpen[k] = abierto;
+          cuerpo.style.display = abierto ? 'block' : 'none';
+          head.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+          head.querySelector('.mes-chev').textContent = abierto ? '▴' : '▾';
+        };
+        mesesWrap.appendChild(mesEl);
+      });
+      body.appendChild(mesesWrap);
     });
     host.appendChild(sArr);
   }
 }
 const progresoOpen = {detalleTema:false, tendenciaArrastre:true, comparativaSimulacros:true, testArrastre:true};
+// Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
+// aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
+const arrastreMesesOpen = {};
 /* ===================== MARCAS FÍSICAS MÍNIMAS (oposición Guardia Civil) ===================== */
 function parseTiempoASegundos(v){
   if(v==null || v==='') return NaN;
@@ -9315,6 +9381,9 @@ function activateTab(tabName){
   document.getElementById('view-'+tabName).classList.add('active');
   if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
   if(tabsNavEl) tabsNavEl.classList.remove('open');
+  // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
+  // Lo repintamos cada vez que se entra en la pestaña (ya visible, así los gráficos toman bien el ancho).
+  if(tabName === 'progreso' && typeof renderProgreso === 'function') renderProgreso();
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick = ()=> activateTab(btn.dataset.tab);
