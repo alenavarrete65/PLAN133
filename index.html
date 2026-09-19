@@ -868,6 +868,28 @@
   .nota-pill.good{background:var(--green);color:#12241a;}
   .nota-pill.mid{background:var(--amber);color:#1b2b1f;}
   .nota-pill.bad{background:var(--red);color:#fff;}
+  /* En pantallas estrechas, las tablas de "nota-table" (Detalle por tema, Comparativa de
+     simulacros...) dejan de depender del scroll horizontal: cada fila se convierte en una
+     tarjeta apilada, con el nombre de cada columna (data-label) como etiqueta encima del
+     valor, en vez de una cabecera fija a la izquierda del todo. */
+  @media (max-width: 640px){
+    .nota-table{ font-size:13px; }
+    .nota-table thead{ display:none; }
+    .nota-table, .nota-table tbody, .nota-table tr, .nota-table td{ display:block; width:100%; }
+    .nota-table tr{
+      border:1px solid var(--line); border-radius:8px; margin-bottom:10px;
+      padding:10px 12px; background:var(--bg-panel);
+    }
+    .nota-table td{
+      border-bottom:none; padding:5px 0;
+    }
+    .nota-table td[data-label]::before{
+      content: attr(data-label);
+      display:block;
+      font-family:var(--font-mono); font-size:10px; text-transform:uppercase;
+      letter-spacing:.04em; color:var(--cream-dim); margin-bottom:2px;
+    }
+  }
 
   /* ---- marcas físicas mínimas (oposición) ---- */
   .marcas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px;margin-bottom:28px;}
@@ -929,6 +951,14 @@
   .entreno-item input.entreno-tipo{
     flex:1;min-width:140px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
     border-radius:2px;font-family:var(--font-body);font-size:13px;padding:6px 8px;
+  }
+  .entreno-item select.entreno-prueba{
+    background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
+    font-family:var(--font-mono);font-size:11px;padding:6px 4px;max-width:150px;
+  }
+  .entreno-item input.entreno-marca{
+    width:90px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
+    border-radius:2px;font-family:var(--font-mono);font-size:12px;padding:6px 8px;
   }
   .entreno-item textarea.entreno-notas{
     flex-basis:100%;min-height:44px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
@@ -7995,6 +8025,50 @@ function renderProgreso(){
   if(!host) return;
   host.innerHTML = '';
 
+  // Se calcula aquí arriba (antes de las demás secciones) porque el resumen general lo
+  // necesita ya, y así "Detalle por tema" más abajo reutiliza el mismo cálculo sin repetirlo.
+  const data = collectNotaData();
+  const grupos = Object.keys(data.porGrupo);
+
+  // Resumen general: media global (normalizada sobre 10, para poder comparar grupos que usan
+  // escalas distintas, ej. /10 vs /20) y qué grupo va mejor y cuál flojea más ahora mismo.
+  // Siempre visible arriba del todo, sin acordeón, porque es el primer vistazo que se quiere
+  // tener al entrar en Progreso.
+  const resumenPorGrupo = [];
+  let totalNotas = 0, sumaNormGlobal = 0;
+  grupos.forEach(grupo=>{
+    let notasGrupo = [], maxGrupo = null;
+    data.porGrupo[grupo].forEach(item=>{
+      if(item.notas.length){
+        notasGrupo = notasGrupo.concat(item.notas);
+        maxGrupo = item.max;
+      }
+    });
+    if(notasGrupo.length){
+      const avgReal = notasGrupo.reduce((a,b)=>a+b,0)/notasGrupo.length;
+      const sumaNorm = notasGrupo.reduce((a,b)=>a+(b/maxGrupo),0);
+      resumenPorGrupo.push({grupo, count:notasGrupo.length, avgReal, max:maxGrupo, avgNorm: sumaNorm/notasGrupo.length});
+      totalNotas += notasGrupo.length;
+      sumaNormGlobal += sumaNorm;
+    }
+  });
+  if(resumenPorGrupo.length){
+    const box = document.createElement('div');
+    box.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-bottom:16px;line-height:1.8;background:var(--bg-panel-2);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;';
+    const ordenado = resumenPorGrupo.slice().sort((a,b)=> b.avgNorm - a.avgNorm);
+    const mejor = ordenado[0], peor = ordenado[ordenado.length-1];
+    const mediaGlobal = (sumaNormGlobal/totalNotas)*10;
+    let txt = '📊 Media global (todos los grupos, sobre 10 para poder compararlos): <strong>'+mediaGlobal.toFixed(1)+'/10</strong> ('+totalNotas+' nota'+(totalNotas!==1?'s':'')+' en total).';
+    if(ordenado.length>1){
+      txt += '<br>🥇 Grupo más fuerte ahora mismo: <strong>'+mejor.grupo+'</strong> ('+mejor.avgReal.toFixed(1)+'/'+mejor.max+', '+mejor.count+' nota'+(mejor.count!==1?'s':'')+').';
+      txt += '<br>🎯 Grupo que más floja: <strong>'+peor.grupo+'</strong> ('+peor.avgReal.toFixed(1)+'/'+peor.max+', '+peor.count+' nota'+(peor.count!==1?'s':'')+') — el que más te conviene reforzar.';
+    } else {
+      txt += '<br>Todavía solo tienes notas en <strong>'+ordenado[0].grupo+'</strong>. En cuanto tengas notas en más grupos, aquí verás cuál flojea más.';
+    }
+    box.innerHTML = txt;
+    host.appendChild(box);
+  }
+
   // Tendencia del arrastre: no depende de tener notas de tests, así que se muestra siempre
   // que haya algo de historial en el calendario.
   const trendPoints = buildArrastreTrend(21);
@@ -8075,12 +8149,12 @@ function renderProgreso(){
           ? '<span class="nota-pill bad">NO APTO</span>'
           : '<span class="nota-pill '+(isBest?'good':(isWorst?'bad':'mid'))+'">'+total+'</span>';
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td>${nombre}${isBest?' 🏆':''}${isWorst?' 📉':''}</td>`+
-          `<td>${sim.conocimientos!=null?sim.conocimientos+'/100':'—'}</td>`+
-          `<td>${sim.ingles!=null?sim.ingles+'/20':'—'}</td>`+
-          `<td>${sim.psico!=null?sim.psico+'/30':'—'}</td>`+
-          `<td>${sim.baremo!=null?sim.baremo:'—'}</td>`+
-          `<td>${totalCell}</td>`;
+        tr.innerHTML = `<td data-label="Simulacro">${nombre}${isBest?' 🏆':''}${isWorst?' 📉':''}</td>`+
+          `<td data-label="Conocimientos">${sim.conocimientos!=null?sim.conocimientos+'/100':'—'}</td>`+
+          `<td data-label="Inglés">${sim.ingles!=null?sim.ingles+'/20':'—'}</td>`+
+          `<td data-label="Psicotécnico">${sim.psico!=null?sim.psico+'/30':'—'}</td>`+
+          `<td data-label="Baremo">${sim.baremo!=null?sim.baremo:'—'}</td>`+
+          `<td data-label="Total">${totalCell}</td>`;
         tbody.appendChild(tr);
       });
       table.appendChild(tbody);
@@ -8090,9 +8164,6 @@ function renderProgreso(){
     });
     host.appendChild(sSim);
   }
-
-  const data = collectNotaData();
-  const grupos = Object.keys(data.porGrupo);
 
   if(!grupos.length){
     const empty = document.createElement('div'); empty.className='empty-state';
@@ -8186,10 +8257,10 @@ function renderProgreso(){
         }
 
         const tr = document.createElement('tr');
-        tr.innerHTML = `<td style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td>${item.label}</td>`+
-          `<td>${notasHtml}</td>`+
-          `<td>${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>'}</td>`+
-          `<td></td>`;
+        tr.innerHTML = `<td data-label="Grupo" style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td data-label="Tema">${item.label}</td>`+
+          `<td data-label="Notas (por vuelta)">${notasHtml}</td>`+
+          `<td data-label="Media">${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>'}</td>`+
+          `<td data-label="Evolución"></td>`;
         const sparkTd = tr.lastElementChild;
         sparkTd.title = tendenciaTxt;
         if(notas.length>1){
@@ -8245,17 +8316,22 @@ const PRUEBAS_FISICAS = [
     minText:'Máximo exigido: 70 segundos', placeholder:'Ej. 65',
     parse:v=>parseFloat(String(v).replace(',','.')), formatActual:v=>v+' s' },
 ];
-/* Guarda (o actualiza si ya hay una entrada de hoy) un punto en el historial de una prueba física. */
-function registrarMarcaHistorial(pruebaId, raw){
-  if(raw==='') return;
+/* Guarda (o actualiza si ya hay una entrada en esa fecha) un punto en el historial de una
+   prueba física, en la fecha que se le indique. registrarMarcaHistorial (más abajo) es el caso
+   de siempre: hoy. registrarMarcaHistorialEnFecha existe aparte para que "Entrenos" pueda
+   apuntar una marca en el día real del entreno (que puede no ser hoy) sin duplicar esta lógica. */
+function registrarMarcaHistorialEnFecha(pruebaId, raw, fecha){
+  if(raw==='' || !fecha) return;
   if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.marcasHistory[pruebaId]) state.marcasHistory[pruebaId] = [];
   const hist = state.marcasHistory[pruebaId];
-  const today = todayISO();
-  const todayEntry = hist.find(h=>h.date===today);
-  if(todayEntry) todayEntry.valor = raw;
-  else hist.push({date:today, valor:raw});
+  const existing = hist.find(h=>h.date===fecha);
+  if(existing) existing.valor = raw;
+  else hist.push({date:fecha, valor:raw});
   scheduleSave();
+}
+function registrarMarcaHistorial(pruebaId, raw){
+  registrarMarcaHistorialEnFecha(pruebaId, raw, todayISO());
 }
 function fechaCorta(iso){
   if(!iso) return '';
@@ -8587,6 +8663,27 @@ function renderBibliotecaEntrenos(container){
 
 /* ===================== RENDER: ENTRENOS (registro manual) ===================== */
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+/* Estadísticas rápidas del registro de entrenos: cuántos llevas esta semana y qué tipo de
+   entreno repites más. Puramente derivado de state.entrenosLog, no guarda nada nuevo. */
+function computeEntrenosStats(){
+  const log = state.entrenosLog||[];
+  const today = todayISO();
+  const d = new Date(); d.setDate(d.getDate()-6); // ventana de 7 días, hoy incluido
+  const desde = d.toISOString().slice(0,10);
+  const ultimos7 = log.filter(e=> e.date && e.date>=desde && e.date<=today);
+  const tipoCount = {};
+  log.forEach(e=>{
+    const t = (e.tipo||'').trim();
+    if(!t) return;
+    const key = t.toLowerCase();
+    if(!tipoCount[key]) tipoCount[key] = {label:t, count:0};
+    tipoCount[key].count++;
+  });
+  let tipoTop = null;
+  Object.values(tipoCount).forEach(v=>{ if(!tipoTop || v.count>tipoTop.count) tipoTop = v; });
+  const enlazados = log.filter(e=> e.pruebaId).length;
+  return {total: log.length, totalUltimos7: ultimos7.length, tipoTop, enlazados};
+}
 function renderEntrenos(){
   const host = document.getElementById('entrenosHost');
   if(!host) return;
@@ -8596,7 +8693,7 @@ function renderEntrenos(){
   topBar.innerHTML = '<h3 style="margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:17px;letter-spacing:.03em;">Entrenos físicos</h3>';
   const addBtn = document.createElement('button'); addBtn.className='btn small'; addBtn.textContent='+ Añadir entreno';
   addBtn.onclick = ()=>{
-    state.entrenosLog.unshift({id:Date.now(), date:todayISO(), tipo:'', notas:''});
+    state.entrenosLog.unshift({id:Date.now(), date:todayISO(), tipo:'', notas:'', pruebaId:'', marcaValor:''});
     scheduleSave();
     renderEntrenos();
   };
@@ -8618,6 +8715,17 @@ function renderEntrenos(){
   helpCard.appendChild(helpHead); helpCard.appendChild(helpBody);
   host.appendChild(helpCard);
 
+  if(state.entrenosLog.length){
+    const stats = computeEntrenosStats();
+    const statsBox = document.createElement('div');
+    statsBox.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber);margin-top:16px;line-height:1.8;background:var(--bg-panel-2);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;';
+    let txt = '📅 Esta semana: <strong>'+stats.totalUltimos7+'</strong> entreno'+(stats.totalUltimos7!==1?'s':'')+' registrado'+(stats.totalUltimos7!==1?'s':'')+' (últimos 7 días).';
+    if(stats.tipoTop) txt += '<br>🔁 Tipo más repetido: <strong>'+stats.tipoTop.label+'</strong> ('+stats.tipoTop.count+' vez'+(stats.tipoTop.count!==1?'es':'')+').';
+    if(stats.enlazados) txt += '<br>🔗 '+stats.enlazados+' entreno'+(stats.enlazados!==1?'s':'')+' con una marca enlazada a «Marcas físicas» (arriba).';
+    statsBox.innerHTML = txt;
+    host.appendChild(statsBox);
+  }
+
   const logTitle = document.createElement('h3');
   logTitle.style.cssText = "margin:22px 0 0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber);font-size:15px;letter-spacing:.03em;";
   logTitle.textContent = 'Tu registro';
@@ -8635,12 +8743,46 @@ function renderEntrenos(){
   sorted.forEach(item=>{
     const row = document.createElement('div'); row.className='entreno-item';
     const dateIn = document.createElement('input'); dateIn.type='date'; dateIn.value = item.date||'';
-    dateIn.onchange = ()=>{ item.date = dateIn.value; scheduleSave(); renderEntrenos(); };
+    dateIn.onchange = ()=>{
+      item.date = dateIn.value;
+      if(item.pruebaId && item.marcaValor) registrarMarcaHistorialEnFecha(item.pruebaId, item.marcaValor, item.date||todayISO());
+      scheduleSave(); renderEntrenos();
+    };
     row.appendChild(dateIn);
     const tipoIn = document.createElement('input'); tipoIn.type='text'; tipoIn.className='entreno-tipo';
     tipoIn.placeholder='Tipo de entreno (ej. Piernas, Carrera 5km, Circuito...)'; tipoIn.value = item.tipo||'';
     tipoIn.oninput = ()=>{ item.tipo = tipoIn.value; scheduleSave(); };
     row.appendChild(tipoIn);
+
+    // Enlace opcional con una prueba física concreta: al elegirla aparece un campo para la
+    // marca de ese día, que se guarda directamente en el mismo historial que usa la sección
+    // «Marcas físicas» de arriba — así no hay que apuntar el número dos veces por separado.
+    const pruebaSel = document.createElement('select'); pruebaSel.className='entreno-prueba';
+    pruebaSel.innerHTML = '<option value="">Sin prueba concreta</option>'+
+      PRUEBAS_FISICAS.map(p=>'<option value="'+p.id+'"'+(item.pruebaId===p.id?' selected':'')+'>'+p.nombre+'</option>').join('');
+    row.appendChild(pruebaSel);
+
+    const marcaIn = document.createElement('input'); marcaIn.type='text'; marcaIn.className='entreno-marca';
+    const pruebaActual = PRUEBAS_FISICAS.find(p=>p.id===item.pruebaId);
+    marcaIn.placeholder = pruebaActual ? pruebaActual.placeholder : '';
+    marcaIn.value = item.marcaValor||'';
+    marcaIn.style.display = item.pruebaId ? '' : 'none';
+    marcaIn.oninput = ()=>{
+      item.marcaValor = marcaIn.value;
+      if(item.pruebaId) registrarMarcaHistorialEnFecha(item.pruebaId, item.marcaValor, item.date||todayISO());
+      scheduleSave();
+    };
+    row.appendChild(marcaIn);
+
+    pruebaSel.onchange = ()=>{
+      item.pruebaId = pruebaSel.value;
+      const p = PRUEBAS_FISICAS.find(x=>x.id===item.pruebaId);
+      marcaIn.style.display = item.pruebaId ? '' : 'none';
+      marcaIn.placeholder = p ? p.placeholder : '';
+      if(item.pruebaId && item.marcaValor) registrarMarcaHistorialEnFecha(item.pruebaId, item.marcaValor, item.date||todayISO());
+      scheduleSave();
+    };
+
     const delBtn = document.createElement('button'); delBtn.className='entreno-del'; delBtn.textContent='Eliminar';
     delBtn.onclick = ()=>{ if(confirm('¿Eliminar este entreno?')){ state.entrenosLog = state.entrenosLog.filter(e=>e.id!==item.id); scheduleSave(); renderEntrenos(); } };
     row.appendChild(delBtn);
@@ -9553,6 +9695,77 @@ function renderUpdateAvailableBanner(){
   document.body.appendChild(banner);
   document.getElementById('updateAvailableCloseBtn').onclick = ()=> banner.remove();
 }
+
+/* ===================== PWA: banner para instalar la app en pantalla de inicio =====================
+   Discreto y de una sola vez: se muestra la primera vez que se detecta que se puede instalar
+   (Android/Chrome vía "beforeinstallprompt", o iOS Safari con instrucciones manuales, que no
+   dispara ese evento), y ya no vuelve a salir en cuanto se cierra o se acepta, quede o no
+   instalada al final. No se muestra si la app ya se está usando instalada (modo standalone). */
+(function(){
+  const DISMISS_KEY = 'ob_install_banner_dismissed';
+  try{ if(localStorage.getItem(DISMISS_KEY) === '1') return; }catch(e){}
+
+  const yaInstalada = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches)
+    || window.navigator.standalone === true; // navigator.standalone: Safari/iOS
+  if(yaInstalada) return;
+
+  function dismiss(){
+    try{ localStorage.setItem(DISMISS_KEY, '1'); }catch(e){}
+    const b = document.getElementById('installAppBanner');
+    if(b) b.remove();
+  }
+
+  function showBanner(innerHtml, onAccept){
+    if(document.getElementById('installAppBanner')) return;
+    const banner = document.createElement('div');
+    banner.id = 'installAppBanner';
+    banner.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9998;background:var(--bg-panel-2);border-top:1px solid var(--amber);color:var(--cream);padding:10px 16px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
+    banner.innerHTML = innerHtml;
+    document.body.appendChild(banner);
+    const closeBtn = document.getElementById('installAppCloseBtn');
+    if(closeBtn) closeBtn.onclick = dismiss;
+    const acceptBtn = document.getElementById('installAppAcceptBtn');
+    if(acceptBtn && onAccept) acceptBtn.onclick = onAccept;
+  }
+
+  // Android / Chrome / Edge: el navegador dispara este evento cuando la web ya cumple los
+  // requisitos técnicos para instalarse (manifest + service worker + servida por https).
+  // Sin este listener, ningún navegador ofrece nunca instalarla por su cuenta.
+  let deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', (e)=>{
+    e.preventDefault();
+    deferredPrompt = e;
+    showBanner(
+      '<span>📲 Puedes instalar Operación Baeza como app en tu móvil, para abrirla directamente sin pasar por el navegador.</span>'+
+      '<span style="display:flex;gap:8px;">'+
+        '<button class="btn small" id="installAppAcceptBtn">Instalar</button>'+
+        '<button class="btn small ghost" id="installAppCloseBtn">Ahora no</button>'+
+      '</span>',
+      async ()=>{
+        const b = document.getElementById('installAppBanner');
+        if(b) b.remove();
+        deferredPrompt.prompt();
+        try{ await deferredPrompt.userChoice; }catch(err){}
+        deferredPrompt = null;
+        // Tanto si acepta como si rechaza en el diálogo nativo, no insistimos más con el banner.
+        try{ localStorage.setItem(DISMISS_KEY, '1'); }catch(e){}
+      }
+    );
+  });
+
+  // iOS Safari nunca dispara "beforeinstallprompt" ni permite instalar con un clic: hay que
+  // guiar a mano por el menú Compartir. Se comprueba que sea Safari de verdad (no Chrome/Firefox
+  // en iOS, que usan el motor de Safari por dentro pero tampoco pueden instalar así).
+  const ua = navigator.userAgent || '';
+  const esIOS = /iphone|ipad|ipod/i.test(ua);
+  const esSafari = /safari/i.test(ua) && !/crios|fxios|edgios/i.test(ua);
+  if(esIOS && esSafari){
+    showBanner(
+      '<span>📲 Para instalar Operación Baeza en tu iPhone/iPad: pulsa el botón Compartir de Safari y elige «Añadir a pantalla de inicio».</span>'+
+      '<button class="btn small ghost" id="installAppCloseBtn">Entendido</button>'
+    );
+  }
+})();
 </script>
 </body>
 </html>
