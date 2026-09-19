@@ -661,6 +661,12 @@
   .quick-vuelta-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .vuelta-row select.vuelta-num-select{min-width:170px;}
   .vuelta-comentario{width:100%;flex:1 1 100%;margin-top:4px;min-height:54px;}
+  /* Varias notas por vuelta (una por test, por ejemplo): se apilan bajo la fila de controles. */
+  .vuelta-notas{flex:1 1 100%;min-width:0;display:flex;flex-direction:column;gap:6px;}
+  .vuelta-notas:empty{display:none;}
+  .vuelta-notas .vuelta-comentario{flex:0 0 auto;margin-top:0;}
+  .vuelta-tests{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;}
+  .vuelta-nota-etq{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin:0 0 2px;}
   .vuelta-row .tick-add{align-self:center;padding:4px 9px;font-size:10px;white-space:nowrap;}
   .vuelta-row .tick-add-vuelta{margin-left:auto;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
@@ -958,6 +964,12 @@
   .ciclo-card .ciclo-line strong{color:var(--amber);font-family:var(--font-mono);}
   .ciclo-card .ciclo-gaps{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:3px;}
   .ciclo-card .ciclo-gaps strong{color:var(--cream);}
+  .ciclo-card .ciclo-fila{display:flex;flex-wrap:wrap;align-items:baseline;gap:1px 8px;}
+  .ciclo-card .ciclo-fila .cf-n{color:var(--muted);min-width:62px;}
+  .ciclo-card .ciclo-fila .cf-fecha{color:var(--cream);}
+  .ciclo-card .ciclo-fila .cf-tag{font-size:9px;color:var(--muted);}
+  .ciclo-card .ciclo-fila .cf-dias{margin-left:auto;color:var(--amber);white-space:nowrap;}
+  .ciclo-card .ciclo-fila.prevista .cf-fecha{font-style:italic;color:var(--cream-dim);}
   .ciclo-card .ciclo-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
   .ciclo-card .ciclo-color-section{border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:10px;}
   .ciclo-card .ciclo-color-block .ciclo-color-title{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:4px;}
@@ -4352,13 +4364,148 @@ function migrateTickEntry(v){
     if(v.nota===undefined) v.nota = null;
     if(v.comentario===undefined) v.comentario = '';
     if(v.fecha===undefined) v.fecha = null;
+    if(!Array.isArray(v.extras)) v.extras = []; // notas adicionales (2ª, 3ª…) de la vuelta
+    if(!Array.isArray(v.notasExtra)) v.notasExtra = []; // calificaciones adicionales (2º test, 3º…) de la vuelta
     return v;
   }
-  return v ? {mode:'solo_lectura', nota:null, comentario:'', fecha:null} : {mode:'pendiente', nota:null, comentario:'', fecha:null};
+  return v ? {mode:'solo_lectura', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null} : {mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null};
+}
+/* Calificaciones de los tests de una vuelta. Puede haber varias si haces más de un test en la
+   misma vuelta: la primera sigue guardándose en entry.nota, como siempre, y las demás en
+   entry.notasExtra. Progreso cuenta cada test como una nota más (media y gráfico). */
+function testsDeVuelta(entry){
+  const out = [];
+  [entry.nota].concat(Array.isArray(entry.notasExtra) ? entry.notasExtra : []).forEach(n=>{
+    if(n!=null && n!=='' && !isNaN(n)) out.push(Number(n));
+  });
+  return out;
+}
+/* Campos de nota de una vuelta (uno por test) + botón «+ Otro test». Si dejas un test vacío y
+   sales de él, se quita solo. callbacks.onChange se llama en cada cambio (para refrescar
+   etiquetas) y callbacks.onCommit al terminar de editar (para repintar el resto de la app). */
+function buildTestsVuelta(entry, maxNota, ariaBase, callbacks){
+  callbacks = callbacks || {};
+  const cont = document.createElement('span'); cont.className = 'vuelta-tests';
+  const items = testsDeVuelta(entry).map(v=>({v}));
+  if(!items.length) items.push({v:null});
+  const guardar = ()=>{
+    entry.nota = items[0].v;
+    entry.notasExtra = items.slice(1).map(x=>x.v);
+    scheduleSave();
+    if(callbacks.onChange) callbacks.onChange();
+  };
+  const commit = ()=>{
+    if(cont.contains(document.activeElement)) return; // sigue editando otro test de esta vuelta
+    const antes = items.length;
+    for(let i=items.length-1;i>=0;i--){ if(items[i].v==null && items.length>1) items.splice(i,1); }
+    if(items.length !== antes){ pintar(); guardar(); }
+    if(callbacks.onCommit) callbacks.onCommit();
+  };
+  const pintar = (enfocar)=>{
+    const act = document.activeElement;
+    const activo = enfocar || (act && act._test) || null; // no perder el cursor al repintar
+    cont.innerHTML = '';
+    items.forEach((it,i)=>{
+      const inp = document.createElement('input');
+      inp.type = 'number'; inp.className = 'vuelta-nota'; inp.step = '0.1'; inp.min = '0'; inp.max = String(maxNota);
+      inp.placeholder = items.length > 1 ? 'Test '+(i+1) : 'Nota';
+      inp.setAttribute('aria-label', ariaBase+(items.length>1 ? ' — test '+(i+1) : ''));
+      inp.value = it.v==null ? '' : it.v;
+      inp._test = it;
+      inp.oninput = ()=>{ it.v = inp.value==='' ? null : Number(inp.value); guardar(); };
+      inp.onblur = ()=>{ setTimeout(commit, 200); };
+      cont.appendChild(inp);
+      if(activo === it) inp.focus();
+    });
+    const maxLbl = document.createElement('span'); maxLbl.className = 'vuelta-nota-max'; maxLbl.textContent = '/ '+maxNota;
+    cont.appendChild(maxLbl);
+    const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'tick-add tick-add-test';
+    addBtn.textContent = '+ Otro test';
+    addBtn.setAttribute('aria-label', 'Añadir la nota de otro test en esta vuelta');
+    addBtn.onclick = (e)=>{
+      e.preventDefault();
+      const vacio = items.find(x=>x.v==null);
+      if(vacio){ pintar(vacio); return; }
+      const it = {v:null};
+      items.push(it);
+      pintar(it);
+    };
+    cont.appendChild(addBtn);
+  };
+  pintar();
+  return cont;
+}
+/* Notas de una vuelta. Puede haber varias (por ejemplo, una por cada test que hagas en esa
+   vuelta). La primera sigue guardándose en entry.comentario, como siempre, y las demás en
+   entry.extras, así que lo que ya tenías escrito no cambia. Devuelve {boxes, addBtn}: el botón
+   va donde quieras (junto a los desplegables) y las cajas debajo. Si dejas una nota vacía y
+   sales de ella, se quita sola. */
+function notasDeVuelta(entry){
+  const out = [];
+  if(entry.comentario && entry.comentario.trim()) out.push(entry.comentario);
+  (Array.isArray(entry.extras) ? entry.extras : []).forEach(t=>{ if(t && t.trim()) out.push(t); });
+  return out;
+}
+function marcaNotasTxt(entry){
+  const n = notasDeVuelta(entry).length;
+  return n ? ' 📝'+(n>1 ? n : '') : '';
+}
+function buildNotasVuelta(entry, ariaBase, onChange){
+  const boxes = document.createElement('div'); boxes.className = 'vuelta-notas';
+  const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'tick-add tick-add-nota';
+  const items = notasDeVuelta(entry).map(t=>({t}));
+  const guardar = ()=>{
+    const vals = items.map(it=>it.t);
+    entry.comentario = vals.length ? vals[0] : '';
+    entry.extras = vals.slice(1);
+    scheduleSave();
+    if(onChange) onChange();
+  };
+  const pintar = (enfocar)=>{
+    const act = document.activeElement;
+    const activo = enfocar || (act && act._nota) || null; // no perder el cursor al repintar
+    boxes.innerHTML = '';
+    items.forEach((it,i)=>{
+      const box = document.createElement('div'); box.className = 'vuelta-nota-box';
+      if(items.length > 1){
+        const etq = document.createElement('div'); etq.className = 'vuelta-nota-etq'; etq.textContent = 'Nota '+(i+1);
+        box.appendChild(etq);
+      }
+      const ta = document.createElement('textarea'); ta.className = 'note-inline vuelta-comentario';
+      ta.placeholder = i===0 ? 'Notas de esta vuelta / de este test…' : 'Nota '+(i+1)+' (por ejemplo, otro test de esta vuelta)…';
+      ta.setAttribute('aria-label', ariaBase+(items.length>1 ? ' — nota '+(i+1) : ''));
+      ta.value = it.t;
+      ta._nota = it;
+      ta.oninput = ()=>{ it.t = ta.value; guardar(); };
+      // Si al salir de la caja no hay nada escrito, se quita (con un pequeño margen para no
+      // "comerse" el clic si justo pulsabas otro botón).
+      ta.onblur = ()=>{
+        setTimeout(()=>{
+          const pos = items.indexOf(it);
+          if(pos !== -1 && !it.t.trim()){ items.splice(pos,1); pintar(); guardar(); }
+        }, 180);
+      };
+      box.appendChild(ta);
+      boxes.appendChild(box);
+      if(activo === it) ta.focus();
+    });
+    addBtn.textContent = items.length ? '📝 Otra nota' : '📝 Añadir nota';
+    addBtn.setAttribute('aria-label', items.length ? 'Añadir otra nota a esta vuelta' : 'Añadir una nota a esta vuelta');
+  };
+  addBtn.onclick = (e)=>{
+    e.preventDefault();
+    const vacia = items.find(x=>!x.t.trim());
+    if(vacia){ pintar(vacia); return; }
+    const it = {t:''};
+    items.push(it);
+    pintar(it);
+  };
+  pintar();
+  return {boxes, addBtn};
 }
 function buildTicksRow(key, maxNota){
   maxNota = maxNota || 10;
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
   const wrap = document.createElement('div'); wrap.className='ticks-row';
@@ -4384,7 +4531,7 @@ function buildTicksRow(key, maxNota){
     });
     sel.onchange = ()=>{
       entry.mode = sel.value;
-      if(entry.mode !== 'nota') entry.nota = null;
+      if(entry.mode !== 'nota'){ entry.nota = null; entry.notasExtra = []; }
       if(entry.mode === 'pendiente') entry.fecha = null; // libera el anclaje si se vuelve a dejar pendiente
       scheduleSave();
       wrap.replaceWith(buildTicksRow(key, maxNota));
@@ -4392,28 +4539,13 @@ function buildTicksRow(key, maxNota){
     row.appendChild(sel);
 
     if(entry.mode === 'nota'){
-      const numIn = document.createElement('input');
-      numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max=String(maxNota);
-      numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
-      numIn.oninput = ()=>{
-        entry.nota = numIn.value===''? null : Number(numIn.value);
-        scheduleSave();
-      };
-      row.appendChild(numIn);
-      const maxLbl = document.createElement('span');
-      maxLbl.className = 'vuelta-nota-max';
-      maxLbl.textContent = '/ '+maxNota;
-      row.appendChild(maxLbl);
+      row.appendChild(buildTestsVuelta(entry, maxNota, 'Nota del test de la vuelta '+(i+1)));
     }
 
-    // Comentario de esta vuelta en concreto (no el general del tema): dudas, fallos del
-    // test, lo que quieras recordar de este pase por el tema.
-    const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
-    comentIn.placeholder = 'Notas de esta vuelta (opcional)…';
-    comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(i+1));
-    comentIn.value = entry.comentario || '';
-    comentIn.oninput = ()=>{ entry.comentario = comentIn.value; scheduleSave(); };
-    row.appendChild(comentIn);
+    // Notas de esta vuelta en concreto (no la general del tema): dudas, fallos del test, lo que
+    // quieras recordar de este pase por el tema. Puedes poner varias (una por test, por ejemplo).
+    const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(i+1));
+    row.appendChild(notas.addBtn);
 
     if(arr.length > 1){
       const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
@@ -4421,11 +4553,12 @@ function buildTicksRow(key, maxNota){
       delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
       row.appendChild(delBtn);
     }
+    row.appendChild(notas.boxes);
 
     wrap.appendChild(row);
   });
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
-  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
   wrap.appendChild(addBtn);
   return wrap;
 }
@@ -4440,13 +4573,13 @@ function buildTicksRow(key, maxNota){
    guardado. Elegir una vuelta en el desplegable solo la muestra; no guarda ni ancla nada
    por sí sola, ni salta nunca sola a otra vuelta distinta de la que tú elijas. */
 function ensureTicksArray(key){
-  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', fecha:null}));
+  if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   return state.ticks[key];
 }
 function vueltaResumenTxt(entry){
   if(entry.mode==='pendiente') return 'pendiente';
-  if(entry.mode==='nota') return entry.nota==null ? 'nota test' : 'nota test: '+entry.nota;
+  if(entry.mode==='nota'){ const t = testsDeVuelta(entry); return t.length ? 'nota test: '+t.join(' · ') : 'nota test'; }
   const found = VUELTA_MODES.find(m=>m[0]===entry.mode);
   return found ? found[1].toLowerCase() : entry.mode;
 }
@@ -4472,7 +4605,7 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   numSel.setAttribute('aria-label','Elegir vuelta de este tema');
   arr.forEach((e,i)=>{
     const o = document.createElement('option'); o.value=String(i);
-    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')'+((e.comentario && e.comentario.trim()) ? ' 📝' : '');
+    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')'+marcaNotasTxt(e);
     if(i===idx) o.selected = true;
     numSel.appendChild(o);
   });
@@ -4489,7 +4622,7 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   });
   sel.onchange = ()=>{
     entry.mode = sel.value;
-    if(entry.mode !== 'nota') entry.nota = null;
+    if(entry.mode !== 'nota'){ entry.nota = null; entry.notasExtra = []; }
     scheduleSave();
     // Primero se actualiza este control (para que el desplegable no se quede "colgado"
     // aunque falle algo más adelante), y solo después se repinta el resto de la app.
@@ -4499,74 +4632,39 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   wrap.appendChild(sel);
 
   if(entry.mode === 'nota'){
-    const numIn = document.createElement('input');
-    numIn.type='number'; numIn.className='vuelta-nota'; numIn.step='0.1'; numIn.min='0'; numIn.max=String(maxNota);
-    numIn.placeholder='Nota'; numIn.value = entry.nota==null ? '' : entry.nota;
-    numIn.setAttribute('aria-label','Nota del test de la vuelta '+(idx+1));
-    numIn.oninput = ()=>{
-      entry.nota = numIn.value===''? null : Number(numIn.value);
-      scheduleSave();
+    const actualizaOpcion = ()=>{
+      const opt = numSel.options[idx];
+      if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry);
     };
-    // No refrescamos en cada pulsación (perderíamos el foco mientras escribes el número);
-    // al salir del campo sí actualizamos Progreso y demás pestañas con la nota ya puesta.
-    numIn.onblur = ()=>{
-      refrescar();
-      try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras guardar una nota', err); }catch(e){} }
-    };
-    wrap.appendChild(numIn);
-    const maxLbl = document.createElement('span');
-    maxLbl.className = 'vuelta-nota-max';
-    maxLbl.textContent = '/ '+maxNota;
-    wrap.appendChild(maxLbl);
+    wrap.appendChild(buildTestsVuelta(entry, maxNota, 'Nota del test de la vuelta '+(idx+1), {
+      onChange: actualizaOpcion,
+      // No repintamos en cada pulsación (perderíamos el foco mientras escribes el número); al
+      // terminar de editar sí actualizamos Progreso y demás pestañas con la nota ya puesta.
+      onCommit: ()=>{ try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras guardar una nota', err); }catch(e){} } }
+    }));
   }
 
-  // Nota de esta vuelta en concreto. Para no llenar el día de cajas vacías, la caja solo se
-  // ve si ya hay algo escrito; si no, aparece un botón «Añadir nota» que la despliega (y si
-  // la dejas vacía, vuelve a plegarse sola). Se guarda en el mismo sitio de siempre
-  // (entry.comentario), así que lo ya escrito sigue apareciendo igual en Temario y notas.
-  let cajaNota = null;
-  const notaBtn = document.createElement('button'); notaBtn.type='button';
-  notaBtn.className='tick-add tick-add-nota'; notaBtn.textContent = '📝 Añadir nota';
-  notaBtn.setAttribute('aria-label', 'Añadir nota a la vuelta '+(idx+1)+' de este tema');
-  const cerrarNota = ()=>{
-    if(cajaNota && !cajaNota.value.trim()){ cajaNota.remove(); cajaNota = null; notaBtn.style.display = ''; }
-  };
-  const abrirNota = (enfocar)=>{
-    const comentIn = document.createElement('textarea'); comentIn.className='note-inline vuelta-comentario';
-    comentIn.placeholder = 'Notas de esta vuelta / de este test…';
-    comentIn.setAttribute('aria-label', 'Notas de la vuelta '+(idx+1)+' de este tema');
-    comentIn.value = entry.comentario || '';
-    comentIn.oninput = ()=>{
-      entry.comentario = comentIn.value;
-      scheduleSave();
-      // Pone/quita la marca 📝 de esta vuelta en el desplegable sin reconstruir el control.
-      const opt = numSel.options[idx];
-      if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+(entry.comentario.trim() ? ' 📝' : '');
-    };
-    // Si al salir de la caja no hay nada escrito, se pliega otra vez (con un pequeño margen
-    // para no "comerse" el clic si justo pulsabas otro botón).
-    comentIn.onblur = ()=>{ setTimeout(cerrarNota, 180); };
-    cajaNota = comentIn;
-    notaBtn.style.display = 'none';
-    wrap.appendChild(comentIn);
-    if(enfocar) comentIn.focus();
-  };
-  notaBtn.onclick = (e)=>{ e.preventDefault(); abrirNota(true); };
-  wrap.appendChild(notaBtn);
+  // Notas de esta vuelta. Para no llenar el día de cajas vacías, solo se ven las que ya tienen
+  // algo escrito; el botón «Añadir nota» abre una nueva (y con «Otra nota» puedes poner más de
+  // una, por ejemplo una por test). Se guardan en el mismo sitio que las de la pestaña Temario.
+  const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(idx+1)+' de este tema', ()=>{
+    // Pone/quita la marca 📝 de esta vuelta en el desplegable sin reconstruir el control.
+    const opt = numSel.options[idx];
+    if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry);
+  });
+  wrap.appendChild(notas.addBtn);
 
   // Por si ya has usado todas las vueltas que había y necesitas una más.
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add tick-add-vuelta';
   addBtn.textContent = '+ Añadir vuelta';
   addBtn.onclick = (e)=>{
     e.preventDefault();
-    arr.push({mode:'pendiente', nota:null, comentario:'', fecha:null});
+    arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null});
     scheduleSave();
     refrescar(arr.length-1);
   };
   wrap.appendChild(addBtn);
-
-  // Si esta vuelta ya tiene nota, la caja se muestra abierta desde el principio.
-  if(entry.comentario && entry.comentario.trim()) abrirNota(false);
+  wrap.appendChild(notas.boxes);
 
   return wrap;
 }
@@ -7747,9 +7845,13 @@ function collectNotaData(){
     const notas = []; // solo las vueltas con nota numérica (para media/gráfico)
     const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
     entries.forEach(e=>{
-      if(e.mode==='nota' && e.nota!=null && !isNaN(e.nota)){
-        notas.push(e.nota);
-        seq.push({mode:'nota', nota:e.nota});
+      if(e.mode==='nota'){
+        // Una vuelta puede tener varios tests: cada uno es una nota más (extra = 2º test o posterior
+        // de la misma vuelta).
+        testsDeVuelta(e).forEach((n,k)=>{
+          notas.push(n);
+          seq.push({mode:'nota', nota:n, extra:k>0});
+        });
       } else if(e.mode==='no_test' || e.mode==='no_tiempo' || e.mode==='solo_lectura'){
         seq.push({mode:e.mode});
       }
@@ -8040,7 +8142,7 @@ function renderProgreso(){
           no_tiempo:    {label:'No tiempo',     color:'#c0672f'},
           solo_lectura: {label:'Solo lectura',  color:'#5c8a99'}
         };
-        const notasHtml = item.seq.map(entry=>{
+        const notasParts = item.seq.map(entry=>{
           if(entry.mode!=='nota'){
             const pillMeta = NON_NOTA_PILL[entry.mode] || {label:entry.mode, color:'var(--muted)'};
             return '<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>';
@@ -8055,16 +8157,21 @@ function renderProgreso(){
           }
           lastNota = n;
           return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
-        }).join(' ');
+        });
+        // Los tests de una misma vuelta van unidos con «+»; entre vueltas, solo un espacio.
+        let notasHtml = '';
+        item.seq.forEach((entry,i)=>{
+          notasHtml += (i===0 ? '' : (entry.extra ? ' <span style="color:var(--muted);">+</span> ' : ' ')) + notasParts[i];
+        });
 
         // Tendencia general: última nota frente a la anterior (se usa como texto accesible
         // del gráfico, para quien use lector de pantalla o quiera el dato exacto).
         let tendenciaTxt = hasNotas ? 'Sin datos suficientes para ver tendencia' : 'Todavía no hay ninguna nota numérica para este tema';
         if(notas.length>1){
           const diff = Math.round((notas[notas.length-1]-notas[notas.length-2])*10)/10;
-          if(diff>0) tendenciaTxt = 'Mejorando, +'+diff+' respecto a la vuelta anterior';
-          else if(diff<0) tendenciaTxt = 'Empeorando, '+diff+' respecto a la vuelta anterior';
-          else tendenciaTxt = 'Igual que la vuelta anterior';
+          if(diff>0) tendenciaTxt = 'Mejorando, +'+diff+' respecto a la nota anterior';
+          else if(diff<0) tendenciaTxt = 'Empeorando, '+diff+' respecto a la nota anterior';
+          else tendenciaTxt = 'Igual que la nota anterior';
         }
 
         const tr = document.createElement('tr');
@@ -8083,7 +8190,7 @@ function renderProgreso(){
           sparkTd.appendChild(canvas);
           drawSparkline(canvas, notas, max, GRUPO_HEX_COLOR[grupo] || '#d99a3c');
         } else if(hasNotas){
-          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— hace falta otra vuelta —</span>';
+          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— hace falta otra nota —</span>';
         } else {
           sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>';
         }
@@ -8574,17 +8681,44 @@ function cicloIntro(text){
   p.textContent = text;
   return p;
 }
+const CICLO_DOW3 = ['dom','lun','mar','mié','jue','vie','sáb'];
+const CICLO_MES3 = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function cicloFechaCorta(ms){
+  const d = new Date(ms);
+  return CICLO_DOW3[d.getDay()]+' '+d.getDate()+' '+CICLO_MES3[d.getMonth()]+' '+d.getFullYear();
+}
+/* Una fila por vuelta: día exacto en que se terminó y, a la derecha, los días que pasaron desde
+   la vuelta anterior. Las fechas que aún no han llegado son previstas según el calendario. */
+function cicloFilasHtml(etq, fechasMs){
+  const n = new Date();
+  const hoyMs = new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime();
+  return fechasMs.map((ms,i)=>{
+    const estado = ms < hoyMs ? '' : (ms === hoyMs ? 'hoy' : 'prevista');
+    const dias = i>0 ? Math.round((ms - fechasMs[i-1])/86400000) : null;
+    return '<div class="ciclo-fila'+(estado==='prevista' ? ' prevista' : '')+'"'+(estado==='prevista' ? ' title="Fecha prevista según tu calendario"' : '')+'>'+
+      '<span class="cf-n">'+etq+' '+(i+1)+'</span>'+
+      '<span class="cf-fecha">'+cicloFechaCorta(ms)+'</span>'+
+      (estado==='hoy' ? '<span class="cf-tag">(hoy)</span>' : '')+
+      '<span class="cf-dias">'+(dias===null ? '—' : dias+' día'+(dias!==1 ? 's' : ''))+'</span>'+
+    '</div>';
+  }).join('');
+}
 function simpleGapsBody(datesMs){
-  if(datesMs.length < 2){
-    return '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 apariciones en tu calendario guardado).</div>';
+  if(datesMs.length < 1){
+    return '<div class="ciclo-empty">Todavía sin datos: este tema aún no aparece en tu calendario guardado.</div>';
   }
-  const gaps = [];
-  for(let i=1;i<datesMs.length;i++){
-    gaps.push(Math.round((datesMs[i]-datesMs[i-1])/86400000));
+  let html = '';
+  if(datesMs.length >= 2){
+    const gaps = [];
+    for(let i=1;i<datesMs.length;i++){
+      gaps.push(Math.round((datesMs[i]-datesMs[i-1])/86400000));
+    }
+    const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+    html += '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+datesMs.length+' apariciones registradas</div>';
+  } else {
+    html += '<div class="ciclo-line">1 vuelta registrada (hace falta otra para sacar la media)</div>';
   }
-  const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
-  let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+datesMs.length+' apariciones registradas</div>';
-  html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+  html += '<div class="ciclo-gaps">'+cicloFilasHtml('Vuelta', datesMs)+'</div>';
   return html;
 }
 const cicloOpen = {bloques:false, leves:false, ingles:false, psico:false};
@@ -8624,7 +8758,7 @@ function renderCiclo(){
 
   /* ---------- BLOQUES ---------- */
   appendAccordionSection(host, 'bloques', cicloOpen, 'Vuelta completa por bloque', (body)=>{
-    body.appendChild(cicloIntro('Una "vuelta completa" no es ver los dos colores de este bloque en concreto, sino dar la vuelta a toda su familia de bloques (graves 1-5 o menos graves 6-12): empezando en este bloque en azul, pasando por el resto de la familia en azul, luego toda la familia en morado, hasta volver a tocar este mismo bloque otra vez en azul. Los días se cuentan desde tu calendario real (con tus descansos y días de trabajo ya metidos): cada "Vuelta N → Vuelta N+1" es el tiempo desde que este bloque se tocó en azul hasta que se vuelve a tocar en azul (equivale a lo que muestra el desglose "Azul" de abajo). Debajo se muestra, por separado y por color, cuánto tarda en volver a tocar exactamente el mismo color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
+    body.appendChild(cicloIntro('Una "vuelta completa" no es ver los dos colores de este bloque en concreto, sino dar la vuelta a toda su familia de bloques (graves 1-5 o menos graves 6-12): empezando en este bloque en azul, pasando por el resto de la familia en azul, luego toda la familia en morado, hasta volver a tocar este mismo bloque otra vez en azul. En cada línea ves el día exacto en que terminaste esa vuelta (el último día que diste ese bloque en ese color antes de pasar al siguiente; si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días que pasaron desde la vuelta anterior. Las fechas en cursiva todavía no han llegado: son previstas según tu calendario real (con tus descansos y días de trabajo ya metidos). Debajo se muestra, por separado y por color, lo mismo para cada color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
     const blockAppearances = {};
     for(let b=1;b<=12;b++) blockAppearances[b]=[];
@@ -8634,7 +8768,9 @@ function renderCiclo(){
       // solo cuenta la fecha en la que realmente cambia de color, es decir, cuando se
       // completa esa vuelta.
       if(arr.length === 0 || arr[arr.length-1].color !== e.color){
-        arr.push({dateMs, color:e.color});
+        arr.push({dateMs, lastMs:dateMs, color:e.color});
+      } else {
+        arr[arr.length-1].lastMs = dateMs; // repetido por no completarse: el día de fin es el último
       }
     });
     // Una VUELTA COMPLETA no es "ver los dos colores de este bloque": es dar la vuelta a
@@ -8650,48 +8786,58 @@ function renderCiclo(){
     function buildFullCycles(arr){
       const unificados = arr.filter(a=>a.color==='unificado');
       if(unificados.length){
-        return unificados.map(a=>({completeMs:a.dateMs}));
+        return unificados.map(a=>({completeMs:a.lastMs}));
       }
       // Anclamos en azul (el color con el que arranca cada bloque); si un bloque no
       // tuviera azul, usamos el único color que tenga.
       const anchorColor = arr.some(a=>a.color==='azul') ? 'azul' : 'morado';
-      return arr.filter(a=>a.color===anchorColor).map(a=>({completeMs:a.dateMs}));
+      return arr.filter(a=>a.color===anchorColor).map(a=>({completeMs:a.lastMs}));
     }
 
     const blockGrid = document.createElement('div');
     blockGrid.className = 'ciclo-grid';
+    blockGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(290px,1fr))'; // que quepan fecha y días en una línea
     Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(num=>{
       const graves = BLOCKS[num].graves;
       const arr = blockAppearances[num];
       const cycles = buildFullCycles(arr);
       let bodyHtml;
-      if(cycles.length < 2){
-        bodyHtml = '<div class="ciclo-empty">Todavía sin datos suficientes (hacen falta al menos 2 vueltas completas de este bloque en tu calendario guardado, es decir, 2 veces que este bloque se toque en azul).</div>';
+      if(cycles.length < 1){
+        bodyHtml = '<div class="ciclo-empty">Todavía sin datos: este bloque aún no aparece en tu calendario guardado.</div>';
       } else {
-        const gaps = [];
-        for(let i=1;i<cycles.length;i++){
-          gaps.push(Math.round((cycles[i].completeMs - cycles[i-1].completeMs)/86400000));
+        const fechas = cycles.map(c=>c.completeMs);
+        let html = '';
+        if(fechas.length >= 2){
+          const gaps = [];
+          for(let i=1;i<fechas.length;i++) gaps.push(Math.round((fechas[i] - fechas[i-1])/86400000));
+          const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
+          html += '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+fechas.length+' vueltas completas registradas</div>';
+        } else {
+          html += '<div class="ciclo-line">1 vuelta registrada (hace falta otra para sacar la media)</div>';
         }
-        const avg = gaps.reduce((a,b)=>a+b,0) / gaps.length;
-        let html = '<div class="ciclo-line">Media real: <strong>'+avg.toFixed(1)+' días</strong> · '+cycles.length+' vueltas completas registradas</div>';
-        html += '<div class="ciclo-gaps">' + gaps.map((g,i)=>'<div>Vuelta '+(i+1)+' → Vuelta '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>';
+        html += '<div class="ciclo-gaps">'+cicloFilasHtml('Vuelta', fechas)+'</div>';
 
-        // Desglose por color: cuánto tarda en volver a tocar el MISMO color de este bloque
-        // (p.ej. bloque 7 azul -> próxima vez bloque 7 azul), no solo la vuelta completa azul+morado.
+        // Desglose por color: día exacto en que se terminó cada pasada de ESE color y días desde la
+        // anterior del mismo color (p.ej. bloque 7 azul -> próxima vez bloque 7 azul).
         const COLOR_LABEL = {azul:'Azul', morado:'Morado', unificado:'Unificado'};
         let colorHtml = '';
         ['azul','morado','unificado'].forEach(col=>{
           const list = arr.filter(a=>a.color===col);
-          if(list.length < 2) return;
-          const cgaps = [];
-          for(let i=1;i<list.length;i++){
-            cgaps.push(Math.round((list[i].dateMs - list[i-1].dateMs)/86400000));
-          }
-          const cavg = cgaps.reduce((a,b)=>a+b,0) / cgaps.length;
+          if(list.length < 1) return;
+          const mss = list.map(a=>a.lastMs);
           const lbl = COLOR_LABEL[col];
+          let titulo;
+          if(mss.length >= 2){
+            const cgaps = [];
+            for(let i=1;i<mss.length;i++) cgaps.push(Math.round((mss[i] - mss[i-1])/86400000));
+            const cavg = cgaps.reduce((a,b)=>a+b,0) / cgaps.length;
+            titulo = 'media hasta volver a tocar '+lbl.toLowerCase()+': <strong>'+cavg.toFixed(1)+' días</strong>';
+          } else {
+            titulo = '1 pasada registrada';
+          }
           colorHtml += '<div class="ciclo-color-block">'+
-            '<div class="ciclo-color-title"><span class="colorpill '+col+'">'+col+'</span> media hasta volver a tocar '+lbl.toLowerCase()+': <strong>'+cavg.toFixed(1)+' días</strong></div>'+
-            '<div class="ciclo-gaps">' + cgaps.map((g,i)=>'<div>'+lbl+' '+(i+1)+' → '+lbl+' '+(i+2)+': <strong>'+g+' días</strong></div>').join('') + '</div>'+
+            '<div class="ciclo-color-title"><span class="colorpill '+col+'">'+col+'</span> '+titulo+'</div>'+
+            '<div class="ciclo-gaps">'+cicloFilasHtml(lbl, mss)+'</div>'+
           '</div>';
         });
         if(colorHtml) html += '<div class="ciclo-color-section">'+colorHtml+'</div>';
@@ -8714,19 +8860,22 @@ function renderCiclo(){
 
   /* ---------- LEVES ---------- */
   appendAccordionSection(host, 'leves', cicloOpen, 'Vuelta completa por leve', (body)=>{
-    body.appendChild(cicloIntro('Cada leve entra todos los días de estudio, así que una "vuelta" es simplemente el tiempo que tarda en volver a tocar ese mismo leve (ciclo de 17). Si un día no lo das por completado, ese mismo leve se repite al día siguiente de estudio y esa repetición no cuenta como una vuelta nueva.'));
+    body.appendChild(cicloIntro('Cada leve entra todos los días de estudio, así que una "vuelta" es simplemente el tiempo que tarda en volver a tocar ese mismo leve (ciclo de 17). Si un día no lo das por completado, ese mismo leve se repite al día siguiente de estudio y esa repetición no cuenta como una vuelta nueva. En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const leveAppearances = LEVES.map(()=>[]);
     let lastLeveNum = null;
     studyDays.forEach(({dateMs,e})=>{
       if(e.leveNum !== lastLeveNum){
         leveAppearances[e.leveNum-1].push(dateMs);
+      } else {
+        const arr = leveAppearances[e.leveNum-1]; arr[arr.length-1] = dateMs; // repetido: cuenta el día en que se terminó
       }
       lastLeveNum = e.leveNum;
     });
 
     const leveGrid = document.createElement('div');
     leveGrid.className = 'ciclo-grid';
+    leveGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(290px,1fr))';
     LEVES.forEach((t,idx)=>{
       const nombre = t.type==='l39_l40' ? (t.l39+' / '+t.l40) : t.nombre;
       const temaNum = temaNumFromClase(t.clase);
@@ -8746,19 +8895,22 @@ function renderCiclo(){
 
   /* ---------- INGLÉS ---------- */
   appendAccordionSection(host, 'ingles', cicloOpen, 'Vuelta completa por tema de Inglés', (body)=>{
-    body.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32).'));
+    body.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
     let lastInglesNum = null;
     studyDays.forEach(({dateMs,e})=>{
       if(e.inglesNum !== lastInglesNum){
         inglesAppearances[e.inglesNum-1].push(dateMs);
+      } else {
+        const arr = inglesAppearances[e.inglesNum-1]; arr[arr.length-1] = dateMs; // repetido: cuenta el día en que se terminó
       }
       lastInglesNum = e.inglesNum;
     });
 
     const inglesGrid = document.createElement('div');
     inglesGrid.className = 'ciclo-grid';
+    inglesGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(290px,1fr))';
     for(let i=1;i<=INGLES_TOTAL;i++){
       const card = document.createElement('div');
       card.className = 'ciclo-card';
@@ -8776,7 +8928,7 @@ function renderCiclo(){
 
   /* ---------- PSICOTÉCNICOS ---------- */
   appendAccordionSection(host, 'psico', cicloOpen, 'Vuelta completa por psicotécnico', (body)=>{
-    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 pruebas + 2 controles).'));
+    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 pruebas + 2 controles). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const psicoAppearances = PSICO_ITEMS.map(()=>[]);
     let lastPsicoIdx = null;
@@ -8784,12 +8936,15 @@ function renderCiclo(){
       if(e.psicoIdx === undefined) return;
       if(e.psicoIdx !== lastPsicoIdx){
         psicoAppearances[e.psicoIdx].push(dateMs);
+      } else {
+        const arr = psicoAppearances[e.psicoIdx]; arr[arr.length-1] = dateMs; // repetido: cuenta el día en que se terminó
       }
       lastPsicoIdx = e.psicoIdx;
     });
 
     const psicoGrid = document.createElement('div');
     psicoGrid.className = 'ciclo-grid';
+    psicoGrid.style.gridTemplateColumns = 'repeat(auto-fill,minmax(290px,1fr))';
     PSICO_ITEMS.forEach((name,idx)=>{
       const card = document.createElement('div');
       card.className = 'ciclo-card';
