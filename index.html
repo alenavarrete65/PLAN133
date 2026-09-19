@@ -7844,16 +7844,19 @@ function collectNotaData(){
     const entries = (state.ticks[key]||[]).map(migrateTickEntry);
     const notas = []; // solo las vueltas con nota numérica (para media/gráfico)
     const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
-    entries.forEach(e=>{
+    entries.forEach((e,vueltaIdx)=>{
+      // vuelta: número de vuelta (1-based) al que pertenece esta entrada, tal cual aparece
+      // en «Temario y notas». Varios tests de una misma vuelta comparten el mismo número.
+      const vuelta = vueltaIdx+1;
       if(e.mode==='nota'){
         // Una vuelta puede tener varios tests: cada uno es una nota más (extra = 2º test o posterior
         // de la misma vuelta).
         testsDeVuelta(e).forEach((n,k)=>{
           notas.push(n);
-          seq.push({mode:'nota', nota:n, extra:k>0});
+          seq.push({mode:'nota', nota:n, extra:k>0, vuelta});
         });
       } else if(e.mode==='no_test' || e.mode==='no_tiempo' || e.mode==='solo_lectura'){
-        seq.push({mode:e.mode});
+        seq.push({mode:e.mode, vuelta});
       }
     });
     if(seq.length){
@@ -8132,37 +8135,45 @@ function renderProgreso(){
         const hasNotas = notas.length>0;
         const avg = hasNotas ? notas.reduce((a,b)=>a+b,0)/notas.length : null;
 
-        // Recorremos la secuencia real de vueltas (notas + "no test" intercalados). El delta
-        // ▲/▼ de una nota se calcula contra la nota numérica anterior, saltándose los huecos
-        // de "no test" que haya por en medio (igual que hacía antes, pero sin perder de vista
-        // en qué vuelta cayó cada "no test").
+        // Recorremos la secuencia real de vueltas (notas + "no test" intercalados), agrupando
+        // por número de vuelta para poder etiquetar «Vuelta 1», «Vuelta 2», etc. El delta ▲/▼
+        // solo se calcula al pasar de una vuelta a otra (contra la última nota numérica vista);
+        // si una misma vuelta tiene varios tests, se muestran como notas independientes, sin
+        // flecha entre ellos, porque no tiene sentido decir que uno "mejora" al otro.
         let lastNota = null;
         const NON_NOTA_PILL = {
           no_test:      {label:'No test',      color:'var(--muted)'},
           no_tiempo:    {label:'No tiempo',     color:'#c0672f'},
           solo_lectura: {label:'Solo lectura',  color:'#5c8a99'}
         };
-        const notasParts = item.seq.map(entry=>{
+        const vueltaGroups = [];
+        item.seq.forEach(entry=>{
+          let group = vueltaGroups.length && vueltaGroups[vueltaGroups.length-1].vuelta===entry.vuelta
+            ? vueltaGroups[vueltaGroups.length-1] : null;
+          if(!group){ group = {vuelta: entry.vuelta, parts: []}; vueltaGroups.push(group); }
+
           if(entry.mode!=='nota'){
             const pillMeta = NON_NOTA_PILL[entry.mode] || {label:entry.mode, color:'var(--muted)'};
-            return '<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>';
+            group.parts.push('<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>');
+            return;
           }
           const n = entry.nota;
           let deltaTxt = '';
-          if(lastNota!=null){
+          if(!entry.extra && lastNota!=null){
             const diff = Math.round((n - lastNota)*10)/10;
             if(diff > 0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
             else if(diff < 0) deltaTxt = ' <span style="color:var(--red-text);">▼'+diff+'</span>';
             else deltaTxt = ' <span style="color:var(--muted);">=</span>';
           }
           lastNota = n;
-          return '<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt;
+          group.parts.push('<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt);
         });
-        // Los tests de una misma vuelta van unidos con «+»; entre vueltas, solo un espacio.
-        let notasHtml = '';
-        item.seq.forEach((entry,i)=>{
-          notasHtml += (i===0 ? '' : (entry.extra ? ' <span style="color:var(--muted);">+</span> ' : ' ')) + notasParts[i];
-        });
+        // Cada vuelta va en su propia línea, con su etiqueta «Vuelta N»; los tests de una
+        // misma vuelta van unidos entre sí con «+».
+        const notasHtml = vueltaGroups.map(g=>{
+          const label = '<span style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--cream-dim);margin-right:6px;">Vuelta '+g.vuelta+'</span>';
+          return label + g.parts.join(' <span style="color:var(--muted);">+</span> ');
+        }).join('<br>');
 
         // Tendencia general: última nota frente a la anterior (se usa como texto accesible
         // del gráfico, para quien use lector de pantalla o quiera el dato exacto).
