@@ -1118,6 +1118,13 @@
   @media (prefers-reduced-motion:reduce){
     *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important;}
   }
+
+  /* Dentro de cada día del calendario (cuadrícula y lista, en todos los calendarios): una sola fuente, la de etiquetas y datos */
+  .cal-cell, .cal-cell *, .cclase-cell, .cclase-cell *, .cal-list-item, .cal-list-item *{font-family:var(--font-mono);}
+  .cal-cell :is(input,select,textarea,button), .cclase-cell :is(input,select,textarea,button),
+  .cal-list-item :is(input,select,textarea,button){font-family:var(--font-mono);}
+  /* El cuadro del modal recibe el foco al abrirse (para lectores de pantalla): sin marco visible alrededor */
+  .modal[tabindex="-1"]:focus, .modal[tabindex="-1"]:focus-visible{outline:none !important;}
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
@@ -1525,6 +1532,52 @@
   function queue(){ if(queued) return; queued = true; requestAnimationFrame(()=>{ queued = false; sync(); }); }
   new MutationObserver(queue).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
   sync();
+})();
+
+
+/* ===================== MODALES: foco dentro, Esc para cerrar y devolver el foco ===================== */
+(function initModalFocus(){
+  const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]):not([type="hidden"]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])';
+  let current = null, opener = null;
+  function focusables(m){ return Array.from(m.querySelectorAll(FOCUSABLE)).filter(el=>el.getClientRects().length>0); }
+  function onOpen(backdrop){
+    if(current === backdrop) return;
+    current = backdrop; opener = document.activeElement;
+    const box = backdrop.querySelector('.modal');
+    if(box){
+      if(!box.hasAttribute('tabindex')) box.setAttribute('tabindex','-1');
+      // Foco al propio cuadro (no a un campo): así se anuncia el diálogo sin que salte el teclado en el móvil.
+      try{ box.focus({preventScroll:true}); }catch(e){}
+    }
+  }
+  function onClose(backdrop){
+    if(current !== backdrop) return;
+    current = null;
+    const o = opener; opener = null;
+    // Al cerrar, el foco vuelve a lo que abrió el modal (si sigue en pantalla; el calendario se repinta y a veces ya no está).
+    if(o && o !== document.body && document.contains(o) && typeof o.focus === 'function'){ try{ o.focus({preventScroll:true}); }catch(e){} }
+  }
+  document.querySelectorAll('.modal-backdrop').forEach(b=>{
+    new MutationObserver(()=>{ b.classList.contains('open') ? onOpen(b) : onClose(b); }).observe(b, {attributes:true, attributeFilter:['class']});
+  });
+  document.addEventListener('keydown', e=>{
+    if(!current || e.isComposing) return;
+    if(e.key === 'Escape'){
+      if(e.target && e.target.tagName === 'SELECT') return; // deja que Esc cierre solo el desplegable
+      e.preventDefault(); e.stopPropagation();
+      current.classList.remove('open'); // mismo cierre que el botón ✕ y el clic fuera
+      return;
+    }
+    if(e.key === 'Tab'){
+      const box = current.querySelector('.modal');
+      const list = focusables(current);
+      if(!list.length){ e.preventDefault(); if(box) box.focus(); return; }
+      const first = list[0], last = list[list.length-1], active = document.activeElement;
+      if(!current.contains(active)){ e.preventDefault(); first.focus(); }
+      else if(e.shiftKey && (active === first || active === box)){ e.preventDefault(); last.focus(); }
+      else if(!e.shiftKey && active === last){ e.preventDefault(); first.focus(); }
+    }
+  }, true);
 })();
 
 /* ===================== FRASE MOTIVACIONAL ===================== */
