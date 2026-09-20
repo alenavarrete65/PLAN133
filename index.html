@@ -22,17 +22,17 @@
 
 </script>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Operación Baeza</title>
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon-192.png" type="image/png">
-<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <meta name="theme-color" content="#16302a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Operación Baeza">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
 <style>
   :root{
     --bg: #16302a;
@@ -43,14 +43,18 @@
     --cream-dim: #c3bda3;
     --amber: #c9a227;
     --amber-dim: #8f7a2f;
-    --amber-ink: #c9a227;
+    --amber-ink: #d8b53a;
     --red: #b6543f;
     --green: #6f9a6a;
-    --blue: #5c8a99;
-    --muted: #8a9186;
-    --red-text: #d9705a;
+    --blue: #8ec0cf;
+    --muted: #aeb5a9;
+    --red-text: #f4a08d;
+    --green-ink: #8fc08a;   /* verde para TEXTO (el --green de fondo no llega a 4.5:1 sobre los paneles) */
+    --line-strong: #78a595; /* borde de controles (>=3:1); --line se queda para separadores suaves */
+    --focus: #d8b53a;
+    color-scheme: dark;
     --font-display: 'Playfair Display', serif;
-    --font-mono: 'Playfair Display', serif;
+    --font-mono: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; /* etiquetas, pills y datos: sans legible en pequeño (Playfair queda para títulos y texto) */
     --font-body: 'Playfair Display', serif;
     /* capas del fondo con textura (foto + veladura). Se sobrescriben en modo claro */
     --bg-overlay-1: rgba(22,48,42,0.82);
@@ -76,8 +80,12 @@
     --red:#a8402c;
     --green:#3f7a54;
     --blue:#3d6b78;
-    --muted:#7a7160;
+    --muted:#6b6353;
     --red-text:#a8402c;
+    --green-ink:#35684a;
+    --line-strong:#8f8258;
+    --focus:#7d5e15;
+    color-scheme: light;
     --bg-overlay-1: rgba(244,236,214,0.86);
     --bg-overlay-2: rgba(244,236,214,0.93);
     --bg-overlay-3: rgba(244,236,214,0.97);
@@ -129,7 +137,7 @@
   }
   .brand{display:flex;flex-direction:column;gap:2px;}
   .brand .eyebrow{
-    font-family:var(--font-mono);font-size:11px;letter-spacing:.18em;color:var(--amber-ink);text-transform:uppercase;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.18em;color:var(--amber-ink);text-transform:uppercase;
   }
   .brand h1{
     font-family:var(--font-display);font-weight:700;font-size:30px;letter-spacing:.02em;
@@ -159,7 +167,7 @@
   }
   @media (max-width:640px){
     .gc-emblem{width:28px;}
-    .brand-motto{font-size:11.5px;letter-spacing:.02em;}
+    .brand-motto{font-size:12px;letter-spacing:.02em;}
   }
   .flag-es{
     display:block;width:100%;max-width:220px;height:5px;flex:0 0 auto;
@@ -190,7 +198,7 @@
   }
   @media (max-width:640px){
     .motivation-strip{padding:8px 12px;}
-    .motivation-strip #motivationText{font-size:11.5px;}
+    .motivation-strip #motivationText{font-size:12px;}
   }
 
   .home-dash{
@@ -201,29 +209,29 @@
     padding:8px 10px;min-width:0;
   }
   .home-card-label{
-    font-family:var(--font-mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.1em;text-transform:uppercase;
     color:var(--amber-ink);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
   .home-card-value{
     font-family:var(--font-display);font-weight:700;font-size:20px;color:var(--cream);line-height:1;
   }
   .home-card-sub{
-    font-family:var(--font-mono);font-size:9.5px;color:var(--cream-dim);margin-top:3px;
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-top:3px;
   }
   .home-card-note{
-    font-family:var(--font-mono);font-size:9px;color:var(--muted);margin-top:5px;font-style:italic;
+    font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:5px;font-style:italic;
   }
   .home-card-compact{padding:8px 10px;display:flex;align-items:baseline;gap:6px;}
   .home-card-compact .home-card-label{margin-bottom:0;}
   .home-card-compact .home-card-value{font-size:15px;}
-  .home-card-compact .home-card-sub{margin-top:0;font-size:9.5px;}
+  .home-card-compact .home-card-sub{margin-top:0;font-size:12px;}
   .home-clases-pills{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px;}
   .home-today-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:3px;}
   .home-today-list li{
-    font-family:var(--font-mono);font-size:10px;color:var(--cream-dim);
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);
   }
   .home-today-status{
-    font-family:var(--font-mono);font-size:10px;color:var(--green);margin-top:6px;
+    font-family:var(--font-mono);font-size:12px;color:var(--green-ink);margin-top:6px;
   }
   @media (max-width:980px){
     .home-dash{grid-template-columns:repeat(3,1fr);}
@@ -258,17 +266,17 @@
   #calSelectorToggle{display:flex;flex-wrap:wrap;}
   #calSelectorToggle .view-toggle-btn{flex:1 1 auto;white-space:nowrap;}
   @media (max-width:640px){
-    #calSelectorToggle .view-toggle-btn{padding:7px 9px;font-size:10px;}
+    #calSelectorToggle .view-toggle-btn{padding:7px 9px;font-size:12px;}
   }
   .view-toggle-btn{
-    font-family:var(--font-mono);font-size:11px;letter-spacing:.03em;text-transform:uppercase;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.03em;text-transform:uppercase;
     background:none;border:none;color:var(--cream-dim);padding:7px 14px;border-radius:2px;cursor:pointer;
   }
   .view-toggle-btn:hover{color:var(--cream);}
   .view-toggle-btn.active{background:var(--amber);color:#1b2b1f;}
   .cal-export-bar{display:flex;gap:8px;justify-content:center;margin:8px 0 4px;flex-wrap:wrap;}
   .cal-export-btn{
-    font-family:var(--font-mono);font-size:11.5px;letter-spacing:.02em;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.02em;
     padding:7px 12px;border-radius:6px;border:1px solid var(--line);
     background:var(--bg-panel-2);color:var(--cream-dim);cursor:pointer;
     transition:background .15s ease, color .15s ease, opacity .15s ease;
@@ -276,13 +284,13 @@
   .cal-export-btn:hover{background:var(--bg-panel);color:var(--cream);}
   .cal-export-btn:disabled{opacity:.5;cursor:wait;}
   @media (max-width:640px){
-    .cal-export-btn{padding:8px 10px;font-size:11px;}
+    .cal-export-btn{padding:8px 10px;font-size:12px;}
   }
 
   /* ---- day completion badge ---- */
   .cal-daynum-left{display:flex;align-items:center;gap:5px;}
   .day-status-badge{
-    font-family:var(--font-mono);font-weight:700;font-size:9px;line-height:1;
+    font-family:var(--font-mono);font-weight:700;font-size:11px;line-height:1;
     min-width:14px;height:14px;padding:0 3px;border-radius:8px;display:inline-flex;
     align-items:center;justify-content:center;flex-shrink:0;
   }
@@ -305,9 +313,9 @@
   .cal-list-item.today .cal-list-daynum{color:var(--amber-ink);}
   .cal-list-wd{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
   .cal-list-head-right{display:flex;align-items:center;gap:10px;}
-  .cal-list-status-select{width:auto;min-width:110px;padding:6px 6px;font-size:11px;}
+  .cal-list-status-select{width:auto;min-width:110px;padding:6px 6px;font-size:12px;}
   .cal-list-tasks .task-row{padding:9px 8px;font-size:14px;border-radius:3px;}
-  .cal-list-tasks .task-row .tag{font-size:10px;padding:2px 6px;}
+  .cal-list-tasks .task-row .tag{font-size:11px;padding:2px 6px;}
   .cal-list-tasks .day-tick{width:19px;height:19px;}
 
   .view{display:none;}
@@ -339,7 +347,7 @@
   .btn.ghost{background:transparent;border:1px solid var(--amber-dim);color:var(--amber-ink);}
   .btn.ghost:hover{border-color:var(--amber);}
   .btn.danger{background:transparent;border:1px solid var(--red-text);color:var(--red-text);}
-  .btn.small{padding:5px 10px;font-size:11px;}
+  .btn.small{padding:5px 10px;font-size:12px;}
 
   .empty-state{
     border:1px dashed var(--line);padding:40px 20px;text-align:center;color:var(--cream-dim);
@@ -347,11 +355,11 @@
   }
 
   /* ---- legend ---- */
-  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-bottom:14px;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
   .legend span{display:inline-flex;align-items:center;gap:5px;}
   .legend i{width:10px;height:10px;display:inline-block;border-radius:2px;}
   .tick-help{
-    font-family:var(--font-mono);font-size:11px;color:var(--red-text);background:rgba(217,112,90,.14);
+    font-family:var(--font-mono);font-size:12px;color:var(--red-text);background:rgba(217,112,90,.14);
     border:1px solid var(--red-text);border-radius:2px;padding:8px 10px;margin-bottom:14px;line-height:1.5;
   }
 
@@ -360,7 +368,7 @@
     display:grid;grid-template-columns:repeat(7,1fr);gap:6px;
   }
   .cal-dow{
-    font-family:var(--font-mono);font-size:10px;text-align:center;color:var(--muted);
+    font-family:var(--font-mono);font-size:11px;text-align:center;color:var(--muted);
     text-transform:uppercase;letter-spacing:.08em;padding-bottom:4px;
   }
   .cal-cell{
@@ -377,17 +385,17 @@
     font-family:var(--font-mono);font-size:15px;font-weight:600;color:var(--cream);
     display:flex;justify-content:space-between;align-items:center;
   }
-  .cal-daynum .wd{font-size:9px;color:var(--muted);letter-spacing:.06em;}
+  .cal-daynum .wd{font-size:11px;color:var(--muted);letter-spacing:.06em;}
   select.status-select{
-    width:100%;font-family:var(--font-mono);font-size:10px;background:var(--bg-panel-2);
+    width:100%;font-family:var(--font-mono);font-size:12px;background:var(--bg-panel-2);
     color:var(--cream-dim);border:1px solid var(--line);border-radius:2px;padding:2px 2px;
   }
-  .cal-tasks{display:flex;flex-direction:column;gap:2px;font-size:11px;flex:1;}
+  .cal-tasks{display:flex;flex-direction:column;gap:2px;font-size:12px;flex:1;}
   .task-row{
     display:flex;align-items:flex-start;gap:4px;padding:2px 4px;border-radius:2px;line-height:1.25;cursor:pointer;
   }
   .task-row .tag{
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.03em;
     padding:1px 4px;border-radius:2px;flex-shrink:0;
   }
   .task-row .task-txt{flex:1;}
@@ -401,22 +409,22 @@
   .tag-mgrave{background:var(--amber);color:#1b2b1f;}
   .tag-leve{background:var(--green);color:#12241a;}
   .tag-ing{background:var(--blue);color:#0e2027;}
-  .tag-psico{background:#8b6fae;color:#fff;}
+  .tag-psico{background:#7a5c9c;color:#fff;}
   .tag-manual{background:transparent;border:1px solid var(--amber-dim);color:var(--amber-ink);}
   .grupo-tag{
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.03em;
     padding:2px 6px;border-radius:2px;display:inline-block;white-space:nowrap;
   }
   .grupo-tag.g-bloques{background:var(--amber);color:#1b2b1f;}
   .grupo-tag.g-leves{background:var(--green);color:#12241a;}
   .grupo-tag.g-ingles{background:var(--blue);color:#0e2027;}
-  .grupo-tag.g-psico{background:#8b6fae;color:#fff;}
-  .tag-orto{background:var(--muted);color:#fff;}
-  .tag-entreno{background:#c0672f;color:#fff;}
+  .grupo-tag.g-psico{background:#7a5c9c;color:#fff;}
+  .tag-orto{background:#6b7368;color:#fff;}
+  .tag-entreno{background:#a9531d;color:#fff;}
   .tag-nota{background:transparent;border:1px solid var(--line);color:var(--cream-dim);}
   .task-row.day-note-preview .task-txt{color:var(--cream-dim);font-style:italic;}
   .colorpill{
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.04em;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.04em;
     padding:1px 5px;border-radius:8px;margin-left:6px;text-transform:uppercase;
   }
   .colorpill.azul{background:#D0E0E3;color:#1c3a42;}
@@ -424,7 +432,7 @@
   .colorpill.unificado{background:var(--amber);color:#1b2b1f;}
   .task-txt{color:var(--cream);overflow:visible;text-overflow:initial;white-space:normal;line-height:1.3;}
   .off-label{
-    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-align:center;
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-align:center;
     margin-top:20px;letter-spacing:.05em;text-transform:uppercase;
   }
 
@@ -441,7 +449,7 @@
   /* El modal del día es más ancho que el resto de modales (en móvil sigue ocupando todo el ancho). */
   #dayModal .modal{max-width:780px;padding:22px 24px;}
   .modal h3{font-family:var(--font-display);text-transform:uppercase;margin:0 0 4px;color:var(--amber-ink);font-size:20px;}
-  .modal .sub{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:14px;}
+  .modal .sub{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-bottom:14px;}
   .modal-row{display:flex;gap:8px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);}
   .modal-row:last-child{border-bottom:none;}
   .modal-close{float:right;background:none;border:none;color:var(--cream-dim);font-size:18px;cursor:pointer;}
@@ -455,15 +463,15 @@
   .todo-sec{margin-top:6px;}
   .todo-sec:first-of-type{margin-top:2px;}
   .todo-sec-label{
-    font-family:var(--font-mono);font-size:8.5px;text-transform:uppercase;letter-spacing:.08em;
+    font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;
     color:var(--amber-ink);opacity:.85;margin-bottom:2px;border-top:1px solid var(--line);padding-top:4px;
   }
   .todo-sec:first-of-type .todo-sec-label{border-top:none;padding-top:0;}
   .todo-cell .cclase-pills{display:flex;flex-wrap:wrap;gap:3px;}
-  .todo-list-item .todo-sec-label{font-size:10px;margin-bottom:4px;}
+  .todo-list-item .todo-sec-label{font-size:12px;margin-bottom:4px;}
   .todo-list-item .todo-sec{margin-top:10px;}
   @media (max-width:640px){
-    .todo-sec-label{font-size:9.5px;}
+    .todo-sec-label{font-size:12px;}
   }
 
   /* ---- Clases (resumen informativo calculado desde el calendario) ---- */
@@ -471,17 +479,17 @@
   .clase-info-tick{cursor:default;}
   .clase-info-tick.programada{border-color:var(--amber-dim);color:var(--amber-ink);border-style:dashed;}
   .clase-info-dates{
-    font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;
+    font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5;
   }
   .clase-info-hecha{border-color:var(--green);}
   .clase-info-intro{
     background:var(--bg-panel-2);border:1px solid var(--line);border-left:3px solid var(--amber);
     border-radius:2px;padding:10px 12px;margin-bottom:12px;
-    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);line-height:1.6;
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.6;
   }
   .clase-info-intro strong{color:var(--cream);}
   .clase-info-total{
-    font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px;
+    font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px;
   }
   .clase-info-legacy{
     margin-top:20px;padding-top:12px;border-top:1px dashed var(--line);
@@ -493,7 +501,7 @@
   }
   .day-section:first-of-type{border-top:none;margin-top:0;padding-top:0;}
   .day-section-title{
-    font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;
+    font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;
     color:var(--amber-ink);margin-bottom:8px;display:flex;align-items:center;gap:6px;
   }
   .day-section .note-inline{min-height:74px;}
@@ -505,7 +513,7 @@
   .day-pend-row select:disabled{opacity:.6;}
   .day-mini-btn{
     background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;
-    padding:8px 10px;font-family:var(--font-mono);font-size:11px;cursor:pointer;
+    padding:8px 10px;font-family:var(--font-mono);font-size:12px;cursor:pointer;
   }
   .day-mini-btn:hover{border-color:var(--amber);color:var(--amber-ink);}
   .day-mini-btn:disabled{opacity:.45;cursor:default;}
@@ -521,12 +529,12 @@
     border-radius:2px;padding:8px;font-family:var(--font-mono);font-size:12px;margin-bottom:6px;
   }
   .day-saved-flash{
-    font-family:var(--font-mono);font-size:10px;color:var(--green);margin-left:auto;opacity:0;
+    font-family:var(--font-mono);font-size:12px;color:var(--green-ink);margin-left:auto;opacity:0;
     transition:opacity .2s;
   }
   .day-saved-flash.on{opacity:1;}
   .day-warn{
-    font-family:var(--font-mono);font-size:11px;color:var(--red-text);
+    font-family:var(--font-mono);font-size:12px;color:var(--red-text);
     border:1px solid var(--red-text);border-radius:2px;padding:8px;margin-top:10px;line-height:1.5;
   }
 
@@ -545,15 +553,15 @@
   }
   .block-num.mg{background:var(--cream-dim);}
   .block-title h4{margin:0;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:16px;}
-  .block-title .kind{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;}
+  .block-title .kind{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-transform:uppercase;}
   .chev{color:var(--cream-dim);font-family:var(--font-mono);transition:.15s;}
   .block-body{display:none;padding:0 14px 14px;}
   .block-body.open{display:block;}
   .tema-row{padding:10px 0;border-top:1px solid var(--line);}
   .tema-row .tema-head{display:flex;justify-content:space-between;gap:10px;font-size:13px;}
   .tema-row .tema-name{font-weight:600;color:var(--cream);}
-  .tema-row .tema-clase{font-family:var(--font-mono);font-size:11px;color:var(--muted);white-space:nowrap;}
-  .tema-group-label{display:flex;align-items:center;gap:8px;margin:16px 0 2px;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
+  .tema-row .tema-clase{font-family:var(--font-mono);font-size:12px;color:var(--muted);white-space:nowrap;}
+  .tema-group-label{display:flex;align-items:center;gap:8px;margin:16px 0 2px;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);}
   .tema-group-label:first-child{margin-top:6px;}
   .tema-group-label .colorpill{margin:0;}
 
@@ -578,11 +586,11 @@
   .flat-item{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:9px 10px;}
   .flat-item .fi-head{display:flex;justify-content:space-between;font-size:12px;margin-bottom:2px;}
   .flat-item .fi-name{font-weight:600;}
-  .flat-item .fi-clase{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .flat-item .fi-clase{font-family:var(--font-mono);font-size:12px;color:var(--muted);}
 
   /* ---- Pestaña Arrastre: extras ---- */
   .mini-tag{
-    font-family:var(--font-mono);font-size:9px;font-weight:600;letter-spacing:.03em;
+    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.03em;
     padding:1px 5px;border-radius:2px;display:inline-block;white-space:nowrap;
   }
   .arrastre-item{cursor:pointer;user-select:none;transition:opacity .15s;}
@@ -594,7 +602,7 @@
   }
   .arrastre-head-row{display:flex;align-items:flex-start;gap:8px;}
   .arrastre-meta{display:flex;align-items:center;gap:6px;margin-top:3px;flex-wrap:wrap;}
-  .arrastre-meta .grupo-txt{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .arrastre-meta .grupo-txt{font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .arrastre-sub{border-top:1px dashed var(--line);margin-top:6px;padding-top:6px;}
   .arrastre-sub:first-child{border-top:none;margin-top:0;padding-top:0;}
   .arrastre-group-head{
@@ -607,7 +615,7 @@
   }
   .arrastre-copy-btn{
     background:transparent;border:1px solid var(--amber-dim);color:var(--amber-ink);border-radius:2px;
-    font-family:var(--font-mono);font-size:11px;padding:4px 9px;cursor:pointer;white-space:nowrap;
+    font-family:var(--font-mono);font-size:12px;padding:4px 9px;cursor:pointer;white-space:nowrap;
   }
   .arrastre-copy-btn:hover{background:var(--bg-panel-2);}
   .arrastre-add-form{display:none;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0 4px;padding:10px;background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;}
@@ -615,14 +623,14 @@
   .arrastre-add-form select{background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;font-family:var(--font-mono);font-size:12px;padding:6px 8px;min-width:150px;max-width:100%;}
   .arrastre-add-form .arrastre-add-confirm{background:var(--amber);color:#1b2b1f;border:none;border-radius:2px;font-family:var(--font-mono);font-size:12px;font-weight:700;padding:7px 12px;cursor:pointer;}
   .arrastre-add-form .arrastre-add-confirm:disabled{opacity:.4;cursor:default;}
-  .arrastre-add-form .arrastre-add-hint{width:100%;font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .arrastre-add-form .arrastre-add-hint{width:100%;font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .arrastre-manual-remove{background:transparent;border:none;color:var(--muted);cursor:pointer;font-size:14px;line-height:1;padding:0 2px;flex-shrink:0;}
   .arrastre-manual-remove:hover{color:var(--red-text,#b23b3b);}
   .arrastre-reset-btn{
-    background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);font-size:10px;
+    background:transparent;border:none;color:var(--muted);font-family:var(--font-mono);font-size:12px;
     text-decoration:underline;cursor:pointer;padding:0;margin-top:6px;
   }
-  .arrastre-counts{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;}
+  .arrastre-counts{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;}
 
   /* ---- Buscador global ---- */
   .global-search{position:relative;display:inline-block;}
@@ -641,8 +649,8 @@
   .gsr-item:last-child{border-bottom:none;}
   .gsr-item:hover, .gsr-item.active{background:var(--bg-panel-2);}
   .gsr-item .gsr-name{font-size:12px;font-weight:600;}
-  .gsr-item .gsr-meta{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:2px;}
-  .gsr-empty{padding:10px;font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .gsr-item .gsr-meta{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:2px;}
+  .gsr-empty{padding:10px;font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .temarow-flash{animation:temarowFlash 1.6s ease-out;}
   @keyframes temarowFlash{
     0%{box-shadow:0 0 0 2px var(--amber); background:var(--bg-panel-2);}
@@ -652,19 +660,19 @@
   .ticks-row{display:flex;flex-direction:column;gap:6px;margin-top:8px;}
   .vuelta-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
-    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
   .vuelta-row.mode-nota{border-color:var(--amber-dim);}
   .vuelta-row.mode-no_test,.vuelta-row.mode-no_tiempo,.vuelta-row.mode-solo_lectura{border-color:var(--blue);}
   .vuelta-row .vuelta-lbl{min-width:52px;color:var(--cream);}
   .vuelta-row select.vuelta-select{
     background:var(--bg-panel);color:var(--cream);border:1px solid var(--line);border-radius:2px;
-    font-family:var(--font-mono);font-size:10px;padding:3px 4px;
+    font-family:var(--font-mono);font-size:12px;padding:3px 4px;
   }
   .vuelta-row input.vuelta-nota{
     width:52px;background:var(--bg-panel);color:var(--amber-ink);border:1px solid var(--line);border-radius:2px;
-    font-family:var(--font-mono);font-size:11px;padding:3px 4px;
+    font-family:var(--font-mono);font-size:12px;padding:3px 4px;
   }
-  .vuelta-row .vuelta-nota-max{font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+  .vuelta-row .vuelta-nota-max{font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .vuelta-row .vuelta-del{background:transparent;border:none;color:var(--red-text);cursor:pointer;font-size:12px;margin-left:auto;}
   /* ---- Control rápido de vuelta dentro del modal del día (calendario) ---- */
   .modal-tema-line{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:6px;}
@@ -678,30 +686,30 @@
   .vuelta-notas:empty{display:none;}
   .vuelta-notas .vuelta-comentario{flex:0 0 auto;margin-top:0;}
   .vuelta-tests{display:inline-flex;align-items:center;flex-wrap:wrap;gap:6px;}
-  .vuelta-nota-etq{font-family:var(--font-mono);font-size:10px;color:var(--muted);margin:0 0 2px;}
-  .vuelta-row .tick-add{align-self:center;padding:4px 9px;font-size:10px;white-space:nowrap;}
+  .vuelta-nota-etq{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:0 0 2px;}
+  .vuelta-row .tick-add{align-self:center;padding:4px 9px;font-size:12px;white-space:nowrap;}
   .vuelta-row .tick-add-vuelta{margin-left:auto;}
   .modal-quick-orto{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;
     background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;padding:5px 7px;
-    font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+    font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
   .modal-quick-orto .oq-lbl{min-width:78px;color:var(--cream);}
   .modal-quick-orto .oq-btn{background:transparent;border:1px solid var(--line);border-radius:2px;color:var(--cream-dim);
-    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:10px;}
-  .modal-quick-orto .oq-btn.oq-apto:hover{border-color:var(--green);color:var(--green);}
+    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;}
+  .modal-quick-orto .oq-btn.oq-apto:hover{border-color:var(--green);color:var(--green-ink);}
   .modal-quick-orto .oq-btn.oq-noapto:hover{border-color:var(--red-text);color:var(--red-text);}
-  .modal-quick-orto .oq-count{font-size:10px;color:var(--muted);margin-left:auto;}
+  .modal-quick-orto .oq-count{font-size:12px;color:var(--muted);margin-left:auto;}
   .tick-add{background:transparent;border:1px dashed var(--amber-dim);color:var(--amber-ink);border-radius:2px;
-    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;align-self:flex-start;}
+    padding:3px 8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;align-self:flex-start;}
   .tick-add:hover{border-color:var(--amber);}
   /* ---- Clases: ticks simples de "vista" (sin nota) ---- */
   .simple-ticks-row{display:flex;flex-wrap:wrap;gap:10px;margin-top:8px;}
   .simple-tick{
-    display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:10px;
+    display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:12px;
     color:var(--cream-dim);background:var(--bg-panel-2);border:1px solid var(--line);border-radius:2px;
     padding:4px 8px;cursor:pointer;user-select:none;
   }
   .simple-tick input{width:13px;height:13px;cursor:pointer;}
-  .simple-tick.done{border-color:var(--green);color:var(--green);}
+  .simple-tick.done{border-color:var(--green);color:var(--green-ink);}
   .orto-gram-add-row{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
   .orto-gram-add-row input{
     background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
@@ -732,16 +740,16 @@
   .cclase-cell.today .cal-daynum span:first-child{color:var(--amber-ink);}
   .cclase-pills{display:flex;flex-direction:column;gap:4px;}
   .cclase-pill{
-    font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.02em;
+    font-family:var(--font-mono);font-size:12px;font-weight:600;letter-spacing:.02em;
     padding:4px 7px;border-radius:2px;color:#fff;white-space:normal;line-height:1.3;
   }
   .cclase-pill.p-con{background:var(--amber);color:#1b2b1f;}
   .cclase-pill.p-ing{background:var(--blue);color:#0e2027;}
-  .cclase-pill.p-psi{background:#8b6fae;}
-  .cclase-pill.p-orto{background:var(--muted);}
+  .cclase-pill.p-psi{background:#7a5c9c;}
+  .cclase-pill.p-orto{background:#6b7368;}
   .cclase-pill.p-gram{background:var(--green);color:#12241a;}
   .cclase-pill.p-nota{background:transparent;color:var(--cream-dim);border:1px solid var(--line);}
-  .cclase-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:2px;}
+  .cclase-empty{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:2px;}
   .clase-preview-value .cclase-pill{display:inline-flex;align-items:center;gap:5px;}
   .cclase-pill-del{
     background:rgba(0,0,0,.18);border:none;color:inherit;opacity:.85;cursor:pointer;
@@ -754,9 +762,9 @@
   .cclase-list-pills .cclase-pill{font-size:13px;padding:6px 9px;}
   .cclase-list-pills .cclase-empty{font-size:12px;}
   .clase-note-row{margin-top:4px;}
-  .clase-note-row label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
+  .clase-note-row label{display:block;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .clase-select-row{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;}
-  .clase-select-row label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
+  .clase-select-row label{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
   .clase-select-row select{
     background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
     padding:7px 8px;font-family:var(--font-mono);font-size:12px;
@@ -764,7 +772,7 @@
   .clase-check-row{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cream);cursor:pointer;margin-bottom:8px;}
   .clase-check-row input{width:16px;height:16px;cursor:pointer;}
   .clase-multi-row{display:flex;flex-direction:column;gap:6px;margin-bottom:12px;}
-  .clase-multi-row label{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
+  .clase-multi-row label{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;}
   .clase-multi-add{display:flex;gap:6px;}
   .clase-multi-add select{
     flex:1;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
@@ -772,20 +780,20 @@
   }
   .clase-multi-add button{
     background:var(--amber);color:#1b2b1f;border:none;border-radius:2px;padding:0 12px;
-    font-family:var(--font-mono);font-size:11px;font-weight:700;cursor:pointer;letter-spacing:.03em;
+    font-family:var(--font-mono);font-size:12px;font-weight:700;cursor:pointer;letter-spacing:.03em;
   }
   .clase-multi-add button:disabled{opacity:.4;cursor:not-allowed;}
   .clase-multi-chips{display:flex;flex-wrap:wrap;gap:6px;}
   .clase-multi-chip{
     display:inline-flex;align-items:center;gap:6px;background:var(--amber);color:#1b2b1f;
-    font-family:var(--font-mono);font-size:11px;font-weight:600;padding:4px 6px 4px 10px;border-radius:2px;
+    font-family:var(--font-mono);font-size:12px;font-weight:600;padding:4px 6px 4px 10px;border-radius:2px;
   }
   .clase-multi-chip button{
     background:transparent;border:none;color:#1b2b1f;font-size:14px;line-height:1;cursor:pointer;padding:0 2px;font-weight:700;
   }
   .clase-multi-chip.future{background:transparent;border:1px solid var(--line);color:var(--cream-dim);}
   .clase-multi-chip.future button{color:var(--cream-dim);}
-  .clase-multi-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .clase-multi-empty{font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .clase-named-list{display:flex;flex-direction:column;gap:6px;}
   .clase-named-item{display:flex;gap:6px;align-items:center;}
   .clase-named-item input{
@@ -799,7 +807,7 @@
   .clase-preview{display:flex;flex-direction:column;gap:14px;margin-bottom:18px;}
   .clase-preview-row{display:flex;flex-direction:column;gap:6px;}
   .clase-preview-label{
-    font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;
+    font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;
   }
   .clase-preview-value{display:flex;flex-wrap:wrap;gap:6px;}
   .clase-preview-value .cclase-pill{font-size:12px;padding:5px 9px;}
@@ -812,9 +820,9 @@
   .clase-edit-back-btn:hover{border-color:var(--amber);background:transparent;}
   /* ---- Modo quiz: añadir clase paso a paso ---- */
   .clase-quiz-wrap{display:flex;flex-direction:column;gap:10px;}
-  .clase-quiz-eyebrow{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+  .clase-quiz-eyebrow{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
   .clase-quiz-question{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;color:var(--amber-ink);font-size:16px;line-height:1.3;}
-  .clase-quiz-progress{font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+  .clase-quiz-progress{font-family:var(--font-mono);font-size:12px;color:var(--muted);}
   .clase-quiz-options{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px;}
   .clase-quiz-opt{background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);
     font-family:var(--font-mono);font-size:13px;padding:12px 14px;border-radius:2px;cursor:pointer;
@@ -826,14 +834,14 @@
     width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
     font-family:var(--font-mono);padding:10px 8px;border-radius:2px;font-size:13px;
   }
-  .clase-quiz-or{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px;}
+  .clase-quiz-or{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:4px;}
   .clase-quiz-confirm{border:1px solid var(--green);background:transparent;padding:12px;border-radius:2px;}
-  .clase-quiz-confirm .clase-quiz-question{color:var(--green);}
+  .clase-quiz-confirm .clase-quiz-question{color:var(--green-ink);}
   .clase-quiz-back{margin-top:6px;align-self:flex-start;background:transparent;border:none;color:var(--muted);
-    font-family:var(--font-mono);font-size:11px;cursor:pointer;text-decoration:underline;padding:4px 0;}
+    font-family:var(--font-mono);font-size:12px;cursor:pointer;text-decoration:underline;padding:4px 0;}
   .clase-quiz-back:hover{color:var(--amber-ink);}
   .clase-quiz-formlink{margin-top:4px;align-self:flex-start;background:transparent;border:none;color:var(--amber-dim);
-    font-family:var(--font-mono);font-size:11px;cursor:pointer;text-decoration:underline;padding:4px 0;}
+    font-family:var(--font-mono);font-size:12px;cursor:pointer;text-decoration:underline;padding:4px 0;}
   .clase-quiz-formlink:hover{color:var(--amber-ink);}
   /* ---- Simulacros ---- */
   .sim-card{
@@ -849,9 +857,9 @@
   .sim-name-input:hover, .sim-name-input:focus{border-bottom-color:var(--amber-dim);outline:none;}
   .sim-name-input::placeholder{color:var(--amber-ink);opacity:.7;}
   .sim-note-row{margin-top:14px;}
-  .sim-note-row label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
+  .sim-note-row label{display:block;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .sim-fields{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;}
-  .sim-field label{display:block;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
+  .sim-field label{display:block;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:4px;}
   .sim-field input[type=number]{
     width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
     padding:7px 8px;font-family:var(--font-mono);font-size:13px;
@@ -862,7 +870,7 @@
   }
   .sim-field .nota-pill{margin-left:6px;}
   .sim-total-field{border-top:1px dashed var(--line);padding-top:10px;margin-top:2px;}
-  .sim-total-field label{color:var(--amber-ink);font-size:11px;}
+  .sim-total-field label{color:var(--amber-ink);font-size:12px;}
   .cclase-pill.p-sim{background:var(--red);color:#fff;}
 
   /* ---- progreso / notas ---- */
@@ -873,10 +881,10 @@
   .chart-card canvas{max-width:100%;}
   .nota-sparkline{display:block;}
   .nota-table{width:100%;border-collapse:collapse;font-size:12px;}
-  .nota-table th{text-align:left;font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);
+  .nota-table th{text-align:left;font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);
     border-bottom:1px solid var(--line);padding:6px 8px;}
   .nota-table td{padding:6px 8px;border-bottom:1px solid var(--line);}
-  .nota-pill{font-family:var(--font-mono);font-size:10px;font-weight:600;padding:2px 6px;border-radius:8px;margin-right:4px;display:inline-block;}
+  .nota-pill{font-family:var(--font-mono);font-size:11px;font-weight:600;padding:2px 6px;border-radius:8px;margin-right:4px;display:inline-block;}
   .nota-pill.good{background:var(--green);color:#12241a;}
   .nota-pill.mid{background:var(--amber);color:#1b2b1f;}
   .nota-pill.bad{background:var(--red);color:#fff;}
@@ -898,7 +906,7 @@
     .nota-table td[data-label]::before{
       content: attr(data-label);
       display:block;
-      font-family:var(--font-mono); font-size:10px; text-transform:uppercase;
+      font-family:var(--font-mono); font-size:12px; text-transform:uppercase;
       letter-spacing:.04em; color:var(--cream-dim); margin-bottom:2px;
     }
   }
@@ -907,9 +915,9 @@
   .marcas-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px;margin-top:14px;margin-bottom:28px;}
   .marca-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px;display:flex;flex-direction:column;gap:8px;}
   .marca-card .marca-nombre{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--cream);font-size:14px;}
-  .marca-card .marca-min{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);text-transform:uppercase;}
+  .marca-card .marca-min{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;}
   .marca-card .marca-input-row{display:flex;align-items:center;gap:8px;margin-top:2px;}
-  .marca-card .marca-input-row label{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
+  .marca-card .marca-input-row label{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-transform:uppercase;white-space:nowrap;}
   .marca-card input.marca-valor{
     width:100%;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
     font-family:var(--font-mono);font-size:13px;padding:6px 8px;
@@ -919,39 +927,39 @@
   .marca-bar-fill.ok{background:var(--green);}
   .marca-bar-fill.no{background:var(--red);}
   .marca-status-row{display:flex;justify-content:space-between;align-items:center;margin-top:2px;}
-  .marca-status-row .marca-actual{font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
+  .marca-status-row .marca-actual{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
 
   /* ---- desplegable genérico (biblioteca de entrenos, historial de marcas...) ---- */
   .collapse-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;margin-top:14px;overflow:hidden;}
   .collapse-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;cursor:pointer;gap:10px;}
   .collapse-head:hover{background:var(--bg-panel-2);}
   .collapse-head h3{margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);font-size:15px;letter-spacing:.03em;}
-  .collapse-head .collapse-sub{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);margin-top:2px;}
+  .collapse-head .collapse-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:2px;}
   .collapse-body{display:none;padding:0 14px 14px;}
   .collapse-body.open{display:block;}
   /* ---- historial de marcas ---- */
-  .marca-hist-toggle{background:transparent;border:none;color:var(--amber-ink);font-family:var(--font-mono);font-size:10.5px;
+  .marca-hist-toggle{background:transparent;border:none;color:var(--amber-ink);font-family:var(--font-mono);font-size:12px;
     text-transform:uppercase;letter-spacing:.02em;cursor:pointer;padding:4px 0;text-align:left;}
   .marca-hist-toggle:hover{text-decoration:underline;}
   .marca-hist-list{display:none;flex-direction:column;gap:4px;margin-top:6px;border-top:1px solid var(--line);padding-top:6px;}
   .marca-hist-list.open{display:flex;}
-  .marca-hist-row{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:10.5px;color:var(--cream-dim);}
+  .marca-hist-row{display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
   .marca-hist-row .mh-date{color:var(--muted);}
   /* ---- biblioteca de entrenos sugeridos ---- */
   .entreno-sugerencia{background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:2px;padding:14px;margin-top:14px;}
   .entreno-sugerencia .sug-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
   .entreno-sugerencia .sug-titulo{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--amber-ink);font-size:14px;}
-  .entreno-sugerencia .sug-detalle{font-family:var(--font-mono);font-size:11.5px;color:var(--cream-dim);white-space:pre-line;margin-top:8px;line-height:1.5;}
+  .entreno-sugerencia .sug-detalle{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);white-space:pre-line;margin-top:8px;line-height:1.5;}
   .entreno-sugerencia .sug-actions{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
   .entreno-lib-filtros{display:flex;gap:6px;flex-wrap:wrap;margin-top:18px;}
-  .entreno-lib-filtros button{font-family:var(--font-mono);font-size:10.5px;text-transform:uppercase;letter-spacing:.02em;
+  .entreno-lib-filtros button{font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.02em;
     background:transparent;border:1px solid var(--line);color:var(--cream-dim);border-radius:12px;padding:5px 12px;cursor:pointer;}
   .entreno-lib-filtros button.active{background:var(--amber);border-color:var(--amber);color:#1b2b1f;}
   .entreno-lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:12px;margin-top:12px;}
   .entreno-lib-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:12px;display:flex;flex-direction:column;gap:6px;}
   .entreno-lib-card .elc-nivel{align-self:flex-start;}
   .entreno-lib-card .elc-titulo{font-family:var(--font-display);text-transform:uppercase;letter-spacing:.02em;color:var(--cream);font-size:13px;}
-  .entreno-lib-card .elc-detalle{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);white-space:pre-line;line-height:1.5;flex:1;}
+  .entreno-lib-card .elc-detalle{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);white-space:pre-line;line-height:1.5;flex:1;}
   /* ---- entrenos manual ---- */
   .entreno-list{display:flex;flex-direction:column;gap:8px;margin-top:14px;}
   .entreno-item{display:flex;gap:8px;align-items:center;flex-wrap:wrap;
@@ -966,7 +974,7 @@
   }
   .entreno-item select.entreno-prueba{
     background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;
-    font-family:var(--font-mono);font-size:11px;padding:6px 4px;max-width:150px;
+    font-family:var(--font-mono);font-size:12px;padding:6px 4px;max-width:150px;
   }
   .entreno-item input.entreno-marca{
     width:90px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
@@ -977,49 +985,49 @@
     border-radius:2px;font-family:var(--font-body);font-size:12px;padding:6px 8px;resize:vertical;
   }
   .entreno-item .entreno-del{background:transparent;border:1px solid var(--red-text);color:var(--red-text);border-radius:2px;
-    padding:5px 8px;cursor:pointer;font-family:var(--font-mono);font-size:11px;}
+    padding:5px 8px;cursor:pointer;font-family:var(--font-mono);font-size:12px;}
 
   /* ---- orto tests (Ortografía / Gramática, APTO / NO APTO) ---- */
   .orto-grid{grid-template-columns:repeat(auto-fill,minmax(260px,1fr));}
   .orto-block .orto-count{margin:6px 0 10px;}
   .orto-test-list{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
-  .orto-test-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);}
+  .orto-test-row{display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
   .orto-test-row span:first-child{min-width:48px;color:var(--cream);}
   .orto-test-row .vuelta-del{background:transparent;border:none;color:var(--red-text);cursor:pointer;font-size:12px;margin-left:auto;}
 
-  .rot-pill{font-family:var(--font-mono);font-size:9px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:6px;
-    background:var(--muted);color:#fff;text-transform:uppercase;}
+  .rot-pill{font-family:var(--font-mono);font-size:11px;font-weight:600;padding:1px 5px;border-radius:8px;margin-left:6px;
+    background:#6b7368;color:#fff;text-transform:uppercase;}
 
   /* ---- ajustes ---- */
   .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:24px;}
   .stat-card{background:var(--bg-panel);border:1px solid var(--line);padding:14px;border-radius:2px;}
   .stat-card .num{font-family:var(--font-display);font-size:26px;color:var(--amber-ink);}
-  .stat-card .lbl{font-family:var(--font-mono);font-size:10px;color:var(--cream-dim);text-transform:uppercase;}
+  .stat-card .lbl{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;}
 
   /* ---- ciclo ---- */
   .ciclo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px;}
   .ciclo-card{background:var(--bg-panel);border:1px solid var(--line);border-radius:2px;padding:14px;}
   .ciclo-card .ch-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .ciclo-card h4{margin:0;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:15px;}
-  .ciclo-card .kind{font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;}
+  .ciclo-card .kind{font-family:var(--font-mono);font-size:12px;color:var(--muted);text-transform:uppercase;}
   .ciclo-card .ciclo-line{font-size:12px;margin-bottom:5px;color:var(--cream-dim);}
   .ciclo-card .ciclo-line strong{color:var(--amber-ink);font-family:var(--font-mono);}
-  .ciclo-card .ciclo-gaps{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:3px;}
+  .ciclo-card .ciclo-gaps{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:3px;}
   .ciclo-card .ciclo-gaps strong{color:var(--cream);}
   .ciclo-card .ciclo-fila{display:flex;flex-wrap:wrap;align-items:baseline;gap:1px 8px;}
   .ciclo-card .ciclo-fila .cf-n{color:var(--muted);min-width:62px;}
   .ciclo-card .ciclo-fila .cf-fecha{color:var(--cream);}
-  .ciclo-card .ciclo-fila .cf-tag{font-size:9px;color:var(--muted);}
+  .ciclo-card .ciclo-fila .cf-tag{font-size:11px;color:var(--muted);}
   .ciclo-card .ciclo-fila .cf-dias{margin-left:auto;color:var(--amber-ink);white-space:nowrap;}
   .ciclo-card .ciclo-fila.prevista .cf-fecha{font-style:italic;color:var(--cream-dim);}
-  .ciclo-card .ciclo-empty{font-family:var(--font-mono);font-size:11px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
+  .ciclo-card .ciclo-empty{font-family:var(--font-mono);font-size:12px;color:var(--muted);border-top:1px solid var(--line);padding-top:8px;margin-top:8px;}
   .ciclo-card .ciclo-color-section{border-top:1px solid var(--line);padding-top:8px;margin-top:8px;display:flex;flex-direction:column;gap:10px;}
-  .ciclo-card .ciclo-color-block .ciclo-color-title{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-bottom:4px;}
+  .ciclo-card .ciclo-color-block .ciclo-color-title{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-bottom:4px;}
   .ciclo-card .ciclo-color-block .ciclo-color-title strong{color:var(--amber-ink);}
   .ciclo-card .ciclo-color-block .ciclo-gaps{border-top:none;padding-top:0;margin-top:0;}
 
   .modal-add{display:flex;flex-direction:column;gap:10px;}
-  .modal-add label{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
+  .modal-add label{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;display:block;margin-bottom:4px;}
   .modal-add select{width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-mono);}
 
   .toast{
@@ -1030,19 +1038,19 @@
   .toast.show{opacity:1;}
 
   .save-indicator{
-    font-family:var(--font-mono);font-size:11px;letter-spacing:.05em;text-transform:uppercase;
+    font-family:var(--font-mono);font-size:12px;letter-spacing:.05em;text-transform:uppercase;
     display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:2px;
     border:1px solid var(--line);color:var(--cream-dim);
   }
   .save-indicator .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex-shrink:0;}
   .save-indicator.state-saving .dot{background:var(--amber);}
-  .save-indicator.state-saved{border-color:var(--green);color:var(--green);}
+  .save-indicator.state-saved{border-color:var(--green);color:var(--green-ink);}
   .save-indicator.state-saved .dot{background:var(--green);}
   .save-indicator.state-error{border-color:var(--red-text);color:var(--red-text);}
   .save-indicator.state-error .dot{background:var(--red-text);}
 
   @media (max-width:640px){
-    .cal-cell{min-height:96px;font-size:10px;}
+    .cal-cell{min-height:96px;font-size:11px;}
     .cclase-cell{min-height:110px;}
     .cal-grid{gap:4px;}
     .brand h1{font-size:23px;}
@@ -1065,7 +1073,7 @@
     .tabs-group{flex-direction:column;gap:0;}
     .tabs-group + .tabs-group{border-left:none;padding-left:0;margin-left:0;border-top:1px solid var(--line);}
     .tabs-group-label{
-      display:block;font-family:var(--font-mono);font-size:10px;color:var(--muted);text-transform:uppercase;
+      display:block;font-family:var(--font-mono);font-size:12px;color:var(--muted);text-transform:uppercase;
       letter-spacing:.08em;padding:9px 14px 3px;
     }
     nav.tabs .tabs-groups button.tab-btn{
@@ -1079,6 +1087,36 @@
     .cal-list-tasks .task-row{padding:10px 8px;font-size:14.5px;}
     .view-toggle-btn{padding:9px 16px;font-size:12px;}
     .cclase-list-pills .cclase-pill{font-size:13.5px;padding:7px 10px;}
+  }
+
+  /* ===================== Revisión de diseño y accesibilidad ===================== */
+  /* Bordes de controles con contraste suficiente (>=3:1). Los separadores decorativos siguen con --line. */
+  input:not([type=checkbox]):not([type=radio]):not([type=range]):not([type=color]):not(:focus),
+  select:not(:focus), textarea:not(:focus){border-color:var(--line-strong) !important;}
+  .icon-btn, .day-mini-btn, .oq-btn, .view-toggle{border-color:var(--line-strong);}
+  html[data-theme="light"] .btn.ghost, html[data-theme="light"] .tag-manual, html[data-theme="light"] .arrastre-copy-btn,
+  html[data-theme="light"] .tick-add, html[data-theme="light"] .day-mini-btn.primary,
+  html[data-theme="light"] .clase-info-tick.programada{border-color:var(--amber-ink);}
+  /* Botón principal en hover (claro): fondo más claro, para que el texto oscuro siga leyéndose */
+  html[data-theme="light"] .btn:not(.ghost):not(.danger):hover{background:#d4a92c;}
+  /* Foco de teclado visible */
+  :focus-visible{outline:2px solid var(--focus) !important;outline-offset:2px;}
+  /* Cifras alineadas y "de altura de mayúscula" (Playfair las trae antiguas, con 3/4/5/7/9 que bajan de la línea) */
+  body{font-variant-numeric:lining-nums tabular-nums;}
+  /* Zonas seguras (iPhone con notch / barra inferior) */
+  body{padding:env(safe-area-inset-top,0px) env(safe-area-inset-right,0px) env(safe-area-inset-bottom,0px) env(safe-area-inset-left,0px);}
+  .toast{bottom:calc(16px + env(safe-area-inset-bottom,0px));}
+  /* Pantallas táctiles: zonas de pulsación de ~44px sin descuadrar el diseño */
+  @media (pointer:coarse){
+    .icon-btn{width:44px;height:44px;}
+    .view-toggle-btn{min-height:44px;}
+    .btn.small,.day-mini-btn{min-height:40px;}
+    .oq-btn,.cclase-pill-del,.arrastre-reset-btn,.tick-add,.arrastre-copy-btn{position:relative;}
+    .oq-btn::after,.cclase-pill-del::after,.arrastre-reset-btn::after,.tick-add::after,.arrastre-copy-btn::after{content:"";position:absolute;inset:-9px;}
+  }
+  /* Menos movimiento si el sistema lo pide */
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation-duration:.01ms !important;animation-iteration-count:1 !important;transition-duration:.01ms !important;scroll-behavior:auto !important;}
   }
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
@@ -1152,7 +1190,7 @@
       </div>
       <div class="tabs-group">
         <span class="tabs-group-label">Sistema</span>
-        <button class="tab-btn" data-tab="ajustes">Ajustes<span id="ajustesPendBadge" style="display:none;margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;background:var(--red-text,#b23b3b);color:#fff;border-radius:8px;padding:1px 6px;"></span></button>
+        <button class="tab-btn" data-tab="ajustes">Ajustes<span id="ajustesPendBadge" style="display:none;margin-left:6px;font-family:var(--font-mono);font-size:12px;font-weight:700;background:var(--red,#b23b3b);color:#fff;border-radius:8px;padding:1px 6px;"></span></button>
       </div>
     </div>
   </nav>
@@ -1185,7 +1223,7 @@
 
     <div id="calClasesPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de clases</h3>
-      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+      <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
         Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario de estudio. Pulsa un día para elegir qué clase (conocimientos, inglés, psicotécnicos, ortografía, gramática) tocó ese día.
       </div>
       <div class="month-bar" id="clasesCalMonthBar"></div>
@@ -1204,7 +1242,7 @@
 
     <div id="calSimPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario de simulacros</h3>
-      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+      <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
         Los días de descanso, trabajo o sin horario se sincronizan automáticamente desde el Calendario de estudio. Pulsa un día para marcar si tocaba simulacro: se crea (o edita) su ficha automáticamente en la pestaña Simulacros, y cualquier nota o dato que metas aquí o allí se queda sincronizado en los dos sitios.
       </div>
       <div class="month-bar" id="simCalMonthBar"></div>
@@ -1225,7 +1263,7 @@
          desde la que al pulsar un día se abre la ficha completa de ese día. -->
     <div id="calTodoPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Todo incluido</h3>
-      <div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:14px;">
+      <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
         Todo lo del mes junto: las tareas de estudio del día, las clases que tocaron y los simulacros, con sus notas. Pulsa cualquier día para abrir su ficha completa y cambiar lo que quieras.
       </div>
       <div class="month-bar" id="todoCalMonthBar"></div>
@@ -1327,7 +1365,7 @@
 </div>
 
 <div class="modal-backdrop" id="addMonthModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Añadir mes">
     <button class="modal-close" id="closeAddMonth">✕</button>
     <h3>Añadir mes</h3>
     <div class="sub">Se encadenará automáticamente con el mes anterior que tengas guardado.</div>
@@ -1346,7 +1384,7 @@
 </div>
 
 <div class="modal-backdrop" id="editMonthModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Editar mes">
     <button class="modal-close" id="closeEditMonth">✕</button>
     <h3>Modificar mes</h3>
     <div class="sub">Cambia a qué mes/año corresponde este bloque de días.</div>
@@ -1370,7 +1408,7 @@
 
 <div class="modal-backdrop" id="dayModal">
 
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Detalle del día">
     <button class="modal-close" id="closeDayModal">✕</button>
     <h3 id="dayModalTitle">Día</h3>
     <div class="sub" id="dayModalSub"></div>
@@ -1379,7 +1417,7 @@
 </div>
 
 <div class="modal-backdrop" id="claseDayModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Clase del día">
     <button class="modal-close" id="closeClaseDayModal">✕</button>
     <h3 id="claseDayModalTitle">Día</h3>
     <div class="sub" id="claseDayModalSub"></div>
@@ -1388,7 +1426,7 @@
 </div>
 
 <div class="modal-backdrop" id="simDayModal">
-  <div class="modal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Simulacro del día">
     <button class="modal-close" id="closeSimDayModal">✕</button>
     <h3 id="simDayModalTitle">Día</h3>
     <div class="sub" id="simDayModalSub"></div>
@@ -1464,6 +1502,29 @@
   }
   setInterval(tickAuto, 60000);
   document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) tickAuto(); });
+})();
+
+
+/* ===================== ACCESIBILIDAD: pestañas, encabezados y navegación ===================== */
+(function initA11ySync(){
+  function sync(){
+    // Selectores de vista: role="tab" + aria-selected según cuál esté activo.
+    document.querySelectorAll('.view-toggle[role="tablist"] .view-toggle-btn').forEach(b=>{
+      if(b.getAttribute('role') !== 'tab') b.setAttribute('role','tab');
+      const sel = b.classList.contains('active') ? 'true' : 'false';
+      if(b.getAttribute('aria-selected') !== sel) b.setAttribute('aria-selected', sel);
+    });
+    // Menú principal: marca la sección actual.
+    document.querySelectorAll('.tab-btn').forEach(b=>{
+      if(b.classList.contains('active')) b.setAttribute('aria-current','page'); else b.removeAttribute('aria-current');
+    });
+    // Los títulos de sección son <h3> sin <h2> encima: los anunciamos como nivel 2 sin tocar el estilo.
+    document.querySelectorAll('h3:not([aria-level])').forEach(h=>h.setAttribute('aria-level','2'));
+  }
+  let queued = false;
+  function queue(){ if(queued) return; queued = true; requestAnimationFrame(()=>{ queued = false; sync(); }); }
+  new MutationObserver(queue).observe(document.body, {subtree:true, childList:true, attributes:true, attributeFilter:['class']});
+  sync();
 })();
 
 /* ===================== FRASE MOTIVACIONAL ===================== */
@@ -2089,7 +2150,7 @@ function renderRemoteConflictBanner(remoteUpdatedAt){
   if(document.getElementById('remoteConflictBanner')) return; // ya se está mostrando
   const banner = document.createElement('div');
   banner.id = 'remoteConflictBanner';
-  banner.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--red-text, #b23b3b);color:#fff;padding:12px 16px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
+  banner.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--red,#b23b3b);color:#fff;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
   banner.innerHTML = `
     <span style="flex:1;min-width:220px;">Este planning se ha guardado desde otro dispositivo mientras tenías cambios sin guardar aquí. Si sigues editando aquí, tus cambios podrían sobrescribir los del otro dispositivo.</span>
     <span style="display:flex;gap:8px;">
@@ -2190,12 +2251,12 @@ function renderPinGate(){
     <div class="empty-state" style="text-align:left;max-width:480px;margin:40px auto;">
       <h3 style="color:var(--amber-ink);font-family:var(--font-display);margin-top:0;">PIN de acceso</h3>
       <p>Este planning está protegido con PIN. Introdúcelo para ver y editar tus datos en este dispositivo.</p>
-      <label for="pinGateInput" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">PIN</label>
+      <label for="pinGateInput" style="display:block;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">PIN</label>
       <input id="pinGateInput" type="password" inputmode="numeric" autocomplete="off" placeholder="PIN" style="width:100%;padding:10px;font-family:var(--font-mono);
         background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
       <button class="btn" id="pinGateBtn">Entrar</button>
       <div id="pinGateError" role="alert" style="color:var(--red-text);font-family:var(--font-mono);font-size:12px;margin-top:8px;min-height:14px;"></div>
-      <p style="font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:16px;line-height:1.5;">
+      <p style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:16px;line-height:1.5;">
         Este PIN evita que cualquiera con el enlace pueda editar tus datos desde esta app. Recuerda que, para una
         protección completa, conviene además restringir las reglas de seguridad de tu proyecto de Firebase.
       </p>
@@ -2249,12 +2310,12 @@ function renderAccountBox(){
   if(!host || !firebaseUser) return;
   const verificado = !!firebaseUser.emailVerified;
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Cuenta</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Cuenta</div>
     <div style="font-size:13px;margin-bottom:8px;word-break:break-all;">${firebaseUser.email || ''}</div>
     <div style="font-size:12px;margin-bottom:8px;color:${verificado?'var(--green)':'var(--cream-dim)'};">
       ${verificado ? '✓ Correo verificado' : 'Correo sin verificar todavía (revisa tu bandeja de entrada, incluida la de spam)'}
     </div>
-    ${verificado ? '' : '<button class="btn ghost small" id="resendVerifyBtn" style="margin-bottom:8px;">Reenviar correo de verificación</button><div id="resendVerifyMsg" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);min-height:14px;margin-bottom:8px;"></div>'}
+    ${verificado ? '' : '<button class="btn ghost small" id="resendVerifyBtn" style="margin-bottom:8px;">Reenviar correo de verificación</button><div id="resendVerifyMsg" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);min-height:14px;margin-bottom:8px;"></div>'}
     <div><button class="btn ghost small" id="accountLogoutBtn">Cerrar sesión</button></div>
   `;
   document.getElementById('accountLogoutBtn').onclick = ()=>{ auth.signOut().then(()=> location.reload()); };
@@ -2279,15 +2340,15 @@ function renderSecurity(){
   if(!host) return;
   const has = !!state.settings.pinHash;
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Seguridad</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Seguridad</div>
     <div style="font-size:13px;margin-bottom:8px;">${has ? 'PIN activado en este planning.' : 'Sin PIN: cualquiera con el enlace puede ver y editar estos datos.'}</div>
-    <label for="newPinInput" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">${has?'Nuevo PIN':'Crear PIN'}</label>
+    <label for="newPinInput" style="display:block;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">${has?'Nuevo PIN':'Crear PIN'}</label>
     <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
       <input id="newPinInput" type="password" inputmode="numeric" autocomplete="off" placeholder="Mín. 4 caracteres" style="flex:1;min-width:160px;padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;">
       <button class="btn ghost small" id="setPinBtn">${has?'Cambiar PIN':'Activar PIN'}</button>
       ${has ? '<button class="btn danger small" id="removePinBtn">Quitar PIN</button>' : ''}
     </div>
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--muted);line-height:1.5;">
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--muted);line-height:1.5;">
       El PIN se guarda como huella (hash), nunca en texto claro, y se pedirá en cualquier dispositivo nuevo que abra
       este enlace. Para bloquear también el acceso directo a la base de datos, añade reglas de seguridad en la
       consola de tu proyecto de Firebase (ver comentario junto a FIREBASE_CONFIG en el código).
@@ -2324,7 +2385,7 @@ function renderThemeBox(){
   const isManual = manual === 'light' || manual === 'dark';
   const current = document.documentElement.getAttribute('data-theme') || 'dark';
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Tema</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Tema</div>
     <div style="font-size:13px;margin-bottom:8px;">
       ${isManual
         ? 'Tienes fijado el tema '+(current==='light'?'claro':'oscuro')+' a mano. No cambiará solo con la hora.'
@@ -2353,7 +2414,7 @@ function renderBackupBox(){
 
   if(!host) return;
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copia de seguridad</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copia de seguridad</div>
     <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Descarga tus datos en un archivo JSON, o restáuralos si falla Firebase o pierdes el acceso a tu cuenta.</div>
     <div style="display:flex;gap:8px;flex-wrap:wrap;">
       <button class="btn ghost small" id="exportJsonBtn">Exportar copia (JSON)</button>
@@ -2419,7 +2480,7 @@ async function renderHistoryBox(){
   const host = document.getElementById('historyBox');
   if(!host) return;
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copias automáticas en la nube</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Copias automáticas en la nube</div>
     <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Cada día que se guarda algún cambio se conserva automáticamente una copia de cómo estaban tus
     datos ese día (hasta 7 días atrás). Útil si borras o cambias algo por error y ya se ha guardado. No sustituye a la copia JSON manual.</div>
     <div id="historyList" style="font-size:12px;color:var(--muted);">Cargando…</div>
@@ -2487,10 +2548,10 @@ function renderAuthScreen(){
   document.querySelector('.wrap').innerHTML = `
     <div class="empty-state" style="text-align:left;max-width:420px;margin:40px auto;">
       <h3 id="authTitle" style="color:var(--amber-ink);font-family:var(--font-display);margin-top:0;">Iniciar sesión</h3>
-      <label for="authEmail" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Correo electrónico</label>
+      <label for="authEmail" style="display:block;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Correo electrónico</label>
       <input id="authEmail" type="email" autocomplete="email" placeholder="tucorreo@ejemplo.com" style="width:100%;padding:10px;font-family:var(--font-mono);
         background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
-      <label for="authPassword" style="display:block;font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Contraseña</label>
+      <label for="authPassword" style="display:block;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;margin-bottom:4px;">Contraseña</label>
       <input id="authPassword" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres" style="width:100%;padding:10px;font-family:var(--font-mono);
         background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;margin-bottom:10px;">
       <div id="authError" role="alert" style="color:var(--red-text);font-family:var(--font-mono);font-size:12px;margin-bottom:10px;min-height:14px;"></div>
@@ -2499,7 +2560,7 @@ function renderAuthScreen(){
         <button class="btn ghost" id="authToggleModeBtn">Crear cuenta nueva</button>
       </div>
       <div style="margin-top:12px;">
-        <button class="btn ghost small" id="authForgotBtn" style="font-size:11px;">¿Olvidaste tu contraseña?</button>
+        <button class="btn ghost small" id="authForgotBtn" style="font-size:12px;">¿Olvidaste tu contraseña?</button>
       </div>
     </div>`;
   const authTitleEl = document.getElementById('authTitle');
@@ -2576,7 +2637,7 @@ async function renderAdminBox(){
   const host = document.getElementById('adminBox');
   if(!host || !isAdmin) return;
   host.style.display = 'block';
-  const titleHtml = '<div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Panel de administración</div>';
+  const titleHtml = '<div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Panel de administración</div>';
   host.innerHTML = titleHtml + '<div style="font-size:12px;color:var(--cream-dim);">Cargando cuentas…</div>';
   let snap;
   try{
@@ -2610,7 +2671,7 @@ async function renderAdminBox(){
     if(c.esAdmin){
       const tag = document.createElement('span');
       tag.textContent = 'ADMIN';
-      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px;';
+      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:12px;font-weight:700;border-radius:8px;padding:1px 5px;';
       tag.className = 'tag-leve';
       info.appendChild(tag);
     }
@@ -2621,7 +2682,7 @@ async function renderAdminBox(){
       const tag = document.createElement('span');
       const verificado = c.emailVerificado === true;
       tag.textContent = verificado ? '✓ correo verificado' : 'correo sin verificar';
-      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:9px;font-weight:700;border-radius:8px;padding:1px 5px;' +
+      tag.style.cssText = 'margin-left:6px;font-family:var(--font-mono);font-size:12px;font-weight:700;border-radius:8px;padding:1px 5px;' +
         (verificado ? '' : 'background:var(--bg-panel-2);color:var(--cream-dim);border:1px solid var(--line);');
       if(verificado) tag.className = 'tag-leve';
       info.appendChild(tag);
@@ -2680,7 +2741,7 @@ async function renderAdminBox(){
   if(pendientes.length){
     const label = document.createElement('div');
     label.textContent = 'Pendientes (' + pendientes.length + ')';
-    label.style.cssText = 'font-size:11px;color:var(--red-text);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;';
+    label.style.cssText = 'font-size:12px;color:var(--red-text);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 4px;';
     pendHost.appendChild(label);
     pendientes.forEach((c)=> pendHost.appendChild(filaCuenta(c, true)));
   } else {
@@ -2693,7 +2754,7 @@ async function renderAdminBox(){
   if(aprobadas.length){
     const label = document.createElement('div');
     label.textContent = 'Con acceso (' + aprobadas.length + ')';
-    label.style.cssText = 'font-size:11px;color:var(--green);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px;';
+    label.style.cssText = 'font-size:12px;color:var(--green-ink);text-transform:uppercase;letter-spacing:.06em;margin:14px 0 4px;';
     okHost.appendChild(label);
     aprobadas.forEach((c)=> okHost.appendChild(filaCuenta(c, false)));
   }
@@ -2891,7 +2952,7 @@ function renderMonthBar(){
   controls.className = 'month-controls';
 
   const prevBtn = document.createElement('button');
-  prevBtn.className = 'icon-btn'; prevBtn.textContent = '‹';
+  prevBtn.className = 'icon-btn'; prevBtn.textContent = '‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title = 'Anterior';
   prevBtn.onclick = ()=>{ const i = keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey = keys[i-1]; renderAll(); } };
   controls.appendChild(prevBtn);
 
@@ -2908,7 +2969,7 @@ function renderMonthBar(){
   controls.appendChild(sel);
 
   const nextBtn = document.createElement('button');
-  nextBtn.className = 'icon-btn'; nextBtn.textContent = '›';
+  nextBtn.className = 'icon-btn'; nextBtn.textContent = '›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title = 'Siguiente';
   nextBtn.onclick = ()=>{ const i = keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey = keys[i+1]; renderAll(); } };
   controls.appendChild(nextBtn);
 
@@ -3036,9 +3097,9 @@ function renderLegend(){
     <span><i style="background:var(--amber)"></i>Unificado (repaso final)</span>
     <span><i style="background:var(--green)"></i>Leve</span>
     <span><i style="background:var(--blue)"></i>Inglés</span>
-    <span><i style="background:#8b6fae"></i>Psicotécnico</span>
-    <span><i style="background:#c0672f"></i>Entreno</span>
-    <span><i style="background:var(--muted)"></i>Orto-grama</span>
+    <span><i style="background:#7a5c9c"></i>Psicotécnico</span>
+    <span><i style="background:#a9531d"></i>Entreno</span>
+    <span><i style="background:#6b7368"></i>Orto-grama</span>
   `;
 }
 
@@ -3702,13 +3763,13 @@ function openDayModal(d, info){
         info.temasDelDia.forEach(t=>{
           const line = document.createElement('div'); line.className='modal-tema-line';
           const txt = document.createElement('span'); txt.className='tema-line-txt';
-          txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:10px;">('+t.nombre+')</span>':'');
+          txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
           line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
           bLeft.appendChild(line);
         });
         const bFoot = document.createElement('div');
-        bFoot.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:10px;color:var(--muted);';
+        bFoot.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:12px;color:var(--muted);';
         bFoot.textContent = info.unify
           ? 'Modo repaso final: se estudia el bloque completo (azul + morado) en un solo día.'
           : 'El resto de temas de este bloque tocará la próxima vez que aparezca ('+(info.color==='azul'?'morado':'azul')+'). Si marcas que NO lo has completado, este mismo bloque se repetirá el próximo día que toque en vez de avanzar.';
@@ -3835,7 +3896,7 @@ function openDayModal(d, info){
       const list = ensureSimulacrosPendientes().slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
       if(list.length){
         const lbl = document.createElement('div');
-        lbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
+        lbl.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
         lbl.textContent = 'O coloca aquí un simulacro pendiente';
         pendWrap.appendChild(lbl);
         const opts = document.createElement('div'); opts.className = 'clase-quiz-options';
@@ -4320,7 +4381,7 @@ function addArrastreTestRow(body, fechaISO){
   };
   inputWrap.appendChild(inp);
   const hint = document.createElement('span');
-  hint.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--muted);flex:1;min-width:180px;';
+  hint.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);flex:1;min-width:180px;';
   hint.textContent = 'Sobre 10. Se guarda por fecha (sin vueltas) — en Progreso verás su evolución día a día.';
   inputWrap.appendChild(hint);
   row.appendChild(inputWrap);
@@ -4939,7 +5000,7 @@ function renderOrto(){
       const noAptos = tests.filter(t=>t.resultado==='NO_APTO').length;
       countWrap.innerHTML = tests.length
         ? `<span class="nota-pill ${noAptos?'bad':'good'}">${noAptos} NO APTO${noAptos!==1?'S':''} de ${tests.length}</span>`
-        : '<span style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Sin tests todavía</span>';
+        : '<span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">Sin tests todavía</span>';
       list.innerHTML = '';
       tests.forEach((t,i)=>{
         const row = document.createElement('div'); row.className='orto-test-row';
@@ -6093,7 +6154,7 @@ function renderClasesCalMonthBar(){
   }
   if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
   const controls = document.createElement('div'); controls.className='month-controls';
-  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent = '‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title = 'Anterior';
   prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
   controls.appendChild(prevBtn);
   const sel = document.createElement('select');
@@ -6106,12 +6167,12 @@ function renderClasesCalMonthBar(){
   });
   sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
   controls.appendChild(sel);
-  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›';
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent = '›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title = 'Siguiente';
   nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
   controls.appendChild(nextBtn);
   bar.appendChild(controls);
   const info = document.createElement('span');
-  info.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:auto;';
+  info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
   info.textContent = 'Estado del día sincronizado con el Calendario de estudio';
   bar.appendChild(info);
 }
@@ -7028,7 +7089,7 @@ function renderSimulacrosList(){
     if(sim.fecha){
       const [fy,fm,fd] = sim.fecha.split('-').map(Number);
       const fechaLbl = document.createElement('div');
-      fechaLbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;color:var(--muted);margin-top:3px;';
+      fechaLbl.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;';
       fechaLbl.textContent = '📅 Día '+pad2(fd)+'/'+pad2(fm)+'/'+fy+' del calendario de simulacros';
       titleWrap.appendChild(fechaLbl);
     }
@@ -7152,7 +7213,7 @@ function buildSimScoreFields(sim, opts){
     const mkSub = (subLabel, prop)=>{
       const wrap = document.createElement('div'); wrap.style.cssText='display:flex;flex-direction:column;gap:3px;';
       const l = document.createElement('span');
-      l.style.cssText='font-family:var(--font-mono);font-size:9px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.05em;';
+      l.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.05em;';
       l.textContent = subLabel;
       const inp = document.createElement('input'); inp.type='number'; inp.step='1'; inp.min='0'; inp.style.width='76px';
       inp.value = sim[prop]==null ? '' : sim[prop];
@@ -7394,7 +7455,7 @@ function renderSimCalMonthBar(){
   }
   if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
   const controls = document.createElement('div'); controls.className='month-controls';
-  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent = '‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title = 'Anterior';
   prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
   controls.appendChild(prevBtn);
   const sel = document.createElement('select');
@@ -7407,12 +7468,12 @@ function renderSimCalMonthBar(){
   });
   sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
   controls.appendChild(sel);
-  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›';
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent = '›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title = 'Siguiente';
   nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
   controls.appendChild(nextBtn);
   bar.appendChild(controls);
   const info = document.createElement('span');
-  info.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:auto;';
+  info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
   info.textContent = 'Estado del día sincronizado con el Calendario de estudio';
   bar.appendChild(info);
 }
@@ -7620,9 +7681,9 @@ function renderTodoCalLegend(){
     <span><i style="background:var(--amber)"></i>Bloque menos grave</span>
     <span><i style="background:var(--green)"></i>Leve</span>
     <span><i style="background:var(--blue)"></i>Inglés</span>
-    <span><i style="background:#8b6fae"></i>Psicotécnico</span>
-    <span><i style="background:#c0672f"></i>Entreno</span>
-    <span><i style="background:var(--muted)"></i>Orto-grama</span>
+    <span><i style="background:#7a5c9c"></i>Psicotécnico</span>
+    <span><i style="background:#a9531d"></i>Entreno</span>
+    <span><i style="background:#6b7368"></i>Orto-grama</span>
     <span><i style="background:#7a9bb5"></i>Clases</span>
     <span><i style="background:#b6543f"></i>Simulacro</span>
   `;
@@ -7638,7 +7699,7 @@ function renderTodoCalMonthBar(){
   }
   if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
   const controls = document.createElement('div'); controls.className='month-controls';
-  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent = '‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title = 'Anterior';
   prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
   controls.appendChild(prevBtn);
   const sel = document.createElement('select');
@@ -7651,12 +7712,12 @@ function renderTodoCalMonthBar(){
   });
   sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
   controls.appendChild(sel);
-  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›';
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent = '›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title = 'Siguiente';
   nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
   controls.appendChild(nextBtn);
   bar.appendChild(controls);
   const info = document.createElement('span');
-  info.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-left:auto;';
+  info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
   info.textContent = 'Estudio + clases + simulacros';
   bar.appendChild(info);
 }
@@ -7905,7 +7966,7 @@ function openSimDayModal(d, jsDow){
     const list = ensureSimulacrosPendientes().slice().sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
     if(list.length){
       const lbl = document.createElement('div');
-      lbl.style.cssText = 'font-family:var(--font-mono);font-size:10px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
+      lbl.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.05em;margin-bottom:6px;';
       lbl.textContent = 'O coloca aquí un simulacro pendiente';
       pendWrap.appendChild(lbl);
       const opts = document.createElement('div'); opts.className = 'clase-quiz-options';
@@ -7972,6 +8033,8 @@ function notaPillClass(n, max){
 /* Dibuja un mini-gráfico de líneas (sparkline) con la evolución de las notas de un tema a
    través de sus vueltas. Se usa en la pestaña «Progreso» en vez del texto ▲/▼ de antes. */
 function drawSparkline(canvas, notas, max, color){
+  const T = chartTheme();
+  color = chartColor(color);
   const cssW = canvas.width, cssH = canvas.height;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cssW * dpr;
@@ -7989,7 +8052,7 @@ function drawSparkline(canvas, notas, max, color){
   const yAt = v => padY + h*(1 - Math.max(0, Math.min(1, v/max)));
 
   // Línea de referencia en el 70% (umbral que la propia app usa como nota "buena").
-  ctx.strokeStyle = 'rgba(236,228,211,0.14)';
+  ctx.strokeStyle = T.grid;
   ctx.lineWidth = 1;
   const goodY = yAt(max*0.7);
   ctx.beginPath(); ctx.moveTo(padX, goodY); ctx.lineTo(padX+w, goodY); ctx.stroke();
@@ -8007,16 +8070,43 @@ function drawSparkline(canvas, notas, max, color){
     const x = xAt(i), y = yAt(v);
     const isLast = i === n-1;
     ctx.beginPath();
-    ctx.fillStyle = isLast ? color : 'rgba(236,228,211,0.55)';
+    ctx.fillStyle = isLast ? color : T.dot;
     ctx.arc(x, y, isLast ? 2.6 : 1.7, 0, Math.PI*2);
     ctx.fill();
   });
 }
-function drawTrendChart(canvas, points, color){
+/* Colores de los gráficos según el tema activo. Los <canvas> no leen el CSS solos, así que se los
+   pedimos al tema en el momento de dibujar (y se repintan al cambiar de tema, ver initChartRedraw). */
+const CHART_FONT = "12px system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif";
+function chartTheme(){
+  const root = document.documentElement;
+  const light = root.getAttribute('data-theme') === 'light';
+  const cs = getComputedStyle(root);
+  const text = (cs.getPropertyValue('--cream-dim') || '').trim() || (light ? '#55524a' : '#c3bda3');
+  return {
+    light, text,
+    grid: light ? 'rgba(30,42,34,0.18)' : 'rgba(236,228,211,0.16)',
+    dot:  light ? 'rgba(30,42,34,0.55)' : 'rgba(236,228,211,0.55)'
+  };
+}
+/* Los colores de serie están pensados para fondo oscuro; en claro los oscurecemos un 30% para que se vean. */
+function chartColor(hex){
+  if(!chartTheme().light) return hex;
+  const m = /^#([0-9a-f]{6})$/i.exec(hex);
+  if(!m) return hex;
+  const n = parseInt(m[1], 16);
+  return '#' + [(n>>16)&255, (n>>8)&255, n&255].map(c=>Math.round(c*0.7).toString(16).padStart(2,'0')).join('');
+}
+/* opts.cap: tope del eje Y (p. ej. 10 en notas). El eje se ajusta al rango real de los datos para que los
+   cambios pequeños se vean; si los datos están cerca de 0 se mantiene el 0 como base. */
+function drawTrendChart(canvas, points, colorIn, opts){
+  opts = opts || {};
+  const T = chartTheme();
+  const color = chartColor(colorIn);
   const parent = canvas.parentElement;
   const parentW = parent && parent.clientWidth;
-  const cssW = Math.max(260, Math.min(680, parentW || (window.innerWidth - 60)));
-  const cssH = 140;
+  const cssW = Math.max(260, parentW || (window.innerWidth - 60));
+  const cssH = cssW > 720 ? 220 : 170;
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cssW * dpr;
   canvas.height = cssH * dpr;
@@ -8027,50 +8117,69 @@ function drawTrendChart(canvas, points, color){
   ctx.clearRect(0, 0, cssW, cssH);
 
   const values = points.map(p=>p.value);
-  const maxV = Math.max(1, ...values);
-  const padL=26, padR=10, padT=10, padB=20;
+  const lo = Math.min(...values), hi = Math.max(...values);
+  const isInt = values.every(Number.isInteger);
+  let minV, maxV;
+  if(lo <= hi*0.5){ minV = 0; maxV = Math.max(1, Math.ceil(hi)); }
+  else {
+    const span = Math.max(hi-lo, 0.5);
+    minV = Math.max(0, Math.floor((lo - span*0.5)*2)/2);
+    maxV = Math.ceil((hi + span*0.5)*2)/2;
+  }
+  if(opts.cap !== undefined && maxV > opts.cap) maxV = opts.cap;
+  if(maxV - minV < 1) maxV = minV + 1;
+  const fmt = v => Number.isInteger(v) ? String(v) : v.toFixed(1);
+  let ticks = [minV, maxV];
+  // Marca intermedia solo si cae en un valor "redondo" (entero, o múltiplo de 0,5 si hay decimales).
+  const midV = isInt ? Math.round((minV+maxV)/2) : (minV+maxV)/2;
+  if(midV > minV && midV < maxV && (isInt || (midV*2) % 1 === 0)) ticks = [minV, midV, maxV];
+
+  ctx.font = CHART_FONT;
+  const labelW = Math.max(...ticks.map(v=>ctx.measureText(fmt(v)).width));
+  const padL = Math.max(30, Math.ceil(labelW) + 12), padR = 14, padT = 12, padB = 26;
   const w = cssW-padL-padR, h = cssH-padT-padB;
   const n = points.length;
   const xAt = i => n>1 ? padL + w*i/(n-1) : padL + w/2;
-  const yAt = v => padT + h*(1 - v/maxV);
+  const yAt = v => padT + h*(1 - (Math.max(minV, Math.min(maxV, v)) - minV)/(maxV - minV));
 
-  // Líneas de referencia en 0 y en el máximo, con su etiqueta.
-  ctx.strokeStyle = 'rgba(236,228,211,0.14)';
-  ctx.lineWidth = 1;
-  [0, maxV].forEach(v=>{
+  // Rejilla y etiquetas del eje Y.
+  ctx.strokeStyle = T.grid; ctx.lineWidth = 1;
+  ctx.fillStyle = T.text; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+  ticks.forEach(v=>{
     const y = yAt(v);
     ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(padL+w, y); ctx.stroke();
+    ctx.fillText(fmt(v), padL-6, y);
   });
-  ctx.fillStyle = 'rgba(236,228,211,0.55)';
-  ctx.font = '9px monospace';
-  ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
-  ctx.fillText(String(Math.round(maxV)), padL-4, yAt(maxV));
-  ctx.fillText('0', padL-4, yAt(0));
 
   // Relleno bajo la línea.
   ctx.beginPath();
   points.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.value); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
-  ctx.lineTo(xAt(n-1), yAt(0)); ctx.lineTo(xAt(0), yAt(0)); ctx.closePath();
+  ctx.lineTo(xAt(n-1), yAt(minV)); ctx.lineTo(xAt(0), yAt(minV)); ctx.closePath();
   ctx.fillStyle = color+'26';
   ctx.fill();
 
   // Línea de la evolución.
   ctx.beginPath();
   points.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.value); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
-  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.lineCap = 'round';
   ctx.stroke();
 
-  // Punto final resaltado.
-  const lastX = xAt(n-1), lastY = yAt(points[n-1].value);
-  ctx.beginPath(); ctx.fillStyle = color; ctx.arc(lastX, lastY, 3, 0, Math.PI*2); ctx.fill();
+  // Puntos (si no son demasiados) y último punto resaltado.
+  if(n <= 60){
+    ctx.fillStyle = color;
+    points.forEach((p,i)=>{ if(i===n-1) return; ctx.beginPath(); ctx.arc(xAt(i), yAt(p.value), 2.5, 0, Math.PI*2); ctx.fill(); });
+  }
+  ctx.beginPath(); ctx.fillStyle = color; ctx.arc(xAt(n-1), yAt(points[n-1].value), 4, 0, Math.PI*2); ctx.fill();
 
-  // Etiquetas de fecha: primera, del medio y última.
-  ctx.fillStyle = 'rgba(236,228,211,0.55)';
-  ctx.textAlign = 'center'; ctx.textBaseline = 'top';
-  const labelIdxs = n>1 ? [0, Math.floor((n-1)/2), n-1] : [0];
+  // Etiquetas de fecha: primera (alineada a la izquierda), del medio y última (alineada a la derecha, para que no se corte).
+  ctx.fillStyle = T.text; ctx.textBaseline = 'top';
+  const yr = d => d.split('-')[0];
+  const conAnio = yr(points[0].date) !== yr(points[n-1].date);
+  const labelIdxs = n>1 ? (n>2 ? [0, Math.floor((n-1)/2), n-1] : [0, n-1]) : [0];
   labelIdxs.forEach(i=>{
     const parts = points[i].date.split('-');
-    ctx.fillText(parts[2]+'/'+parts[1], xAt(i), padT+h+4);
+    ctx.textAlign = n===1 ? 'center' : (i===0 ? 'left' : (i===n-1 ? 'right' : 'center'));
+    ctx.fillText(parts[2]+'/'+parts[1]+(conAnio ? '/'+parts[0].slice(2) : ''), xAt(i), padT+h+7);
   });
 }
 // Muestrea, día a día, cuántos temas había acumulados en el arrastre total (a día vencido)
@@ -8256,7 +8365,7 @@ function renderProgreso(){
       'Bloques':'var(--amber)',
       'Leves':'var(--green)',
       'Inglés':'var(--blue)',
-      'Psicotécnicos':'#8b6fae'
+      'Psicotécnicos':'#7a5c9c'
     };
     // Mismos colores que arriba pero en hex literal: el contexto 2D del <canvas> no resuelve
     // variables CSS (var(--amber)) como sí hace el resto de la app, así que para dibujar el
@@ -8265,7 +8374,7 @@ function renderProgreso(){
       'Bloques':'#c9a227',
       'Leves':'#6f9a6a',
       'Inglés':'#5c8a99',
-      'Psicotécnicos':'#8b6fae'
+      'Psicotécnicos':'#7a5c9c'
     };
     grupos.forEach(grupo=>{
       const tagClass = grupoTagClass[grupo] || 'g-bloques';
@@ -8286,7 +8395,7 @@ function renderProgreso(){
         let lastNota = null;
         const NON_NOTA_PILL = {
           no_test:      {label:'No test',      color:'var(--muted)'},
-          no_tiempo:    {label:'No tiempo',     color:'#c0672f'},
+          no_tiempo:    {label:'No tiempo',     color:'#a9531d'},
           solo_lectura: {label:'Solo lectura',  color:'#5c8a99'}
         };
         const vueltaGroups = [];
@@ -8304,7 +8413,7 @@ function renderProgreso(){
           let deltaTxt = '';
           if(!entry.extra && lastNota!=null){
             const diff = Math.round((n - lastNota)*10)/10;
-            if(diff > 0) deltaTxt = ' <span style="color:var(--green);">▲+'+diff+'</span>';
+            if(diff > 0) deltaTxt = ' <span style="color:var(--green-ink);">▲+'+diff+'</span>';
             else if(diff < 0) deltaTxt = ' <span style="color:var(--red-text);">▼'+diff+'</span>';
             else deltaTxt = ' <span style="color:var(--muted);">=</span>';
           }
@@ -8314,7 +8423,7 @@ function renderProgreso(){
         // Cada vuelta va en su propia línea, con su etiqueta «Vuelta N»; los tests de una
         // misma vuelta van unidos entre sí con «+».
         const notasHtml = vueltaGroups.map(g=>{
-          const label = '<span style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.03em;color:var(--cream-dim);margin-right:6px;">Vuelta '+g.vuelta+'</span>';
+          const label = '<span style="font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--cream-dim);margin-right:6px;">Vuelta '+g.vuelta+'</span>';
           return label + g.parts.join(' <span style="color:var(--muted);">+</span> ');
         }).join('<br>');
 
@@ -8331,7 +8440,7 @@ function renderProgreso(){
         const tr = document.createElement('tr');
         tr.innerHTML = `<td data-label="Grupo" style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td data-label="Tema">${item.label}</td>`+
           `<td data-label="Notas (por vuelta)">${notasHtml}</td>`+
-          `<td data-label="Media">${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>'}</td>`+
+          `<td data-label="Media">${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:12px;">— sin notas —</span>'}</td>`+
           `<td data-label="Evolución"></td>`;
         const sparkTd = tr.lastElementChild;
         sparkTd.title = tendenciaTxt;
@@ -8344,9 +8453,9 @@ function renderProgreso(){
           sparkTd.appendChild(canvas);
           drawSparkline(canvas, notas, max, GRUPO_HEX_COLOR[grupo] || '#d99a3c');
         } else if(hasNotas){
-          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— hace falta otra nota —</span>';
+          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:12px;">— hace falta otra nota —</span>';
         } else {
-          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:11px;">— sin notas —</span>';
+          sparkTd.innerHTML = '<span style="color:var(--muted);font-size:12px;">— sin notas —</span>';
         }
         tbody.appendChild(tr);
       };
@@ -8359,7 +8468,7 @@ function renderProgreso(){
         const addSubHeader = (texto, colorVar)=>{
           const trh = document.createElement('tr');
           trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:var(--bg-panel-2);'+
-            'font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:6px 8px;">'+texto+'</td>';
+            'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:6px 8px;">'+texto+'</td>';
           tbody.appendChild(trh);
         };
         if(graves.length){ addSubHeader('Graves (bloques 1–5)', 'var(--red)'); graves.forEach(renderItemRow); }
@@ -8389,7 +8498,7 @@ function renderProgreso(){
     const sArr = document.createElement('div');
     appendAccordionSection(sArr, 'testArrastre', progresoOpen, 'Evolución del test de arrastre', (body)=>{
       const sub = document.createElement('div'); sub.className='sub'; sub.style.marginBottom='10px';
-      sub.textContent = 'Notas del test de arrastre diario, por fecha real — este test no sigue el sistema de vueltas de los demás temas, así que aquí se compara pura evolución en el tiempo.';
+      sub.textContent = 'Notas del test de arrastre diario, por fecha real — este test no sigue el sistema de vueltas de los demás temas, así que aquí se compara pura evolución en el tiempo. El eje se ajusta a tus notas para que se vean bien los cambios pequeños.';
       body.appendChild(sub);
 
       const avg = arrastreTestEntries.reduce((a,e)=>a+e.valor,0)/arrastreTestEntries.length;
@@ -8413,7 +8522,7 @@ function renderProgreso(){
         canvasWrap.appendChild(canvas);
         body.appendChild(canvasWrap);
         const points = arrastreTestEntries.map(e=>({date:e.fecha, value:e.valor}));
-        drawTrendChart(canvas, points, '#6f9a6a');
+        drawTrendChart(canvas, points, '#6f9a6a', {cap:10});
       }
 
       // Notas agrupadas por mes: con el tiempo una lista diaria se haría interminable, así que
@@ -8422,12 +8531,12 @@ function renderProgreso(){
       // pulsar. Dentro de cada mes, cada día sigue mostrando su flecha de mejora respecto a la
       // nota anterior (aunque esa nota fuera del mes pasado).
       const listTitle = document.createElement('div');
-      listTitle.style.cssText = 'font-family:var(--font-mono);font-size:11px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.03em;margin:14px 0 6px;';
+      listTitle.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;color:var(--cream-dim);letter-spacing:.03em;margin:14px 0 6px;';
       listTitle.textContent = 'Notas por mes';
       body.appendChild(listTitle);
 
       const deltaHtml = (diff)=>{
-        if(diff>0) return ' <span style="color:var(--green);">▲+'+diff+'</span>';
+        if(diff>0) return ' <span style="color:var(--green-ink);">▲+'+diff+'</span>';
         if(diff<0) return ' <span style="color:var(--red-text);">▼'+diff+'</span>';
         return ' <span style="color:var(--muted);">=</span>';
       };
@@ -8477,7 +8586,7 @@ function renderProgreso(){
           const mejorMes = items.reduce((a,x)=> x.e.valor>a.e.valor?x:a);
           const peorMes = items.reduce((a,x)=> x.e.valor<a.e.valor?x:a);
           const resumen = document.createElement('div');
-          resumen.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:4px 2px 6px;';
+          resumen.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);padding:4px 2px 6px;';
           resumen.textContent = 'Mejor: '+mejorMes.e.valor+'/10 ('+fechaCorta(mejorMes.e.fecha)+') · Peor: '+peorMes.e.valor+'/10 ('+fechaCorta(peorMes.e.fecha)+')';
           cuerpo.appendChild(resumen);
         }
@@ -8513,6 +8622,19 @@ const progresoOpen = {detalleTema:false, tendenciaArrastre:true, comparativaSimu
 // Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
 // aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
 const arrastreMesesOpen = {};
+
+/* Los gráficos son <canvas>: no se adaptan solos. Los repintamos si cambia el tema (claro/oscuro, a mano o
+   automático por hora) o el ancho de la ventana, siempre que Progreso esté a la vista. */
+(function initChartRedraw(){
+  function progresoVisible(){ const v = document.getElementById('view-progreso'); return !!(v && v.classList.contains('active')); }
+  function repaint(){ if(progresoVisible() && typeof renderProgreso === 'function'){ try{ renderProgreso(); }catch(e){} } }
+  new MutationObserver(repaint).observe(document.documentElement, {attributes:true, attributeFilter:['data-theme']});
+  let lastW = window.innerWidth, timer;
+  window.addEventListener('resize', ()=>{
+    clearTimeout(timer);
+    timer = setTimeout(()=>{ if(window.innerWidth !== lastW){ lastW = window.innerWidth; repaint(); } }, 250);
+  });
+})();
 /* ===================== MARCAS FÍSICAS MÍNIMAS (oposición Guardia Civil) ===================== */
 function parseTiempoASegundos(v){
   if(v==null || v==='') return NaN;
@@ -8600,7 +8722,7 @@ function renderMarcas(){
   host.innerHTML = '';
   const topBar = document.createElement('div');
   topBar.innerHTML = '<h3 style="margin:0 0 4px;font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);font-size:17px;letter-spacing:.03em;">Marcas físicas mínimas</h3>'
-    + '<div class="sub" style="font-family:var(--font-mono);font-size:11px;color:var(--muted);">Apunta tu mejor marca en cada prueba para ver si ya cumples el mínimo de la oposición.</div>';
+    + '<div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">Apunta tu mejor marca en cada prueba para ver si ya cumples el mínimo de la oposición.</div>';
   host.appendChild(topBar);
 
   const grid = document.createElement('div'); grid.className = 'marcas-grid';
@@ -9342,7 +9464,7 @@ function renderSyncBox(){
   if(!host) return;
   const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
   host.innerHTML = `
-    <div style="font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Sincronización</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Sincronización</div>
     <div style="font-size:13px;">Tu planning es privado y está ligado a tu cuenta<strong>${email ? ' ('+email+')' : ''}</strong>.
     Para verlo en otro dispositivo (móvil, tablet, ordenador), simplemente abre la app e inicia sesión ahí con
     el mismo correo y contraseña: no hace falta ningún código ni enlace especial.</div>
@@ -9911,7 +10033,7 @@ function renderUpdateAvailableBanner(){
   if(document.getElementById('updateAvailableBanner')) return;
   const banner = document.createElement('div');
   banner.id = 'updateAvailableBanner';
-  banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:var(--amber);color:#1b2b1f;padding:10px 16px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
+  banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:var(--amber);color:#1b2b1f;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
   // Puramente informativo: no hay botón de "recargar ahora" que empuje a actuar.
   // La próxima vez que se recargue la página (por el motivo que sea) se cargará sola
   // la versión nueva; este aviso solo lo indica, con un botón para cerrarlo si molesta.
