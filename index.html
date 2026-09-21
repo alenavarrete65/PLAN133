@@ -1131,6 +1131,73 @@
      TÍTULOS  -> --font-display (Playfair Display): h1–h4, marca, títulos de tarjeta/sección, números grandes de las tarjetas.
      RESTO    -> --font-sans (fuente del sistema): texto, datos, etiquetas, botones, menú, campos, calendario, modales. */
   h1, h2, h3, h4{font-family:var(--font-display);}
+
+  /* ---- Test de arrastre: primera tarea del día, destacada ---- */
+  .arrastre-hero{
+    position:relative;margin:0 0 16px;padding:14px 16px 14px 20px;border-radius:6px;
+    background:linear-gradient(135deg, rgba(201,162,39,.22), rgba(201,162,39,.06));
+    border:2px solid var(--amber);box-shadow:0 0 0 3px rgba(201,162,39,.16);
+  }
+  .arrastre-hero::before{
+    content:'';position:absolute;left:0;top:0;bottom:0;width:8px;border-radius:4px 0 0 4px;background:var(--amber);
+  }
+  .arrastre-hero.done{
+    border-color:var(--green);box-shadow:none;
+    background:linear-gradient(135deg, rgba(111,154,106,.20), rgba(111,154,106,.05));
+  }
+  .arrastre-hero.done::before{background:var(--green);}
+  .arrastre-hero-kicker{
+    font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--amber-ink);margin-bottom:4px;
+  }
+  .arrastre-hero.done .arrastre-hero-kicker{color:var(--green-ink);}
+  .arrastre-hero-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .arrastre-hero-title{
+    font-family:var(--font-display);font-weight:700;font-size:22px;letter-spacing:.03em;text-transform:uppercase;
+    color:var(--cream);line-height:1.15;
+  }
+  .arrastre-hero-status{
+    font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;
+    padding:4px 10px;border-radius:999px;background:var(--red);color:#fff8ec;
+  }
+  .arrastre-hero.done .arrastre-hero-status{background:var(--green);color:#f2fbf1;}
+  .arrastre-hero-desc{font-size:13px;color:var(--cream);margin:6px 0 10px;}
+  .arrastre-hero-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
+  .arrastre-seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;}
+  .arrastre-seg button{
+    background:transparent;border:none;color:var(--cream);font-family:var(--font-body);font-size:13px;font-weight:600;
+    padding:8px 14px;cursor:pointer;
+  }
+  .arrastre-seg button + button{border-left:1px solid var(--line-strong);}
+  .arrastre-seg button[aria-pressed="true"].seg-yes{background:var(--green);color:#f2fbf1;}
+  .arrastre-seg button[aria-pressed="true"].seg-no{background:var(--red);color:#fff8ec;}
+  .arrastre-seg button:disabled{opacity:.5;cursor:not-allowed;}
+  .arrastre-nota-lbl{display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
+  .arrastre-nota-lbl input{
+    width:84px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line-strong);border-radius:2px;
+    font-family:var(--font-mono);font-size:13px;padding:6px 8px;
+  }
+  .arrastre-hero-hint{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:8px;}
+  @media (prefers-reduced-motion:no-preference){
+    .arrastre-hero:not(.done){animation:arrastrePulse 2.4s ease-in-out infinite;}
+    @keyframes arrastrePulse{0%,100%{box-shadow:0 0 0 3px rgba(201,162,39,.16);}50%{box-shadow:0 0 0 6px rgba(201,162,39,.30);}}
+  }
+  /* Aviso al abrir la app: ¿has hecho el test de arrastre de hoy? */
+  #arrastreAskModal .modal{max-width:400px;text-align:center;border-width:2px;border-color:var(--amber);}
+  .arrastre-ask-kicker{font-family:var(--font-mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--amber-ink);margin-bottom:6px;}
+  .arrastre-ask-q{font-size:16px;color:var(--cream);margin:8px 0 16px;}
+  .arrastre-ask-actions{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:12px;}
+  .arrastre-ask-actions .btn{flex:1 1 150px;padding:12px 14px;}
+  .home-exam-edit{
+    background:none;border:none;padding:0;margin-top:4px;color:var(--amber-ink);cursor:pointer;
+    font-family:var(--font-mono);font-size:12px;text-decoration:underline;
+  }
+  .home-arrastre-status{font-family:var(--font-mono);font-size:12px;font-weight:700;margin-bottom:4px;}
+  .home-arrastre-status.pend{color:var(--red-text);}
+  .home-arrastre-status.ok{color:var(--green-ink);}
+  #examDateModal input[type="date"]{
+    width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-mono);
+  }
 </style>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/12.18.0/firebase-auth-compat.js"></script>
@@ -1448,6 +1515,34 @@
 </div>
 
 
+<div class="modal-backdrop" id="arrastreAskModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="arrastreAskTitle">
+    <div class="arrastre-ask-kicker">Hoy es día de estudio</div>
+    <h3 id="arrastreAskTitle">📋 Test de arrastre</h3>
+    <div class="arrastre-ask-q">¿Has hecho ya el test de arrastre de hoy?</div>
+    <div class="arrastre-ask-actions">
+      <button type="button" class="btn" id="arrastreAskYes">✓ Sí, ya lo he hecho</button>
+      <button type="button" class="btn ghost" id="arrastreAskNo">No, todavía no</button>
+    </div>
+    <button type="button" class="btn ghost small" id="arrastreAskGo">Ver qué temas son →</button>
+    <div class="sub" style="margin:12px 0 0;">Si dices que no, te lo volveré a preguntar más tarde.</div>
+  </div>
+</div>
+<div class="modal-backdrop" id="examDateModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Fecha del examen">
+    <button class="modal-close" id="closeExamDate">✕</button>
+    <h3>Fecha del examen</h3>
+    <div class="sub">Es la fecha que usa la cuenta atrás de la pantalla principal.</div>
+    <div class="modal-add">
+      <div>
+        <label for="examDateInput">Fecha del examen oficial</label>
+        <input type="date" id="examDateInput" aria-label="Fecha del examen oficial">
+      </div>
+      <button class="btn" id="confirmExamDate">Guardar fecha</button>
+      <button class="btn ghost" id="resetExamDate">Volver a la estimada (10 de julio)</button>
+    </div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -1919,6 +2014,12 @@ function normalizeState(){
   if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
+  // Fecha del examen oficial para la cuenta atrás ("YYYY-MM-DD"). null = usa la estimada (10 de julio).
+  if(state.settings.examDate === undefined) state.settings.examDate = null;
+  // Días en los que has confirmado que hiciste el test de arrastre: {fechaISO: true}.
+  if(!state.arrastreTestHecho || typeof state.arrastreTestHecho !== 'object' || Array.isArray(state.arrastreTestHecho)){
+    state.arrastreTestHecho = {};
+  }
   if(!state.clases) state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
   if(!state.clases.conocimientos) state.clases.conocimientos = {};
   if(!state.clases.ingles) state.clases.ingles = {};
@@ -3387,16 +3488,28 @@ function computeRacha(plan){
   }
   return streak;
 }
-/* Próxima fecha de examen estimada (10 de julio) y días restantes. */
+/* Fecha del examen y días restantes. Si has fijado una fecha propia (botón «Cambiar fecha» de la
+   cuenta atrás, state.settings.examDate = "YYYY-MM-DD") se usa esa; si no, la estimada: el próximo 10 de julio. */
 function nextExamInfo(){
   const now = new Date();
-  let year = now.getFullYear();
-  const thisYearExam = new Date(year, 6, 10);
-  if(now > thisYearExam) year++;
-  const examDate = new Date(year, 6, 10);
   const today0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  let examDate = null, personalizada = false;
+  const custom = (typeof state !== 'undefined' && state && state.settings) ? state.settings.examDate : null;
+  if(typeof custom === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(custom)){
+    const parts = custom.split('-').map(Number);
+    const dt = new Date(parts[0], parts[1]-1, parts[2]);
+    if(!isNaN(dt.getTime())){ examDate = dt; personalizada = true; }
+  }
+  if(!examDate){
+    let year = now.getFullYear();
+    const thisYearExam = new Date(year, 6, 10);
+    if(now > thisYearExam) year++;
+    examDate = new Date(year, 6, 10);
+  }
   const daysLeft = Math.round((examDate - today0) / 86400000);
-  return {year, daysLeft};
+  const iso = examDate.getFullYear()+'-'+pad2(examDate.getMonth()+1)+'-'+pad2(examDate.getDate());
+  return {year:examDate.getFullYear(), daysLeft:daysLeft, iso:iso, personalizada:personalizada,
+          etiqueta: examDate.getDate()+' '+MESES[examDate.getMonth()].slice(0,3).toLowerCase()+' '+examDate.getFullYear()};
 }
 /* Panel superior: cuenta atrás, racha y resumen del día de hoy. */
 function renderHomeDash(){
@@ -3449,14 +3562,19 @@ function renderHomeDash(){
   const arrastreNota = (todayInfo && todayInfo.status==='ESTUDIO')
     ? '<div class="home-card-note">Lo de hoy se suma mañana, cuando el día termine.</div>'
     : '';
-  const arrastreHtml = arrastreTotal
+  const arrastreEstado = (todayInfo && todayInfo.status==='ESTUDIO')
+    ? (arrastreTestHechoDe(todayISO())
+        ? '<div class="home-arrastre-status ok">✓ Test de hoy hecho</div>'
+        : '<div class="home-arrastre-status pend">● Test de hoy pendiente</div>')
+    : '';
+  const arrastreHtml = arrastreEstado + (arrastreTotal
     ? '<div class="home-card-value" style="font-size:22px;">'+arrastreTotal+' tema'+(arrastreTotal!==1?'s':'')+'</div>'+
       '<div class="home-card-sub">para meter hoy en tu test de arrastre</div>'+
       arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Ver qué temas son →</button>'
     : '<div class="home-card-sub">Todavía no hay temas acumulados en ninguna vuelta abierta.</div>'+
       arrastreNota+
-      '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>';
+      '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>');
 
   // Clases (academia) que tocan hoy, según el Calendario de clases.
   const todayMonthKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
@@ -3483,8 +3601,12 @@ function renderHomeDash(){
 
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
-      '<div class="home-card-value">'+exam.daysLeft+'</div>'+
-      '<div class="home-card-sub">días para el examen (10 jul '+exam.year+')</div></div>'+
+      (exam.daysLeft >= 0
+        ? '<div class="home-card-value">'+exam.daysLeft+'</div>'+
+          '<div class="home-card-sub">'+(exam.daysLeft===1?'día':'días')+' para el examen ('+exam.etiqueta+')</div>'
+        : '<div class="home-card-value">—</div>'+
+          '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
+      '<button type="button" class="home-exam-edit" id="homeExamEditBtn">✏️ Cambiar fecha</button></div>'+
     '<div class="home-card home-card-compact"><div class="home-card-label">Racha</div>'+
       '<div class="home-card-value">'+racha+'</div>'+
       '<div class="home-card-sub">'+(racha===1?'día seguido':'días seguidos')+'</div></div>'+
@@ -3492,6 +3614,9 @@ function renderHomeDash(){
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
+
+  const examEditBtn = document.getElementById('homeExamEditBtn');
+  if(examEditBtn) examEditBtn.onclick = openExamDateModal;
 
   const arrastreBtn = document.getElementById('homeArrastreBtn');
   if(arrastreBtn) arrastreBtn.onclick = ()=>{
@@ -3803,6 +3928,8 @@ function openDayModal(d, info){
     try{
       const {body:sb} = daySection(body, 'Tareas del día');
       const dticks = info.ticks || {};
+      // El test de arrastre es SIEMPRE lo primero del día: va antes que cualquier otra tarea.
+      addArrastreTestRow(sb, fechaISO);
       const helpNote = document.createElement('div');
       helpNote.className = 'tick-help';
       helpNote.style.marginBottom = '12px';
@@ -3851,7 +3978,6 @@ function openDayModal(d, info){
       if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
       if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
       addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
-      addArrastreTestRow(sb, fechaISO);
     }catch(err){
       // Pase lo que pase con las tareas del día, las notas siguen funcionando: el aviso es
       // solo para saber que ahí ha fallado algo.
@@ -4412,40 +4538,166 @@ function addOrtoGramRow(body, tickInfo){
    se hace cada día con lo que se va arrastrando, así que aquí solo hace falta guardar, por
    fecha, la nota que se saque. Se guarda en state.arrastreTestNotas (fechaISO -> nota) y se lee
    tal cual desde Progreso para dibujar su evolución en el tiempo. */
+/* ¿Se ha hecho el test de arrastre de esta fecha? Cuenta como hecho si lo has marcado
+   («Ya lo he hecho» / «Sí» en el aviso) o si ya has metido una nota para ese día. */
+function arrastreTestHechoDe(fechaISO){
+  const flag = state.arrastreTestHecho && state.arrastreTestHecho[fechaISO];
+  const nota = state.arrastreTestNotas ? state.arrastreTestNotas[fechaISO] : undefined;
+  return !!flag || (nota !== undefined && nota !== null && nota !== '');
+}
+function setArrastreTestHecho(fechaISO, hecho){
+  if(!state.arrastreTestHecho || typeof state.arrastreTestHecho !== 'object') state.arrastreTestHecho = {};
+  if(hecho) state.arrastreTestHecho[fechaISO] = true;
+  else delete state.arrastreTestHecho[fechaISO];
+  scheduleSave();
+}
+/* Tarjeta destacada del test de arrastre: primera tarea del día en la ficha del calendario. */
 function addArrastreTestRow(body, fechaISO){
-  const row = document.createElement('div'); row.className='modal-row'; row.style.flexWrap='wrap';
-  const headWrap = document.createElement('div');
-  headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
-  const tagEl = document.createElement('span'); tagEl.className='tag tag-nota'; tagEl.style.marginTop='2px'; tagEl.textContent='TEST ARRASTRE';
-  headWrap.appendChild(tagEl);
-  const txtEl = document.createElement('span'); txtEl.style.cssText='font-size:13px;flex:1;'; txtEl.textContent='Test diario con los temas que se van arrastrando';
-  headWrap.appendChild(txtEl);
-  row.appendChild(headWrap);
+  const card = document.createElement('div'); card.className = 'arrastre-hero';
+  card.setAttribute('role','group'); card.setAttribute('aria-label','Test de arrastre del día');
 
-  const inputWrap = document.createElement('div');
-  inputWrap.style.cssText = 'width:100%;display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:4px;';
+  const kicker = document.createElement('div'); kicker.className = 'arrastre-hero-kicker';
+  kicker.textContent = '★ Lo primero del día';
+  card.appendChild(kicker);
+
+  const head = document.createElement('div'); head.className = 'arrastre-hero-head';
+  const title = document.createElement('span'); title.className = 'arrastre-hero-title'; title.textContent = 'Test de arrastre';
+  const status = document.createElement('span'); status.className = 'arrastre-hero-status';
+  head.appendChild(title); head.appendChild(status);
+  card.appendChild(head);
+
+  const desc = document.createElement('div'); desc.className = 'arrastre-hero-desc';
+  desc.textContent = 'Hazlo antes que nada: test diario con los temas que se van arrastrando.';
+  card.appendChild(desc);
+
+  const actions = document.createElement('div'); actions.className = 'arrastre-hero-actions';
+  const seg = document.createElement('div'); seg.className = 'arrastre-seg';
+  const yesBtn = document.createElement('button'); yesBtn.type='button'; yesBtn.className='seg-yes'; yesBtn.textContent='✓ Ya lo he hecho';
+  const noBtn = document.createElement('button'); noBtn.type='button'; noBtn.className='seg-no'; noBtn.textContent='Aún no';
+  seg.appendChild(yesBtn); seg.appendChild(noBtn);
+  actions.appendChild(seg);
+
+  const notaLbl = document.createElement('label'); notaLbl.className = 'arrastre-nota-lbl';
+  notaLbl.appendChild(document.createTextNode('Nota'));
   const inp = document.createElement('input');
   inp.type = 'number'; inp.step = '0.1'; inp.min = '0'; inp.max = '10';
-  inp.placeholder = 'Nota (0-10)';
-  inp.style.cssText = 'width:110px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);border-radius:2px;font-family:var(--font-mono);font-size:13px;padding:6px 8px;';
+  inp.placeholder = '0-10';
   const actual = state.arrastreTestNotas ? state.arrastreTestNotas[fechaISO] : undefined;
   inp.value = (actual===undefined || actual===null) ? '' : actual;
   inp.setAttribute('aria-label', 'Nota del test de arrastre de este día, sobre 10');
+  notaLbl.appendChild(inp);
+  notaLbl.appendChild(document.createTextNode('/10'));
+  actions.appendChild(notaLbl);
+  card.appendChild(actions);
+
+  const hint = document.createElement('div'); hint.className = 'arrastre-hero-hint';
+  hint.textContent = 'Si pones nota, cuenta como hecho. La nota se guarda por fecha: en Progreso verás su evolución día a día.';
+  card.appendChild(hint);
+
+  const goBtn = document.createElement('button');
+  goBtn.type='button'; goBtn.className='btn small ghost'; goBtn.style.marginTop='10px';
+  goBtn.textContent = 'Ver qué temas son →';
+  goBtn.onclick = ()=>{
+    document.getElementById('dayModal').classList.remove('open');
+    const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
+    if(tabBtn) tabBtn.click();
+  };
+  card.appendChild(goBtn);
+
+  const paintState = ()=>{
+    const hecho = arrastreTestHechoDe(fechaISO);
+    const tieneNota = inp.value !== '';
+    card.classList.toggle('done', hecho);
+    status.textContent = hecho ? 'Hecho ✓' : 'Pendiente';
+    yesBtn.setAttribute('aria-pressed', hecho ? 'true' : 'false');
+    noBtn.setAttribute('aria-pressed', hecho ? 'false' : 'true');
+    noBtn.disabled = tieneNota; // con nota puesta ya cuenta como hecho
+    noBtn.title = tieneNota ? 'Ya has puesto nota, así que cuenta como hecho. Borra la nota para desmarcarlo.' : '';
+  };
+  yesBtn.onclick = ()=>{ setArrastreTestHecho(fechaISO, true); paintState(); renderCalendar(); };
+  noBtn.onclick = ()=>{ setArrastreTestHecho(fechaISO, false); paintState(); renderCalendar(); };
   inp.oninput = ()=>{
     if(!state.arrastreTestNotas) state.arrastreTestNotas = {};
     if(inp.value === '') delete state.arrastreTestNotas[fechaISO];
     else state.arrastreTestNotas[fechaISO] = Number(inp.value);
     scheduleSave();
+    paintState();
     renderCalendar();
   };
-  inputWrap.appendChild(inp);
-  const hint = document.createElement('span');
-  hint.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);flex:1;min-width:180px;';
-  hint.textContent = 'Sobre 10. Se guarda por fecha (sin vueltas) — en Progreso verás su evolución día a día.';
-  inputWrap.appendChild(hint);
-  row.appendChild(inputWrap);
-  body.appendChild(row);
+  paintState();
+  body.appendChild(card);
 }
+
+/* ===================== AVISO: «¿has hecho el test de arrastre de hoy?» ===================== */
+/* Al abrir la app (y, si la dejas abierta, cada cierto rato) se pregunta SOLO en días de estudio
+   y SOLO si el test de hoy no está hecho. «Sí» lo apunta y ya no vuelve a preguntar ese día;
+   «No» (o cerrar el aviso) hace que se repita más tarde. */
+const ARRASTRE_ASK_REPEAT_MS = 30*60*1000; // si dices «No» y dejas la app abierta, se repite pasados 30 min
+let _appStarted = false;
+let _arrastreAskLastShown = 0;
+function hoyEsDiaDeEstudio(){
+  try{
+    const now = new Date();
+    const mk = now.getFullYear()+'-'+pad2(now.getMonth()+1);
+    const plan = computePlan();
+    const info = plan[mk] && plan[mk][now.getDate()];
+    return !!(info && info.status === 'ESTUDIO');
+  }catch(e){ return false; }
+}
+function cerrarAvisoArrastre(){ document.getElementById('arrastreAskModal').classList.remove('open'); }
+function maybeAskArrastreTest(esArranque){
+  if(!_appStarted || document.hidden) return;
+  if(document.querySelector('.modal-backdrop.open')) return; // no apilar sobre otro modal abierto
+  if(!hoyEsDiaDeEstudio()) return;                            // solo días de estudio
+  if(arrastreTestHechoDe(todayISO())) return;                 // ya hecho → no se repite
+  if(!esArranque && Date.now() - _arrastreAskLastShown < ARRASTRE_ASK_REPEAT_MS) return;
+  _arrastreAskLastShown = Date.now();
+  document.getElementById('arrastreAskModal').classList.add('open');
+}
+document.getElementById('arrastreAskYes').onclick = ()=>{
+  setArrastreTestHecho(todayISO(), true);
+  cerrarAvisoArrastre();
+  renderCalendar();
+  showToast('Test de arrastre de hoy hecho ✓');
+};
+document.getElementById('arrastreAskNo').onclick = cerrarAvisoArrastre; // sin marcar: se volverá a preguntar
+document.getElementById('arrastreAskGo').onclick = ()=>{
+  cerrarAvisoArrastre();
+  const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
+  if(tabBtn) tabBtn.click();
+};
+document.getElementById('arrastreAskModal').addEventListener('click', e=>{ if(e.target.id==='arrastreAskModal') cerrarAvisoArrastre(); });
+// Si la app se queda abierta (o vuelve a primer plano), se revisa cada minuto / al volver.
+setInterval(()=>{ maybeAskArrastreTest(false); }, 60000);
+document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) maybeAskArrastreTest(false); });
+
+/* ===================== MODAL: FECHA DEL EXAMEN ===================== */
+function openExamDateModal(){
+  const exam = nextExamInfo();
+  document.getElementById('examDateInput').value = exam.iso;
+  document.getElementById('resetExamDate').style.display = exam.personalizada ? '' : 'none';
+  document.getElementById('examDateModal').classList.add('open');
+}
+document.getElementById('closeExamDate').onclick = ()=> document.getElementById('examDateModal').classList.remove('open');
+document.getElementById('examDateModal').addEventListener('click', e=>{ if(e.target.id==='examDateModal') e.currentTarget.classList.remove('open'); });
+document.getElementById('confirmExamDate').onclick = ()=>{
+  const v = document.getElementById('examDateInput').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ showToast('Elige una fecha válida'); return; }
+  if(!state.settings) state.settings = {};
+  state.settings.examDate = v;
+  scheduleSave();
+  renderHomeDash();
+  document.getElementById('examDateModal').classList.remove('open');
+  showToast('Fecha del examen actualizada');
+};
+document.getElementById('resetExamDate').onclick = ()=>{
+  if(!state.settings) state.settings = {};
+  state.settings.examDate = null;
+  scheduleSave();
+  renderHomeDash();
+  document.getElementById('examDateModal').classList.remove('open');
+  showToast('Vuelve la fecha estimada (10 de julio)');
+};
 document.getElementById('closeDayModal').onclick = ()=> document.getElementById('dayModal').classList.remove('open');
 document.getElementById('dayModal').addEventListener('click', e=>{ if(e.target.id==='dayModal') e.currentTarget.classList.remove('open'); });
 
@@ -10046,6 +10298,10 @@ function startApp(){
     if(navigator.onLine) trySyncPending();
     else setSaveStatus('error', 'Sin conexión · se guardará al reconectar');
   }
+  // Aviso del test de arrastre (solo en días de estudio y si aún no está hecho). Pequeño retraso
+  // para que la pantalla ya esté pintada cuando aparezca.
+  _appStarted = true;
+  setTimeout(()=>{ maybeAskArrastreTest(true); }, 700);
 }
 (async function init(){
   if(!firebaseOk){ renderConfigNeeded(); return; }

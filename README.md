@@ -278,6 +278,29 @@ En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Expo
 **📄 Exportar PDF**, para guardar o imprimir el mes que estés viendo sin depender del archivo
 JSON técnico.
 
+## Test de arrastre: primera tarea del día + aviso al abrir la app
+
+- **En la ficha del día** (pulsando un día de estudio en el Calendario), el **Test de arrastre** es
+  siempre lo primero de «Tareas del día», en una tarjeta destacada (borde dorado, «★ Lo primero del
+  día») que pasa a verde cuando está hecho. Tiene los botones **✓ Ya lo he hecho / Aún no** y el
+  campo de la nota. Si pones nota, cuenta como hecho automáticamente.
+- **Aviso al abrir la app:** en los días de **estudio** (nunca en descanso, trabajo o sin horario) y
+  solo si el test de hoy no está hecho, sale la pregunta «¿Has hecho ya el test de arrastre de
+  hoy?». **Sí** lo apunta y ya no vuelve a preguntar ese día (tampoco desde otro dispositivo, porque
+  se guarda en tu planning); **No** (o cerrar el aviso) lo repite: cada vez que abras la app y, si la
+  dejas abierta, cada 30 minutos al volver a ella (`ARRASTRE_ASK_REPEAT_MS` en `index.html`).
+- Es un aviso **dentro de la app**, no una notificación push del sistema: no aparece si la app está
+  cerrada. Las push reales siguen pendientes (ver más abajo).
+- Dato guardado: `state.arrastreTestHecho` = `{ "YYYY-MM-DD": true }`. La nota sigue en
+  `state.arrastreTestNotas`, sin cambios.
+
+## Fecha del examen editable (cuenta atrás)
+
+En la tarjeta **Cuenta atrás** de la pantalla principal hay un enlace **✏️ Cambiar fecha**: eliges
+la fecha del examen oficial y la cuenta atrás se recalcula al momento. **«Volver a la estimada»**
+restaura el 10 de julio de siempre. Se guarda en `state.settings.examDate` (`"YYYY-MM-DD"`, o
+`null` para usar la estimada), así que se sincroniza y entra en las copias de seguridad.
+
 ## Cómo funciona el guardado offline (resumen rápido)
 
 - Cada cambio se guarda primero en el propio dispositivo (`localStorage`), así que
