@@ -21,7 +21,6 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 | `manifest.json`        | Metadatos de la PWA (nombre, iconos, colores)                  |
 | `service-worker.js`    | Caché offline del "app shell"                                  |
 | `icon-192.png` / `icon-512.png` | Iconos de la app (escudo de la Guardia Civil)          |
-| `img/fondo.jpg`, `img/escudo-izquierdo.png`, `img/escudo-derecho.png` | Imagen de fondo y escudos de la cabecera. Antes iban incrustadas en `index.html` (base64, ~285 KB); ahora son archivos aparte. **Hay que subir la carpeta `img/` junto al resto** (si faltara, la app funciona igual pero sin esas imágenes). |
 | `firestore.rules`      | Reglas de seguridad de la base de datos (se pegan en la consola de Firebase, no en GitHub Pages) |
 | `firebase.json` / `.firebaserc` | Solo necesarios si algún día despliegas con Firebase Hosting en vez de (o además de) GitHub Pages |
 
@@ -90,7 +89,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 ## Cómo publicar un cambio
 
 1. Edita los archivos que necesites (normalmente `index.html`).
-2. Si tocas el `index.html`, `manifest.json`, `service-worker.js`, los iconos o las imágenes de `img/`,
+2. Si tocas el `index.html`, `manifest.json`, `service-worker.js` o los iconos,
    sube **la versión del caché** en `service-worker.js`:
    ```js
    const CACHE_NAME = 'operacion-baeza-v3'; // sube el número cada vez que despliegues
@@ -278,17 +277,6 @@ quedarse el día medio pintado.
 En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Exportar imagen** y
 **📄 Exportar PDF**, para guardar o imprimir el mes que estés viendo sin depender del archivo
 JSON técnico.
-
-## Imágenes fuera del index.html
-
-El fondo y los escudos ya no van incrustados en base64 dentro de `index.html`: están en `img/` y se
-enlazan con rutas relativas (`url(img/fondo.jpg)` en el CSS del `body`, `src="img/escudo-….png"` en
-la cabecera). Son **los mismos bytes** que antes (sin recomprimir), así que la página se ve
-exactamente igual. `index.html` pasó de ~882 KB a ~584 KB. El fondo se precarga (`<link rel="preload">`)
-para que aparezca a la vez que la página. El service worker las guarda en caché **sin bloquear su
-instalación** (`APP_IMAGES`), así que si algún día se olvida subir una, la app se instala y funciona
-igual, solo que sin esa imagen. Para cambiar una imagen, sustituye el archivo (mismo nombre) y sube
-la versión de la caché del service worker.
 
 ## Tamaño de tus datos (Ajustes) y límite de Firestore
 
