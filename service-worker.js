@@ -2,7 +2,7 @@
    Objetivo: que la app siempre abra (aunque no haya internet) y que puedas ver
    la última versión de tus datos sincronizada, aunque no puedas guardar cambios
    nuevos hasta que vuelva la conexión (eso lo sigue gestionando Firebase). */
-const CACHE_NAME = 'operacion-baeza-v84';
+const CACHE_NAME = 'operacion-baeza-v85';
 const FONT_CACHE = 'operacion-baeza-fonts-v1'; // fuentes de Google: se guardan aparte y sobreviven a las versiones de la app
 const APP_SHELL = [
   './',
@@ -14,10 +14,20 @@ const APP_SHELL = [
   './icon-maskable-512.png',
   './apple-touch-icon.png'
 ];
+// Imágenes de la interfaz (fondo y escudos de la cabecera). Se guardan aparte y sin bloquear la
+// instalación: si por lo que sea faltara alguna en el servidor, el service worker se instala igual y la
+// app sigue funcionando (simplemente esa imagen no aparecería).
+const APP_IMAGES = [
+  './img/fondo.jpg',
+  './img/escudo-izquierdo.png',
+  './img/escudo-derecho.png'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)).then(() => self.skipWaiting())
+    caches.open(CACHE_NAME)
+      .then((cache) => cache.addAll(APP_SHELL).then(() => Promise.all(APP_IMAGES.map((u) => cache.add(u).catch(() => {})))))
+      .then(() => self.skipWaiting())
   );
 });
 
