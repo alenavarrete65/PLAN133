@@ -294,6 +294,26 @@ JSON técnico.
 - Dato guardado: `state.arrastreTestHecho` = `{ "YYYY-MM-DD": true }`. La nota sigue en
   `state.arrastreTestNotas`, sin cambios.
 
+## Inglés: Test general y Test 1–4 dentro de cada vuelta
+
+Cada tema (lección) de inglés tiene 4 tests. En **cada vuelta** de un tema de inglés (tanto en
+«Temario y notas» como en la ficha del día del calendario) hay ahora un desplegable extra con
+**Test general · Test 1 · Test 2 · Test 3 · Test 4**. Lo que eliges ahí es sobre qué test apuntas el
+resultado: debajo se pone el estado de siempre (Pendiente / Nota test / No test / No tiempo / Solo
+lectura), la nota (con «+ Otro test» si hay más de una) y las notas de ese test.
+
+- **Progreso → Detalle por tema:** cada vuelta muestra sus tests etiquetados («Test general 17/20 ·
+  Test 2 15/20 · Test 3 No tiempo»). La flecha ▲/▼ compara cada test con **ese mismo test** de
+  la vuelta anterior, y debajo sale la media por test. Todas las notas cuentan en la media y
+  el gráfico del tema.
+- **Datos:** el «Test general» es lo de siempre (`entry.mode`, `entry.nota`…), así que nada de lo
+  ya guardado cambia. Los tests 1–4 van en `entry.textos = {"1":{mode,nota,notasExtra,comentario,extras}, …}`
+  y solo se crean cuando se usan. Solo afecta a las claves `ingles-N`; bloques, leves y psicotécnicos
+  no cambian.
+- **Vuelta por defecto en la ficha del día:** la primera vuelta «sin cerrar». En inglés, una vuelta
+  se considera cerrada cuando el test general ya tiene algo apuntado o cuando los 4 tests lo tienen.
+- Los tests 1–4 usan la misma nota máxima que el resto de inglés (sobre 20, `GROUP_MAX_NOTA['Inglés']`).
+
 ## Fecha del examen editable (cuenta atrás)
 
 En la tarjeta **Cuenta atrás** de la pantalla principal hay un enlace **✏️ Cambiar fecha**: eliges

@@ -681,6 +681,10 @@
   .modal-tema-line .quick-vuelta{margin-top:0;flex:1 1 420px;min-width:0;max-width:100%;}
   .quick-vuelta-headline{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
   .vuelta-row select.vuelta-num-select{min-width:170px;}
+  /* Inglés: selector de «Test general / Test 1-4» dentro de cada vuelta */
+  .vuelta-row select.vuelta-texto-select{min-width:190px;border-color:var(--amber);font-weight:600;}
+  .slot-lbl{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--amber-ink);margin-right:3px;white-space:nowrap;}
+  .nota-slots-media{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-top:5px;line-height:1.5;}
   .vuelta-comentario{width:100%;flex:1 1 100%;margin-top:4px;min-height:54px;}
   /* Varias notas por vuelta (una por test, por ejemplo): se apilan bajo la fila de controles. */
   .vuelta-notas{flex:1 1 100%;min-width:0;display:flex;flex-direction:column;gap:6px;}
@@ -4837,9 +4841,102 @@ function migrateTickEntry(v){
     if(v.fecha===undefined) v.fecha = null;
     if(!Array.isArray(v.extras)) v.extras = []; // notas adicionales (2ª, 3ª…) de la vuelta
     if(!Array.isArray(v.notasExtra)) v.notasExtra = []; // calificaciones adicionales (2º test, 3º…) de la vuelta
+    // Inglés: cada vuelta puede llevar además el resultado de cada uno de los 4 tests del tema.
+    if(v.textos !== undefined){
+      if(v.textos && typeof v.textos === 'object' && !Array.isArray(v.textos)){
+        Object.keys(v.textos).forEach(k=>{ v.textos[k] = migrateSlot(v.textos[k]); });
+      } else { delete v.textos; }
+    }
     return v;
   }
   return v ? {mode:'solo_lectura', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null} : {mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null};
+}
+/* ---- Inglés: cada tema (lección) tiene 4 tests ----
+   Dentro de cada vuelta se puede elegir sobre qué se apunta el resultado: «Test general» (lo de
+   siempre: los campos de la propia vuelta, entry.mode / entry.nota…) o «Test 1…4» (los 4 tests de cada tema), que se guardan
+   en entry.textos = {'1':{mode,nota,notasExtra,comentario,extras}, …}. Cada uno tiene su propio
+   estado (Pendiente / Nota test / No test / No tiempo / Solo lectura), sus notas de test y sus
+   comentarios. Solo se crean cuando se usan; lo que ya tenías guardado no cambia. */
+const INGLES_TEXTOS = ['1','2','3','4'];
+function esKeyIngles(key){ return /^ingles-\d+$/.test(String(key)); }
+function slotEtiqueta(id, corta){
+  if(id === 'general') return corta ? 'G' : 'Test general';
+  return (corta ? 'T' : 'Test ') + id;
+}
+function migrateSlot(v){
+  if(!v || typeof v !== 'object') v = {};
+  if(v.mode === undefined || v.mode === null) v.mode = 'pendiente';
+  if(v.nota === undefined) v.nota = null;
+  if(v.comentario === undefined) v.comentario = '';
+  if(!Array.isArray(v.extras)) v.extras = [];
+  if(!Array.isArray(v.notasExtra)) v.notasExtra = [];
+  return v;
+}
+// Objeto sobre el que se edita: la propia vuelta (test general) o uno de sus 4 tests (se crea al usarlo).
+function slotDe(entry, id){
+  if(!id || id === 'general') return entry;
+  if(!entry.textos || typeof entry.textos !== 'object' || Array.isArray(entry.textos)) entry.textos = {};
+  entry.textos[id] = migrateSlot(entry.textos[id]);
+  return entry.textos[id];
+}
+// Lista de lo que hay apuntado en la vuelta: el test general y los textos que existan (solo lectura).
+function slotsDeVuelta(entry){
+  const out = [{id:'general', s:entry}];
+  INGLES_TEXTOS.forEach(id=>{ if(entry.textos && entry.textos[id]) out.push({id, s:entry.textos[id]}); });
+  return out;
+}
+function slotVacio(s){
+  return !s || (s.mode === 'pendiente' && !testsDeVuelta(s).length && !notasDeVuelta(s).length);
+}
+function podarTextos(entry){
+  if(!entry.textos) return;
+  Object.keys(entry.textos).forEach(k=>{ if(slotVacio(entry.textos[k])) delete entry.textos[k]; });
+  if(!Object.keys(entry.textos).length) delete entry.textos;
+}
+// Una vuelta de inglés está «cerrada» si el test general ya no está pendiente o si los 4 tests tienen ya algo.
+function vueltaInglesCerrada(entry){
+  if(entry.mode !== 'pendiente') return true;
+  return INGLES_TEXTOS.every(id=> entry.textos && entry.textos[id] && entry.textos[id].mode !== 'pendiente');
+}
+const _slotSel = {}; // «ingles-3#0» -> 'general' | '1'…'4': qué test/texto se está viendo (solo mientras la app está abierta)
+function slotElegido(key, i){ return _slotSel[key+'#'+i] || 'general'; }
+function marcaNotasSlotTxt(s){
+  const n = notasDeVuelta(s).length;
+  return n ? ' 📝'+(n>1 ? n : '') : '';
+}
+// Desplegable «¿Qué test?»: Test general / Test 1 / … / Test 4, con el resumen de cada uno.
+function buildTextoPicker(entry, key, i, alCambiar){
+  const sel = document.createElement('select'); sel.className = 'vuelta-select vuelta-texto-select';
+  sel.setAttribute('aria-label', 'Elegir el test general o uno de los 4 tests de la vuelta '+(i+1));
+  const actual = slotElegido(key, i);
+  ['general'].concat(INGLES_TEXTOS).forEach(id=>{
+    const sl = id === 'general' ? entry : (entry.textos && entry.textos[id]);
+    const o = document.createElement('option'); o.value = id;
+    o.textContent = slotEtiqueta(id)+' ('+(sl ? vueltaResumenTxt(sl) : 'pendiente')+')'+(sl ? marcaNotasSlotTxt(sl) : '');
+    if(id === actual) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = ()=>{
+    _slotSel[key+'#'+i] = sel.value;
+    podarTextos(entry);   // el test que dejas atrás, si está vacío, no se guarda
+    scheduleSave();
+    alCambiar();
+  };
+  return sel;
+}
+// Vuelve a escribir las etiquetas de los desplegables (vuelta y texto) sin reconstruir el control.
+function refrescarEtiquetasIngles(numSel, textoSel, arr, key, idx){
+  if(numSel){
+    const opt = numSel.options[idx];
+    if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(arr[idx], key)+')'+marcaNotasTxt(arr[idx]);
+  }
+  if(textoSel){
+    const entry = arr[idx];
+    Array.from(textoSel.options).forEach(o=>{
+      const sl = o.value === 'general' ? entry : (entry.textos && entry.textos[o.value]);
+      o.textContent = slotEtiqueta(o.value)+' ('+(sl ? vueltaResumenTxt(sl) : 'pendiente')+')'+(sl ? marcaNotasSlotTxt(sl) : '');
+    });
+  }
 }
 /* Calificaciones de los tests de una vuelta. Puede haber varias si haces más de un test en la
    misma vuelta: la primera sigue guardándose en entry.nota, como siempre, y las demás en
@@ -4918,7 +5015,8 @@ function notasDeVuelta(entry){
   return out;
 }
 function marcaNotasTxt(entry){
-  const n = notasDeVuelta(entry).length;
+  let n = notasDeVuelta(entry).length;
+  if(entry.textos) INGLES_TEXTOS.forEach(id=>{ if(entry.textos[id]) n += notasDeVuelta(entry.textos[id]).length; });
   return n ? ' 📝'+(n>1 ? n : '') : '';
 }
 function buildNotasVuelta(entry, ariaBase, onChange){
@@ -4979,9 +5077,15 @@ function buildTicksRow(key, maxNota){
   if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   const arr = state.ticks[key];
+  const esIng = esKeyIngles(key);
   const wrap = document.createElement('div'); wrap.className='ticks-row';
+  const rehacer = ()=> wrap.replaceWith(buildTicksRow(key, maxNota));
   arr.forEach((entry,i)=>{
-    const row = document.createElement('div'); row.className='vuelta-row mode-'+entry.mode;
+    // Inglés: se edita el «Test general» (la propia vuelta) o uno de los 4 tests, según el desplegable.
+    const selId = esIng ? slotElegido(key, i) : 'general';
+    const target = esIng ? slotDe(entry, selId) : entry;
+    const etqTarget = esIng ? ' — '+slotEtiqueta(selId) : '';
+    const row = document.createElement('div'); row.className='vuelta-row mode-'+target.mode;
     const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
     const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
     headline.appendChild(lbl);
@@ -4991,37 +5095,39 @@ function buildTicksRow(key, maxNota){
       pin.title = 'Esta vuelta quedó anclada al día '+formatFechaEs(entry.fecha)+' del calendario.';
       headline.appendChild(pin);
     }
+    if(esIng) headline.appendChild(buildTextoPicker(entry, key, i, rehacer));
     row.appendChild(headline);
 
     const sel = document.createElement('select'); sel.className='vuelta-select';
-    sel.setAttribute('aria-label', 'Estado de la vuelta '+(i+1));
+    sel.setAttribute('aria-label', 'Estado de la vuelta '+(i+1)+etqTarget);
     VUELTA_MODES.forEach(([val,txt])=>{
       const o = document.createElement('option'); o.value=val; o.textContent=txt;
-      if(entry.mode===val) o.selected = true;
+      if(target.mode===val) o.selected = true;
       sel.appendChild(o);
     });
     sel.onchange = ()=>{
-      entry.mode = sel.value;
-      if(entry.mode !== 'nota'){ entry.nota = null; entry.notasExtra = []; }
-      if(entry.mode === 'pendiente') entry.fecha = null; // libera el anclaje si se vuelve a dejar pendiente
+      target.mode = sel.value;
+      if(target.mode !== 'nota'){ target.nota = null; target.notasExtra = []; }
+      if(target.mode === 'pendiente' && target === entry) entry.fecha = null; // libera el anclaje si se vuelve a dejar pendiente
       scheduleSave();
-      wrap.replaceWith(buildTicksRow(key, maxNota));
+      rehacer();
     };
     row.appendChild(sel);
 
-    if(entry.mode === 'nota'){
-      row.appendChild(buildTestsVuelta(entry, maxNota, 'Nota del test de la vuelta '+(i+1)));
+    if(target.mode === 'nota'){
+      row.appendChild(buildTestsVuelta(target, maxNota, 'Nota del test de la vuelta '+(i+1)+etqTarget));
     }
 
     // Notas de esta vuelta en concreto (no la general del tema): dudas, fallos del test, lo que
     // quieras recordar de este pase por el tema. Puedes poner varias (una por test, por ejemplo).
-    const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(i+1));
+    // En inglés van ligadas al test/texto elegido.
+    const notas = buildNotasVuelta(target, 'Notas de la vuelta '+(i+1)+etqTarget);
     row.appendChild(notas.addBtn);
 
     if(arr.length > 1){
       const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
       delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
-      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
+      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); rehacer(); };
       row.appendChild(delBtn);
     }
     row.appendChild(notas.boxes);
@@ -5029,7 +5135,7 @@ function buildTicksRow(key, maxNota){
     wrap.appendChild(row);
   });
   const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
-  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}); scheduleSave(); wrap.replaceWith(buildTicksRow(key, maxNota)); };
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}); scheduleSave(); rehacer(); };
   wrap.appendChild(addBtn);
   return wrap;
 }
@@ -5048,7 +5154,17 @@ function ensureTicksArray(key){
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
   return state.ticks[key];
 }
-function vueltaResumenTxt(entry){
+function vueltaResumenTxt(entry, key){
+  // Inglés: resumen de todo lo apuntado en la vuelta (test general y textos), p. ej. «G 16 · T1 15 · T3 no tiempo».
+  if(key !== undefined && esKeyIngles(key)){
+    const partes = slotsDeVuelta(entry).filter(x=> x.s.mode !== 'pendiente').map(x=>{
+      let txt;
+      if(x.s.mode === 'nota'){ const t = testsDeVuelta(x.s); txt = t.length ? t.join('/') : 'nota test'; }
+      else { const f = VUELTA_MODES.find(m=>m[0]===x.s.mode); txt = f ? f[1].toLowerCase() : x.s.mode; }
+      return slotEtiqueta(x.id, true)+' '+txt;
+    });
+    return partes.length ? partes.join(' · ') : 'pendiente';
+  }
   if(entry.mode==='pendiente') return 'pendiente';
   if(entry.mode==='nota'){ const t = testsDeVuelta(entry); return t.length ? 'nota test: '+t.join(' · ') : 'nota test'; }
   const found = VUELTA_MODES.find(m=>m[0]===entry.mode);
@@ -5057,10 +5173,17 @@ function vueltaResumenTxt(entry){
 function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx){
   maxNota = maxNota || 10;
   const arr = ensureTicksArray(key);
-  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=>e.mode==='pendiente');
+  const esIng = esKeyIngles(key);
+  // Vuelta que se muestra por defecto: la primera sin cerrar (en inglés, «cerrada» = test general
+  // ya apuntado o los 4 tests ya apuntados).
+  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx
+    : arr.findIndex(e=> esIng ? !vueltaInglesCerrada(e) : e.mode==='pendiente');
   if(idx===-1) idx = arr.length-1;
   const entry = arr[idx];
-  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+entry.mode;
+  const selId = esIng ? slotElegido(key, idx) : 'general';
+  const target = esIng ? slotDe(entry, selId) : entry;
+  const etqTarget = esIng ? ' — '+slotEtiqueta(selId) : '';
+  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+target.mode;
 
   const refrescar = (nuevoIdx)=>{
     const fresh = buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, nuevoIdx===undefined?idx:nuevoIdx);
@@ -5076,24 +5199,30 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   numSel.setAttribute('aria-label','Elegir vuelta de este tema');
   arr.forEach((e,i)=>{
     const o = document.createElement('option'); o.value=String(i);
-    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e)+')'+marcaNotasTxt(e);
+    o.textContent = 'Vuelta '+(i+1)+' ('+vueltaResumenTxt(e, key)+')'+marcaNotasTxt(e);
     if(i===idx) o.selected = true;
     numSel.appendChild(o);
   });
-  numSel.onchange = ()=>{ refrescar(Number(numSel.value)); };
+  numSel.onchange = ()=>{ podarTextos(entry); refrescar(Number(numSel.value)); };
   headline.appendChild(numSel);
+  // Inglés: dentro de la vuelta, qué test has hecho (Test general o Test 1-4).
+  let textoSel = null;
+  if(esIng){
+    textoSel = buildTextoPicker(entry, key, idx, ()=> refrescar());
+    headline.appendChild(textoSel);
+  }
   wrap.appendChild(headline);
 
   const sel = document.createElement('select'); sel.className='vuelta-select';
-  sel.setAttribute('aria-label', 'Estado de la vuelta '+(idx+1)+' de este tema');
+  sel.setAttribute('aria-label', 'Estado de la vuelta '+(idx+1)+' de este tema'+etqTarget);
   VUELTA_MODES.forEach(([val,txt])=>{
     const o = document.createElement('option'); o.value=val; o.textContent=txt;
-    if(entry.mode===val) o.selected = true;
+    if(target.mode===val) o.selected = true;
     sel.appendChild(o);
   });
   sel.onchange = ()=>{
-    entry.mode = sel.value;
-    if(entry.mode !== 'nota'){ entry.nota = null; entry.notasExtra = []; }
+    target.mode = sel.value;
+    if(target.mode !== 'nota'){ target.nota = null; target.notasExtra = []; }
     scheduleSave();
     // Primero se actualiza este control (para que el desplegable no se quede "colgado"
     // aunque falle algo más adelante), y solo después se repinta el resto de la app.
@@ -5102,12 +5231,9 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   };
   wrap.appendChild(sel);
 
-  if(entry.mode === 'nota'){
-    const actualizaOpcion = ()=>{
-      const opt = numSel.options[idx];
-      if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry);
-    };
-    wrap.appendChild(buildTestsVuelta(entry, maxNota, 'Nota del test de la vuelta '+(idx+1), {
+  if(target.mode === 'nota'){
+    const actualizaOpcion = ()=>{ refrescarEtiquetasIngles(numSel, textoSel, arr, key, idx); if(!esIng){ const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry); } };
+    wrap.appendChild(buildTestsVuelta(target, maxNota, 'Nota del test de la vuelta '+(idx+1)+etqTarget, {
       onChange: actualizaOpcion,
       // No repintamos en cada pulsación (perderíamos el foco mientras escribes el número); al
       // terminar de editar sí actualizamos Progreso y demás pestañas con la nota ya puesta.
@@ -5115,13 +5241,13 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
     }));
   }
 
-  // Notas de esta vuelta. Para no llenar el día de cajas vacías, solo se ven las que ya tienen
-  // algo escrito; el botón «Añadir nota» abre una nueva (y con «Otra nota» puedes poner más de
-  // una, por ejemplo una por test). Se guardan en el mismo sitio que las de la pestaña Temario.
-  const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(idx+1)+' de este tema', ()=>{
-    // Pone/quita la marca 📝 de esta vuelta en el desplegable sin reconstruir el control.
-    const opt = numSel.options[idx];
-    if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry);
+  // Notas de esta vuelta (en inglés, del test/texto elegido). Para no llenar el día de cajas
+  // vacías, solo se ven las que ya tienen algo escrito; el botón «Añadir nota» abre una nueva (y
+  // con «Otra nota» puedes poner más de una). Se guardan en el mismo sitio que las de la pestaña Temario.
+  const notas = buildNotasVuelta(target, 'Notas de la vuelta '+(idx+1)+' de este tema'+etqTarget, ()=>{
+    // Pone/quita la marca 📝 de esta vuelta en los desplegables sin reconstruir el control.
+    if(esIng) refrescarEtiquetasIngles(numSel, textoSel, arr, key, idx);
+    else { const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+vueltaResumenTxt(entry)+')'+marcaNotasTxt(entry); }
   });
   wrap.appendChild(notas.addBtn);
 
@@ -5130,6 +5256,7 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
   addBtn.textContent = '+ Añadir vuelta';
   addBtn.onclick = (e)=>{
     e.preventDefault();
+    podarTextos(entry);
     arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null});
     scheduleSave();
     refrescar(arr.length-1);
@@ -8315,20 +8442,27 @@ function collectNotaData(){
     const entries = (state.ticks[key]||[]).map(migrateTickEntry);
     const notas = []; // solo las vueltas con nota numérica (para media/gráfico)
     const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
+    const esIng = esKeyIngles(key);
     entries.forEach((e,vueltaIdx)=>{
       // vuelta: número de vuelta (1-based) al que pertenece esta entrada, tal cual aparece
       // en «Temario y notas». Varios tests de una misma vuelta comparten el mismo número.
       const vuelta = vueltaIdx+1;
-      if(e.mode==='nota'){
-        // Una vuelta puede tener varios tests: cada uno es una nota más (extra = 2º test o posterior
-        // de la misma vuelta).
-        testsDeVuelta(e).forEach((n,k)=>{
-          notas.push(n);
-          seq.push({mode:'nota', nota:n, extra:k>0, vuelta});
-        });
-      } else if(e.mode==='no_test' || e.mode==='no_tiempo' || e.mode==='solo_lectura'){
-        seq.push({mode:e.mode, vuelta});
-      }
+      // Inglés: además del test general (la propia vuelta) se recogen los 4 tests, cada uno con su
+      // etiqueta (slot) para poder mostrarlo y compararlo con el mismo texto de otras vueltas.
+      const slots = esIng ? slotsDeVuelta(e) : [{id:null, s:e}];
+      slots.forEach(({id, s:sl})=>{
+        const tag = esIng ? {slot:id} : {};
+        if(sl.mode==='nota'){
+          // Una vuelta puede tener varios tests: cada uno es una nota más (extra = 2º test o posterior
+          // de la misma vuelta).
+          testsDeVuelta(sl).forEach((n,k)=>{
+            notas.push(n);
+            seq.push(Object.assign({mode:'nota', nota:n, extra:k>0, vuelta}, tag));
+          });
+        } else if(sl.mode==='no_test' || sl.mode==='no_tiempo' || sl.mode==='solo_lectura'){
+          seq.push(Object.assign({mode:sl.mode, vuelta}, tag));
+        }
+      });
     });
     if(seq.length){
       if(!porGrupo[meta.grupo]) porGrupo[meta.grupo] = [];
@@ -8703,7 +8837,7 @@ function renderProgreso(){
         // solo se calcula al pasar de una vuelta a otra (contra la última nota numérica vista);
         // si una misma vuelta tiene varios tests, se muestran como notas independientes, sin
         // flecha entre ellos, porque no tiene sentido decir que uno "mejora" al otro.
-        let lastNota = null;
+        const lastPorSlot = {}; // en inglés, cada test/texto se compara con el mismo de la vuelta anterior
         const NON_NOTA_PILL = {
           no_test:      {label:'No test',      color:'var(--muted)'},
           no_tiempo:    {label:'No tiempo',     color:'#a9531d'},
@@ -8715,28 +8849,46 @@ function renderProgreso(){
             ? vueltaGroups[vueltaGroups.length-1] : null;
           if(!group){ group = {vuelta: entry.vuelta, parts: []}; vueltaGroups.push(group); }
 
+          const slotKey = entry.slot || 'g';
+          const slotTxt = entry.slot ? '<span class="slot-lbl">'+slotEtiqueta(entry.slot)+'</span>' : '';
           if(entry.mode!=='nota'){
             const pillMeta = NON_NOTA_PILL[entry.mode] || {label:entry.mode, color:'var(--muted)'};
-            group.parts.push('<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>');
+            group.parts.push(slotTxt+'<span class="nota-pill" style="background:transparent;color:'+pillMeta.color+';border:1px dashed '+pillMeta.color+';">'+pillMeta.label+'</span>');
             return;
           }
           const n = entry.nota;
           let deltaTxt = '';
+          const lastNota = lastPorSlot[slotKey];
           if(!entry.extra && lastNota!=null){
             const diff = Math.round((n - lastNota)*10)/10;
             if(diff > 0) deltaTxt = ' <span style="color:var(--green-ink);">▲+'+diff+'</span>';
             else if(diff < 0) deltaTxt = ' <span style="color:var(--red-text);">▼'+diff+'</span>';
             else deltaTxt = ' <span style="color:var(--muted);">=</span>';
           }
-          lastNota = n;
-          group.parts.push('<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt);
+          lastPorSlot[slotKey] = n;
+          group.parts.push(slotTxt+'<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt);
         });
         // Cada vuelta va en su propia línea, con su etiqueta «Vuelta N»; los tests de una
         // misma vuelta van unidos entre sí con «+».
         const notasHtml = vueltaGroups.map(g=>{
           const label = '<span style="font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.03em;color:var(--cream-dim);margin-right:6px;">Vuelta '+g.vuelta+'</span>';
-          return label + g.parts.join(' <span style="color:var(--muted);">+</span> ');
+          // Inglés: cada test/texto de la vuelta va separado con « · »; el resto, unido con «+» como siempre.
+          return label + g.parts.join(item.seq.some(x=>x.slot) ? ' <span style="color:var(--muted);">·</span> ' : ' <span style="color:var(--muted);">+</span> ');
         }).join('<br>');
+
+        // Inglés: media de cada test/texto a lo largo de las vueltas, para ver de un vistazo cuál flojea.
+        let mediasSlotsHtml = '';
+        if(item.seq.some(x=>x.slot)){
+          const acum = {};
+          item.seq.forEach(x=>{ if(x.mode==='nota'){ const k = x.slot; (acum[k] = acum[k] || []).push(x.nota); } });
+          const orden = ['general'].concat(INGLES_TEXTOS).filter(k=> acum[k] && acum[k].length);
+          if(orden.length){
+            mediasSlotsHtml = '<div class="nota-slots-media">Media por test: '+orden.map(k=>{
+              const a = acum[k]; const m = a.reduce((p,c)=>p+c,0)/a.length;
+              return '<strong>'+slotEtiqueta(k)+'</strong> '+m.toFixed(1);
+            }).join(' · ')+'</div>';
+          }
+        }
 
         // Tendencia general: última nota frente a la anterior (se usa como texto accesible
         // del gráfico, para quien use lector de pantalla o quiera el dato exacto).
@@ -8750,7 +8902,7 @@ function renderProgreso(){
 
         const tr = document.createElement('tr');
         tr.innerHTML = `<td data-label="Grupo" style="border-left:3px solid ${GRUPO_BORDER_COLOR[grupo]};"><span class="grupo-tag ${tagClass}">${grupo}</span></td><td data-label="Tema">${item.label}</td>`+
-          `<td data-label="Notas (por vuelta)">${notasHtml}</td>`+
+          `<td data-label="Notas (por vuelta)">${notasHtml}${mediasSlotsHtml}</td>`+
           `<td data-label="Media">${hasNotas ? '<span class="nota-pill '+notaPillClass(avg, max)+'">'+avg.toFixed(1)+'/'+max+'</span>' : '<span style="color:var(--muted);font-size:12px;">— sin notas —</span>'}</td>`+
           `<td data-label="Evolución"></td>`;
         const sparkTd = tr.lastElementChild;
