@@ -683,6 +683,36 @@
   .vuelta-row select.vuelta-num-select{min-width:170px;}
   /* Inglés: selector de «Test general / Test 1-4» dentro de cada vuelta */
   .vuelta-row select.vuelta-texto-select{min-width:190px;border-color:var(--amber);font-weight:600;}
+  /* Ritmo hasta el examen */
+  .ritmo-resumen{font-size:14px;color:var(--cream);margin:0 0 12px;line-height:1.5;}
+  .ritmo-obj{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
+  .ritmo-obj select{background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line-strong);border-radius:2px;font-family:var(--font-mono);font-size:13px;padding:6px 8px;}
+  .ritmo-ok{color:var(--green-ink);font-weight:700;}
+  .ritmo-warn{color:var(--red-text);font-weight:700;}
+  /* Repaso de flojos */
+  .flojos-ctl{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:0 0 14px;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);}
+  .flojos-ctl select{background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line-strong);border-radius:2px;font-family:var(--font-mono);font-size:13px;padding:6px 8px;}
+  .flojos-titulo{font-family:var(--font-mono);font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--amber-ink);margin:14px 0 8px;}
+  .flojo-item{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:9px 12px;margin-bottom:6px;border:1px solid var(--line);border-left:4px solid var(--red);border-radius:3px;background:var(--bg-panel-2);}
+  .flojo-item.viejo{border-left-color:var(--amber);}
+  .flojo-item.urgente{box-shadow:0 0 0 2px rgba(201,162,39,.35);}
+  .flojo-main{flex:1 1 260px;min-width:0;}
+  .flojo-nom{font-weight:700;color:var(--cream);font-size:14px;}
+  .flojo-sub{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-top:3px;line-height:1.5;}
+  .flojo-nota{font-family:var(--font-mono);font-weight:700;font-size:15px;white-space:nowrap;}
+  .flojo-adelanta{color:var(--amber-ink);font-weight:700;}
+  /* Tamaño de tus datos */
+  .size-bar{height:14px;border-radius:7px;background:var(--bg-panel-2);border:1px solid var(--line-strong);overflow:hidden;margin:8px 0 6px;}
+  .size-bar > div{height:100%;border-radius:7px 0 0 7px;background:var(--green);transition:width .3s;}
+  .size-bar.aviso > div{background:var(--amber);}
+  .size-bar.peligro > div{background:var(--red);}
+  .size-msg{font-size:13px;line-height:1.5;margin:8px 0;}
+  .size-msg.aviso{color:var(--amber-ink);font-weight:700;}
+  .size-msg.peligro{color:var(--red-text);font-weight:700;}
+  .size-parts{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:12px;margin-top:6px;}
+  .size-parts td{padding:4px 6px;border-bottom:1px solid var(--line);color:var(--cream-dim);}
+  .size-parts td:last-child{text-align:right;white-space:nowrap;color:var(--cream);}
+  .ritmo-nota{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:10px;line-height:1.55;}
   .slot-lbl{font-family:var(--font-mono);font-size:11px;font-weight:700;color:var(--amber-ink);margin-right:3px;white-space:nowrap;}
   .nota-slots-media{font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin-top:5px;line-height:1.5;}
   .vuelta-comentario{width:100%;flex:1 1 100%;margin-top:4px;min-height:54px;}
@@ -1394,6 +1424,8 @@
 
   <!-- PROGRESO (comparativa de notas + tiempo por vuelta) -->
   <div class="view" id="view-progreso">
+    <div id="ritmoHost"></div>
+    <div id="flojosHost"></div>
     <div id="progresoHost"></div>
     <section class="temario-group" style="margin-top:34px;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">¿Cuánto tiempo tardo en dar una vuelta?</h3>
@@ -1421,6 +1453,7 @@
     <div class="empty-state" id="adminBox" style="display:none;text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="securityBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="themeBox" style="text-align:left;margin-bottom:18px;"></div>
+    <div class="empty-state" id="dataSizeBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="backupBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="historyBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="stat-grid" id="statGrid"></div>
@@ -2020,6 +2053,11 @@ function normalizeState(){
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
   // Fecha del examen oficial para la cuenta atrás ("YYYY-MM-DD"). null = usa la estimada (10 de julio).
   if(state.settings.examDate === undefined) state.settings.examDate = null;
+  // Objetivo de vueltas completas de todo el temario antes del examen (tarjeta «Ritmo hasta el examen»).
+  if(!(state.settings.objetivoVueltas >= 1)) state.settings.objetivoVueltas = 6;
+  // Repaso de flojos: umbral de nota baja (% del máximo) y días sin repasar a partir de los cuales avisa.
+  if(!(state.settings.flojosUmbral > 0)) state.settings.flojosUmbral = 60;
+  if(!(state.settings.flojosDias > 0)) state.settings.flojosDias = 30;
   // Días en los que has confirmado que hiciste el test de arrastre: {fechaISO: true}.
   if(!state.arrastreTestHecho || typeof state.arrastreTestHecho !== 'object' || Array.isArray(state.arrastreTestHecho)){
     state.arrastreTestHecho = {};
@@ -2232,6 +2270,16 @@ async function doSave(){
   const payload = JSON.stringify(state);
   try{ localStorage.setItem(localCacheKey(), payload); }catch(e){}
   markPendingSync();
+  // Firestore no admite documentos de más de 1 MiB. Si nos pasamos, el guardado en la nube fallaría siempre
+  // (y se reintentaría sin parar), así que no se intenta: los datos siguen a salvo en este dispositivo y se
+  // avisa con claridad. En cuanto reduzcas el tamaño (o importes una copia más ligera) vuelve a guardar solo.
+  const bytesPayload = bytesUtf8(payload);
+  if(bytesPayload > DATOS_LIMITE){
+    clearTimeout(saveRetryTimer);
+    setSaveStatus('error', 'Datos demasiado grandes para la nube · exporta una copia');
+    if(!_avisoTamanoMostrado){ _avisoTamanoMostrado = true; showToast('⛔ Tus datos superan el límite de la nube (1 MiB). Se guardan solo en este dispositivo. Mira Ajustes → Tamaño de tus datos.'); }
+    return;
+  }
   if(!navigator.onLine){
     // Sin conexión: no lo intentamos siquiera, para no gastar reintentos. En cuanto vuelva
     // la conexión (evento 'online' o el chequeo periódico) se guardará solo.
@@ -2255,6 +2303,7 @@ async function doSave(){
       if(el && el.classList.contains('state-saved')) setSaveStatus('idle');
     }, 3000);
     maybeSnapshotHistory(payload);
+    avisarSiDatosGrandes(bytesPayload);
   }catch(e){
     console.error(e);
     setSaveStatus('error', 'Error al guardar · reintentando');
@@ -2289,7 +2338,7 @@ function historySnapshotDayKey(){ return 'ob_snapshot_day_'+accessCode; }
 async function maybeSnapshotHistory(payload){
   if(!firebaseOk || !accessCode) return;
   try{
-    const today = new Date().toISOString().slice(0,10);
+    const today = hoyLocalISO();
     let lastDay = null;
     try{ lastDay = localStorage.getItem(historySnapshotDayKey()); }catch(e){}
     if(lastDay === today) return; // ya se guardó una copia hoy desde este dispositivo
@@ -2607,6 +2656,65 @@ function renderThemeBox(){
 }
 
 /* ===================== COPIA DE SEGURIDAD: exportar / importar JSON ===================== */
+/* ===================== TAMAÑO DE TUS DATOS (límite de Firestore) =====================
+   Todo tu planning se guarda en UN solo documento de Firestore, y Firestore no admite documentos de más de
+   1 MiB (1.048.576 bytes). Si se llegara a superar, la app dejaría de poder guardar en la nube. Esta caja
+   mide cuánto ocupan tus datos (en bytes UTF-8, que es lo que cuenta Firestore: la «ñ» o una tilde
+   ocupan 2) y avisa con tiempo. doSave() además se niega a intentar un guardado que sabe que va a fallar. */
+const FIRESTORE_DOC_LIMIT = 1048576;
+const FIRESTORE_DOC_MARGEN = 512;                          // nombre del documento, nombres de campo, updatedAt…
+const DATOS_LIMITE = FIRESTORE_DOC_LIMIT - FIRESTORE_DOC_MARGEN;
+const DATOS_AVISO = 0.75;                                  // a partir de aquí se avisa
+function bytesUtf8(str){ return new TextEncoder().encode(str).length; }
+function fmtKB(bytes){ return (bytes/1024).toFixed(bytes < 10*1024 ? 1 : 0).replace('.', ',') + ' KB'; }
+const NOMBRES_SECCION = {
+  months:'Calendario (meses y estados de día)', dayTicks:'Días marcados «NO completado»', notes:'Notas de cada tema',
+  ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
+  clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
+  simulacroCal:'Calendario de simulacros', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
+  arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho',
+  settings:'Ajustes'
+};
+function computeDataSize(){
+  const payload = JSON.stringify(state);
+  const total = bytesUtf8(payload);
+  const partes = Object.keys(state).map(k=>({k, bytes: bytesUtf8(JSON.stringify(state[k]))})).sort((a,b)=> b.bytes - a.bytes);
+  const pct = total / DATOS_LIMITE;
+  const nivel = pct >= 1 ? 'superado' : (pct >= 0.9 ? 'peligro' : (pct >= DATOS_AVISO ? 'aviso' : 'ok'));
+  return {total, limite: DATOS_LIMITE, pct, nivel, partes};
+}
+function renderDataSizeBox(){
+  const host = document.getElementById('dataSizeBox');
+  if(!host) return;
+  const r = computeDataSize();
+  const pctTxt = (r.pct*100 < 10 ? (r.pct*100).toFixed(1) : Math.round(r.pct*100)).toString().replace('.', ',');
+  const claseBar = r.nivel === 'ok' ? '' : (r.nivel === 'aviso' ? 'aviso' : 'peligro');
+  let msg;
+  if(r.nivel === 'superado') msg = '⛔ Tus datos superan el límite de Firestore: ya no se pueden guardar en la nube (sí siguen guardándose en este dispositivo). Exporta una copia y reduce lo que más pesa, abajo.';
+  else if(r.nivel === 'peligro') msg = '⚠️ Estás muy cerca del límite. Exporta una copia de seguridad y reduce lo que más pesa, abajo.';
+  else if(r.nivel === 'aviso') msg = '⚠️ Ya usas más de las tres cuartas partes del límite. Conviene vigilar lo que más pesa, abajo.';
+  else msg = '✓ Vas sobrado: tienes mucho margen para seguir apuntando notas.';
+  const top = r.partes.slice(0, 5).map(x=>
+    '<tr><td>'+(NOMBRES_SECCION[x.k] || x.k)+'</td><td>'+fmtKB(x.bytes)+' · '+Math.round(x.bytes/Math.max(1,r.total)*100)+' %</td></tr>').join('');
+  host.innerHTML = `
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;">Tamaño de tus datos</div>
+    <div style="font-size:12px;color:var(--cream-dim);">Todo tu planning se guarda en un único documento de Firestore, que admite como máximo 1 MiB.</div>
+    <div class="size-bar ${claseBar}" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.round(r.pct*100))}" aria-label="Espacio usado del límite de la nube"><div style="width:${Math.min(100, r.pct*100).toFixed(1)}%"></div></div>
+    <div style="font-family:var(--font-mono);font-size:13px;color:var(--cream);"><strong>${fmtKB(r.total)}</strong> de ${fmtKB(r.limite)} · ${pctTxt} %</div>
+    <div class="size-msg ${claseBar}">${msg}</div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);">Lo que más ocupa:</div>
+    <table class="size-parts"><tbody>${top}</tbody></table>`;
+}
+let _avisoTamanoMostrado = false;
+// Se llama al guardar: avisa (una vez por sesión) si te acercas al límite.
+function avisarSiDatosGrandes(total){
+  if(_avisoTamanoMostrado) return;
+  if(total / DATOS_LIMITE >= DATOS_AVISO){
+    _avisoTamanoMostrado = true;
+    showToast('⚠️ Tus datos ocupan el '+Math.round(total/DATOS_LIMITE*100)+' % del límite de la nube. Mira Ajustes → Tamaño de tus datos.');
+  }
+}
+
 function renderBackupBox(){
   const host = document.getElementById('backupBox');
 
@@ -2630,7 +2738,7 @@ function exportBackup(){
   const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  const today = new Date().toISOString().slice(0,10);
+  const today = hoyLocalISO();
   a.href = url; a.download = 'planning-backup-'+(email||'sin-cuenta')+'-'+today+'.json';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
@@ -3329,7 +3437,7 @@ function renderNotasPendientes(){
         listHost.appendChild(empty);
         return;
       }
-      const todayISO = new Date().toISOString().slice(0,10);
+      const todayISO = hoyLocalISO();
       const chips = document.createElement('div'); chips.className='clase-multi-chips';
       list.forEach(p=>{
         const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
@@ -3953,7 +4061,7 @@ function openDayModal(d, info){
   const jsDow = (info.dow===undefined || info.dow===null) ? new Date(y, m-1, d).getDay() : info.dow;
   const status = info.status || 'ESTUDIO';
   const fechaISO = currentMonthKey+'-'+pad2(d);
-  const esHoy = (fechaISO === new Date().toISOString().slice(0,10));
+  const esHoy = (fechaISO === hoyLocalISO());
 
   document.getElementById('dayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
   const statusTxt = status==='ESTUDIO' ? 'Día de estudio' : status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
@@ -6128,7 +6236,7 @@ function computeClasesDesdeCalendario(){
 // son solo una parte del tema.
 function resumenClaseTema(cat, id){
   const occ = (computeClasesDesdeCalendario()[cat] || {})[String(id)] || [];
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyLocalISO();
   const vistas = occ.filter(o=> !o.parcial && o.fecha < hoy);
   const programadas = occ.filter(o=> !o.parcial && o.fecha >= hoy);
   const partes = occ.filter(o=> o.parcial);
@@ -6196,7 +6304,7 @@ function buildClasesInfoIntro(){
 function renderClasesSeccionInfo(hostId, sectionKey, titulo, cat, items){
   const host = document.getElementById(hostId);
   if(!host) return;
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyLocalISO();
   renderAccordionSection(host, sectionKey, titulo, (body)=>{
     body.appendChild(buildClasesInfoIntro());
 
@@ -6251,7 +6359,7 @@ function renderClasesOrtoGram(){
   renderAccordionSection(host, 'clasesOrtoGram', 'Ortografía y gramática (clases)', (body)=>{
     body.appendChild(buildClasesInfoIntro());
 
-    const hoy = new Date().toISOString().slice(0,10);
+    const hoy = hoyLocalISO();
     const derivadas = computeClasesDesdeCalendario().ortoGram;
     const keys = Object.keys(derivadas).sort((a,b)=>{
       const A = derivadas[a], B = derivadas[b];
@@ -6390,7 +6498,7 @@ function renderClasesPendientes(){
         listHost.appendChild(empty);
         return;
       }
-      const todayISO = new Date().toISOString().slice(0,10);
+      const todayISO = hoyLocalISO();
       const porMateria = new Map();
       state.clasesPendientes.forEach(p=>{
         if(!porMateria.has(p.materiaKey)) porMateria.set(p.materiaKey, []);
@@ -6883,7 +6991,7 @@ function deshacerSincronizacionProgreso(){ refrescarPestanaClases(); }
 // clases de ayer pasan solas de "programadas ◔" a "vistas ✓" sin tocar nada.
 let _ultimoDiaClases = null;
 function procesarSincronizacionesClaseVencidas(){
-  const hoy = new Date().toISOString().slice(0,10);
+  const hoy = hoyLocalISO();
   if(_ultimoDiaClases === hoy) return;
   _ultimoDiaClases = hoy;
   invalidarClasesDerivadas();
@@ -7808,7 +7916,7 @@ function renderSimulacrosPendientes(){
         listHost.appendChild(empty);
         return;
       }
-      const todayISO = new Date().toISOString().slice(0,10);
+      const todayISO = hoyLocalISO();
       const chips = document.createElement('div'); chips.className='clase-multi-chips';
       list.forEach(p=>{
         const isFuture = !!(p.disponibleDesde && p.disponibleDesde > todayISO);
@@ -9511,13 +9619,17 @@ function renderBibliotecaEntrenos(container){
 
 /* ===================== RENDER: ENTRENOS (registro manual) ===================== */
 function todayISO(){ const d=new Date(); return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+/* Fechas en HORA LOCAL (la de tu dispositivo). No usar toISOString() para «hoy»: da la fecha en UTC y,
+   en España, entre las 00:00 y las 02:00 devuelve todavía el día anterior. */
+function fechaLocalISO(d){ return d.getFullYear()+'-'+pad2(d.getMonth()+1)+'-'+pad2(d.getDate()); }
+function hoyLocalISO(){ return fechaLocalISO(new Date()); }
 /* Estadísticas rápidas del registro de entrenos: cuántos llevas esta semana y qué tipo de
    entreno repites más. Puramente derivado de state.entrenosLog, no guarda nada nuevo. */
 function computeEntrenosStats(){
   const log = state.entrenosLog||[];
   const today = todayISO();
   const d = new Date(); d.setDate(d.getDate()-6); // ventana de 7 días, hoy incluido
-  const desde = d.toISOString().slice(0,10);
+  const desde = fechaLocalISO(d);
   const ultimos7 = log.filter(e=> e.date && e.date>=desde && e.date<=today);
   const tipoCount = {};
   log.forEach(e=>{
@@ -9738,6 +9850,354 @@ function appendAccordionSection(host, key, openMap, titleText, buildFn){
   host.appendChild(wrap);
   buildFn(body);
 }
+/* ===================== RITMO HASTA EL EXAMEN =====================
+   ¿Cuántas vueltas completas de cada parte del temario te da tiempo a dar antes del examen?
+   Se calcula con las MISMAS reglas que el calendario (computePlan):
+     · Bloques: los días impares tocan un bloque grave (1-5) y los pares uno menos grave (6-12). Cada
+       bloque se ve dos veces por vuelta (azul y morado), así que una vuelta = 2 × nº de bloques de la
+       familia. En «repaso final» (unificado) cada visita cubre azul+morado, y cuenta doble.
+     · Leves: uno por día de estudio; una vuelta = LEVES.length.   · Inglés: uno por día; una vuelta = 32.
+     · Psicotécnicos: solo lunes y miércoles de estudio; una vuelta = PSICO_ITEMS.length.
+   Se cuenta como hecho todo día que no has marcado «NO completado». Lo que queda hasta el examen se
+   cuenta con los días de estudio de tu calendario; los meses que aún no has creado se estiman con tu
+   proporción de días de estudio. El ritmo real reciente (% de días completados en los últimos 30 días de
+   estudio de cada parte) reduce la proyección si sueles dejar días sin completar. */
+function fmtVueltas(n){ return (Math.round(n*10)/10).toFixed(1).replace('.', ','); }
+function computeRitmoExamen(){
+  const exam = nextExamInfo();
+  const plan = computePlan();
+  const keys = sortedMonthKeys();
+  const unify = (state.settings && state.settings.unifyFromDate) || null;
+  const pesoBloque = iso => (unify && iso >= unify) ? 2 : 1;
+  const now = new Date();
+  const hoyISO = hoyLocalISO();
+  const STREAMS = ['graves','mgraves','leves','ingles','psico'];
+  const hechas = {graves:0, mgraves:0, leves:0, ingles:0, psico:0};   // visitas (ponderadas) hasta ayer
+  const recientes = {graves:[], mgraves:[], leves:[], ingles:[], psico:[]}; // 1 = completado, 0 = «NO completado»
+
+  // 1) Lo hecho hasta ayer, y cuántos días se completaron de verdad.
+  let estudioTotal = 0, diasTotal = 0, estudioDesdeHoy = 0, diasDesdeHoy = 0;
+  keys.forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const md = plan[k] || {};
+    Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
+      const e = md[d];
+      const iso = k + '-' + pad2(d);
+      diasTotal++; if(e.status === 'ESTUDIO') estudioTotal++;
+      if(iso >= hoyISO){ diasDesdeHoy++; if(e.status === 'ESTUDIO') estudioDesdeHoy++; }
+      if(e.status !== 'ESTUDIO' || iso >= hoyISO) return;
+      const t = e.ticks || {};
+      const bl = (d % 2 === 1) ? 'graves' : 'mgraves';
+      recientes[bl].push({iso, ok: !t.bloque});
+      if(!t.bloque) hechas[bl] += pesoBloque(iso);
+      recientes.leves.push({iso, ok: !t.leve});   if(!t.leve) hechas.leves++;
+      recientes.ingles.push({iso, ok: !t.ingles}); if(!t.ingles) hechas.ingles++;
+      if(e.psico){ recientes.psico.push({iso, ok: !t.psico}); if(!t.psico) hechas.psico++; }
+    });
+  });
+
+  // Ritmo real: % completado en los últimos 30 días de estudio de cada parte.
+  const ritmo = {};
+  STREAMS.forEach(st=>{
+    const arr = recientes[st].sort((a,b)=> a.iso < b.iso ? -1 : 1).slice(-30);
+    ritmo[st] = arr.length ? arr.filter(x=>x.ok).length / arr.length : 1;
+  });
+
+  // 2) Lo que queda hasta el examen (hoy incluido): días de estudio del calendario; meses sin crear = estimación.
+  const pEstudio = diasDesdeHoy ? estudioDesdeHoy/diasDesdeHoy : (diasTotal ? estudioTotal/diasTotal : 1);
+  const restantes = {graves:0, mgraves:0, leves:0, ingles:0, psico:0};
+  let diasEstudio = 0;
+  const diasNaturales = Math.max(0, exam.daysLeft + 1);
+  for(let i=0; i<diasNaturales; i++){
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + i);
+    const k = dt.getFullYear()+'-'+pad2(dt.getMonth()+1);
+    const d = dt.getDate();
+    const iso = k + '-' + pad2(d);
+    let sEst;
+    if(plan[k] && plan[k][d]) sEst = plan[k][d].status === 'ESTUDIO' ? 1 : 0;
+    else sEst = pEstudio;
+    if(!sEst) continue;
+    diasEstudio += sEst;
+    restantes[(d % 2 === 1) ? 'graves' : 'mgraves'] += sEst * pesoBloque(iso);
+    restantes.leves += sEst;
+    restantes.ingles += sEst;
+    const dow = dt.getDay();
+    if(dow === 1 || dow === 3) restantes.psico += sEst;
+  }
+
+  // 3) Vueltas por área.
+  const G = GRAVES_ORDER.length, M = MGRAVES_ORDER.length;
+  const defs = [
+    {id:'graves',  label:'Bloques graves (1-'+G+')',            lap:2*G},
+    {id:'mgraves', label:'Bloques menos graves ('+(G+1)+'-'+(G+M)+')', lap:2*M},
+    {id:'leves',   label:'Leves',                                lap:LEVES.length},
+    {id:'ingles',  label:'Inglés',                               lap:INGLES_TOTAL},
+    {id:'psico',   label:'Psicotécnicos',                        lap:PSICO_ITEMS.length}
+  ];
+  const objetivo = Number(state.settings && state.settings.objetivoVueltas) || 6;
+  const areas = defs.map(df=>{
+    const hechasV = hechas[df.id] / df.lap;
+    const futurasV = restantes[df.id] * ritmo[df.id] / df.lap;
+    const total = hechasV + futurasV;
+    return {
+      id: df.id, label: df.label, lap: df.lap,
+      hechasV, futurasV, total, ritmo: ritmo[df.id],
+      diasPorVuelta: futurasV > 0 ? diasNaturales / futurasV : null,
+      faltan: Math.max(0, objetivo - total),
+      factor: total > 0 ? objetivo / total : null
+    };
+  });
+  return {exam, diasNaturales, diasEstudio, pEstudio, objetivo, areas, ritmo};
+}
+/* ===================== REPASO DE FLOJOS =====================
+   Dos listas para saber qué reforzar:
+   · «Notas bajas»: temas (en inglés, cada test por separado) cuya ÚLTIMA nota está por debajo del umbral.
+     Muestra la nota anterior (para ver si mejora o empeora), cuándo lo viste por última vez según tu
+     calendario y cuándo te vuelve a tocar. Si te toca dentro de más de 21 días (o no hay fecha), sale
+     marcado «adelántalo».
+   · «Sin repasar»: temas que llevan N días o más sin tocarte y que no tienen una nota buena (≥ 70 %),
+     o ni siquiera tienen nota.
+   La «última vez» y la «próxima vez» salen del calendario (computePlan): cuenta cada día de estudio hasta
+   hoy que no marcaste «NO completado»; la próxima, el primer día futuro que trae ese tema. */
+function flojosAparicionesPlan(){
+  const plan = computePlan();
+  const hoy = hoyLocalISO();
+  const ult = {}, prox = {};
+  sortedMonthKeys().forEach(k=>{
+    const md = plan[k] || {};
+    Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
+      const e = md[d];
+      if(e.status !== 'ESTUDIO') return;
+      const iso = k + '-' + pad2(d);
+      const t = e.ticks || {};
+      const items = [];
+      (e.temasDelDia || []).forEach(x=> items.push([x.key, 'bloque']));
+      if(e.leveInfo) items.push([e.leveInfo.key, 'leve']);
+      if(e.inglesNum) items.push(['ingles-'+e.inglesNum, 'ingles']);
+      if(e.psico) items.push(['psico-'+e.psicoIdx, 'psico']);
+      items.forEach(([key, stream])=>{
+        if(iso <= hoy){ if(!t[stream]) ult[key] = iso; }
+        else if(!prox[key]) prox[key] = iso;
+      });
+    });
+  });
+  return {ult, prox, hoy};
+}
+function fechaCortaEs(iso){ // «3 sep» (con el año si no es el actual)
+  const [y,m,d] = iso.split('-').map(Number);
+  return d+' '+MESES[m-1].slice(0,3).toLowerCase()+(y !== new Date().getFullYear() ? ' '+y : '');
+}
+function diasEntre(isoA, isoB){
+  const [ya,ma,da] = isoA.split('-').map(Number), [yb,mb,db] = isoB.split('-').map(Number);
+  return Math.round((new Date(yb,mb-1,db) - new Date(ya,ma-1,da)) / 86400000);
+}
+function computeFlojos(){
+  const umbral = (Number(state.settings.flojosUmbral) || 60) / 100;
+  const dias = Number(state.settings.flojosDias) || 30;
+  const data = collectNotaData();
+  const {ult, prox, hoy} = flojosAparicionesPlan();
+  const info = key => ({
+    ultima: ult[key] || null,
+    hace: ult[key] ? diasEntre(ult[key], hoy) : null,
+    proxima: prox[key] || null,
+    enDias: prox[key] ? diasEntre(hoy, prox[key]) : null
+  });
+  const bajas = [];
+  const conNotaBuenaOBaja = new Set(); // claves con alguna nota (para no repetirlas en «sin repasar» si son buenas)
+  const todasLasClaves = [];
+  Object.keys(data.porGrupo).forEach(grupo=>{
+    data.porGrupo[grupo].forEach(item=>{
+      todasLasClaves.push(item);
+      // Unidades: en inglés, cada test (general / 1-4) por separado; en el resto, el tema entero.
+      const unidades = {};
+      item.seq.forEach(x=>{
+        if(x.mode !== 'nota') return;
+        const id = x.slot || '_';
+        (unidades[id] = unidades[id] || []).push(x.nota);
+      });
+      Object.keys(unidades).forEach(id=>{
+        const arr = unidades[id];
+        const ultimaNota = arr[arr.length-1];
+        const previa = arr.length > 1 ? arr[arr.length-2] : null;
+        const pct = ultimaNota / item.max;
+        if(pct >= 0.7) conNotaBuenaOBaja.add(item.key);
+        if(pct < umbral){
+          bajas.push(Object.assign({
+            key: item.key, grupo, label: item.label + (id !== '_' ? ' · ' + slotEtiqueta(id) : ''),
+            nota: ultimaNota, previa, max: item.max, pct
+          }, info(item.key)));
+        }
+      });
+    });
+  });
+  bajas.sort((a,b)=> a.pct - b.pct || (b.hace||0) - (a.hace||0));
+  const yaEnBajas = new Set(bajas.map(b=>b.key));
+  // «Sin repasar»: llevan ≥ N días sin tocarte y sin nota buena (o sin nota); no se repiten los que ya están en «bajas».
+  const viejos = [];
+  Object.keys(ult).forEach(key=>{
+    const meta = KEY_LABELS[key];
+    if(!meta) return;
+    if(yaEnBajas.has(key) || conNotaBuenaOBaja.has(key)) return;
+    const inf = info(key);
+    if(inf.hace === null || inf.hace < dias) return;
+    if(inf.enDias !== null && inf.enDias <= 7) return; // te toca ya mismo: no hace falta avisar
+    const it = todasLasClaves.find(x=>x.key === key);
+    const ultimaNota = it ? (it.notas.length ? it.notas[it.notas.length-1] : null) : null;
+    viejos.push(Object.assign({key, grupo: meta.grupo, label: meta.label, max: meta.max, nota: ultimaNota}, inf));
+  });
+  viejos.sort((a,b)=> b.hace - a.hace);
+  return {umbral, dias, bajas, viejos};
+}
+function claveAEntradaTema(key){
+  const mB = /^b(\d+)-/.exec(key);
+  if(mB) return {tab:'temario', accordion:'bloques', block:Number(mB[1]), elId:'temarow-'+key};
+  if(key.indexOf('leve-') === 0) return {tab:'temario', accordion:'leves', elId:'temarow-'+key};
+  if(key.indexOf('ingles-') === 0) return {tab:'temario', accordion:'ingles', elId:'temarow-'+key};
+  return {tab:'temario', accordion:'psico', elId:'temarow-'+key};
+}
+const flojosOpen = {flojos:true};
+let _flojosVerTodo = false;
+function renderFlojos(){
+  const host = document.getElementById('flojosHost');
+  if(!host) return;
+  host.innerHTML = '';
+  appendAccordionSection(host, 'flojos', flojosOpen, 'Repaso de flojos', (body)=>{
+    const r = computeFlojos();
+    // Controles
+    const ctl = document.createElement('div'); ctl.className = 'flojos-ctl';
+    const mkSel = (id, etiqueta, valores, actual, formato, onSet)=>{
+      const lab = document.createElement('label'); lab.setAttribute('for', id); lab.textContent = etiqueta;
+      const sel = document.createElement('select'); sel.id = id;
+      valores.forEach(v=>{ const o = document.createElement('option'); o.value = String(v); o.textContent = formato(v); if(v === actual) o.selected = true; sel.appendChild(o); });
+      sel.onchange = ()=>{ onSet(Number(sel.value)); scheduleSave(); renderFlojos(); };
+      ctl.appendChild(lab); ctl.appendChild(sel);
+    };
+    mkSel('flojosUmbralSel', 'Nota baja: por debajo de', [40,50,60,70,80], Math.round(r.umbral*100), v=>v+' %', v=>{ state.settings.flojosUmbral = v; });
+    mkSel('flojosDiasSel', 'Sin repasar desde hace', [15,30,45,60,90], r.dias, v=>v+' días', v=>{ state.settings.flojosDias = v; });
+    body.appendChild(ctl);
+
+    const LIM = 8;
+    const fila = (x, viejo)=>{
+      const div = document.createElement('div');
+      const urgente = !viejo && (x.enDias === null || x.enDias > 21);
+      div.className = 'flojo-item' + (viejo ? ' viejo' : '') + (urgente ? ' urgente' : '');
+      const main = document.createElement('div'); main.className = 'flojo-main';
+      const nom = document.createElement('div'); nom.className = 'flojo-nom';
+      nom.textContent = x.grupo + ' · ' + x.label;
+      const sub = document.createElement('div'); sub.className = 'flojo-sub';
+      const partes = [];
+      if(x.previa !== null && x.previa !== undefined && !viejo){
+        const dif = Math.round((x.nota - x.previa)*10)/10;
+        partes.push('antes ' + x.previa + '/' + x.max + (dif > 0 ? ' · ▲ mejora' : dif < 0 ? ' · ▼ empeora' : ' · = igual'));
+      }
+      partes.push(x.ultima ? 'visto por última vez hace ' + x.hace + ' ' + (x.hace === 1 ? 'día' : 'días') + ' (' + fechaCortaEs(x.ultima) + ')' : 'aún no te ha tocado en el calendario');
+      if(x.proxima) partes.push('te vuelve a tocar el ' + fechaCortaEs(x.proxima) + ' (en ' + x.enDias + ' ' + (x.enDias === 1 ? 'día' : 'días') + ')');
+      else partes.push('sin fecha en tu calendario');
+      sub.textContent = partes.join(' · ');
+      main.appendChild(nom); main.appendChild(sub);
+      if(urgente){
+        const ad = document.createElement('div'); ad.className = 'flojo-sub flojo-adelanta';
+        ad.textContent = '⚡ Adelántalo: ' + (x.enDias === null ? 'no tiene fecha próxima en tu calendario' : 'no te toca hasta dentro de ' + x.enDias + ' días');
+        main.appendChild(ad);
+      }
+      div.appendChild(main);
+      const nota = document.createElement('div'); nota.className = 'flojo-nota';
+      if(x.nota !== null && x.nota !== undefined){
+        nota.textContent = x.nota + '/' + x.max + ' (' + Math.round(x.nota / x.max * 100) + ' %)';
+        nota.style.color = 'var(--red-text)';
+      } else { nota.textContent = 'sin nota'; nota.style.color = 'var(--muted)'; }
+      div.appendChild(nota);
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'btn small ghost'; go.textContent = 'Ir al tema →';
+      go.onclick = ()=> goToSearchResult(claveAEntradaTema(x.key));
+      div.appendChild(go);
+      return div;
+    };
+    const lista = (titulo, arr, viejo, vacio)=>{
+      const t = document.createElement('div'); t.className = 'flojos-titulo'; t.textContent = titulo + ' (' + arr.length + ')';
+      body.appendChild(t);
+      if(!arr.length){ body.appendChild(cicloIntro(vacio)); return; }
+      (_flojosVerTodo ? arr : arr.slice(0, LIM)).forEach(x=> body.appendChild(fila(x, viejo)));
+    };
+    lista('🔻 Notas bajas', r.bajas, false, 'Ningún tema tiene su última nota por debajo del ' + Math.round(r.umbral*100) + ' %. ¡Bien!');
+    lista('⏳ Sin repasar hace tiempo', r.viejos, true, 'No hay temas sin nota buena que lleven ' + r.dias + ' días o más sin tocarte.');
+    const total = Math.max(r.bajas.length, r.viejos.length);
+    if(total > LIM){
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn small ghost'; btn.style.marginTop = '6px';
+      btn.textContent = _flojosVerTodo ? 'Ver solo los ' + LIM + ' primeros' : 'Ver todos';
+      btn.onclick = ()=>{ _flojosVerTodo = !_flojosVerTodo; renderFlojos(); };
+      body.appendChild(btn);
+    }
+    const nota = document.createElement('div'); nota.className = 'ritmo-nota';
+    nota.textContent = 'Se basa en la última nota de test de cada tema (en inglés, de cada test por separado) y en las fechas de tu calendario. '
+      + 'Las notas «No test», «No tiempo» y «Solo lectura» no cuentan como nota. Cambia los umbrales arriba para afinar la lista.';
+    body.appendChild(nota);
+  });
+}
+
+const ritmoOpen = {ritmo:true};
+function renderRitmo(){
+  const host = document.getElementById('ritmoHost');
+  if(!host) return;
+  host.innerHTML = '';
+  appendAccordionSection(host, 'ritmo', ritmoOpen, 'Ritmo hasta el examen', (body)=>{
+    const r = computeRitmoExamen();
+    const exam = r.exam;
+    if(exam.daysLeft < 0){
+      body.appendChild(cicloIntro('La fecha del examen ('+exam.etiqueta+') ya pasó. Cámbiala en la tarjeta «Cuenta atrás» de arriba para ver tu ritmo.'));
+      return;
+    }
+    const resumen = document.createElement('p'); resumen.className = 'ritmo-resumen';
+    const lenta = r.areas.filter(a=>a.total > 0).sort((a,b)=>a.total-b.total)[0];
+    resumen.innerHTML = 'Examen: <strong>'+exam.etiqueta+'</strong> · faltan <strong>'+exam.daysLeft+'</strong> días (≈ <strong>'+Math.round(r.diasEstudio)+'</strong> de estudio).'
+      + (lenta ? ' Al ritmo actual, tu parte más lenta (<strong>'+lenta.label+'</strong>) llegará a <strong>'+fmtVueltas(lenta.total)+'</strong> vueltas completas.' : '');
+    body.appendChild(resumen);
+
+    const obj = document.createElement('div'); obj.className = 'ritmo-obj';
+    const lbl = document.createElement('label'); lbl.textContent = 'Objetivo: vueltas completas antes del examen'; lbl.setAttribute('for', 'ritmoObjetivoSel');
+    const sel = document.createElement('select'); sel.id = 'ritmoObjetivoSel';
+    for(let n=1; n<=15; n++){
+      const o = document.createElement('option'); o.value = String(n); o.textContent = String(n);
+      if(n === r.objetivo) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.onchange = ()=>{
+      state.settings.objetivoVueltas = Number(sel.value);
+      scheduleSave();
+      renderRitmo();
+    };
+    obj.appendChild(lbl); obj.appendChild(sel);
+    body.appendChild(obj);
+
+    const wrap = document.createElement('div'); wrap.className = 'nota-table-wrap';
+    const tbl = document.createElement('table'); tbl.className = 'nota-table';
+    tbl.innerHTML = '<thead><tr><th>Parte</th><th>Vueltas hechas</th><th>Hasta el examen</th><th>Total al llegar</th><th>1 vuelta cada</th><th>Objetivo ('+r.objetivo+')</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    r.areas.forEach(a=>{
+      const tr = document.createElement('tr');
+      const ok = a.total >= r.objetivo;
+      const veredicto = ok
+        ? '<span class="ritmo-ok">✓ Llegas · margen de '+fmtVueltas(a.total - r.objetivo)+'</span>'
+        : '<span class="ritmo-warn">⚠ Te faltan '+fmtVueltas(a.faltan)+' vueltas'+(a.factor ? ' · ritmo ×'+fmtVueltas(a.factor) : '')+'</span>';
+      const ritmoTxt = a.ritmo < 0.995 ? '<div style="font-size:11px;color:var(--muted);">completas el '+Math.round(a.ritmo*100)+' %</div>' : '';
+      tr.innerHTML =
+        '<td data-label="Parte"><strong>'+a.label+'</strong><div style="font-size:11px;color:var(--muted);">'+a.lap+' visitas por vuelta</div></td>'+
+        '<td data-label="Vueltas hechas">'+fmtVueltas(a.hechasV)+'</td>'+
+        '<td data-label="Hasta el examen">+'+fmtVueltas(a.futurasV)+ritmoTxt+'</td>'+
+        '<td data-label="Total al llegar"><strong>'+fmtVueltas(a.total)+'</strong></td>'+
+        '<td data-label="1 vuelta cada">'+(a.diasPorVuelta ? '≈ '+Math.round(a.diasPorVuelta)+' días' : '—')+'</td>'+
+        '<td data-label="Objetivo">'+veredicto+'</td>';
+      tb.appendChild(tr);
+    });
+    tbl.appendChild(tb); wrap.appendChild(tbl); body.appendChild(wrap);
+
+    const nota = document.createElement('div'); nota.className = 'ritmo-nota';
+    nota.textContent = 'Cómo se calcula: con las reglas de tu calendario. Cuenta como hecho todo día que no marcas «NO completado». '
+      + 'Los meses que aún no has creado se estiman con tu proporción de días de estudio ('+Math.round(r.pEstudio*100)+' %). '
+      + '«Ritmo ×1,4» significa que necesitarías ir un 40 % más rápido que ahora en esa parte. En «repaso final» (unificado) cada visita a un bloque cuenta doble.';
+    body.appendChild(nota);
+  });
+}
+
 function renderCiclo(){
   const host = document.getElementById('cicloHost');
   if(!host) return;
@@ -10008,7 +10468,7 @@ function activateTab(tabName){
   if(tabsNavEl) tabsNavEl.classList.remove('open');
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
   // Lo repintamos cada vez que se entra en la pestaña (ya visible, así los gráficos toman bien el ancho).
-  if(tabName === 'progreso' && typeof renderProgreso === 'function') renderProgreso();
+  if(tabName === 'progreso' && typeof renderProgreso === 'function'){ renderProgreso(); if(typeof renderRitmo === 'function') renderRitmo(); if(typeof renderFlojos === 'function') renderFlojos(); }
   else if(typeof alEntrarEnPestana === 'function') alEntrarEnPestana(tabName);
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
@@ -10284,8 +10744,7 @@ function calendarExportBaseName(sufijo){
       const nombreMes = (MESES[m - 1] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       etiqueta = `${nombreMes || 'mes'}-${y}`;
     } else {
-      const hoy = new Date();
-      etiqueta = hoy.toISOString().slice(0, 10);
+      etiqueta = hoyLocalISO();
     }
   }catch(e){ /* usamos el valor por defecto */ }
   return `operacion-baeza-${sufijo ? sufijo + '-' : ''}${etiqueta}`;
@@ -10455,6 +10914,8 @@ function renderAll(){
   renderTodoCalLegend();
   renderTodoCalendar();
   renderCiclo();
+  renderRitmo();
+  renderFlojos();
   renderProgreso();
   renderMarcas();
   renderEntrenos();
@@ -10464,6 +10925,7 @@ function renderAll(){
   if(isAdmin) renderAdminBox();
   renderSecurity();
   renderThemeBox();
+  renderDataSizeBox();
   renderBackupBox();
   renderHistoryBox();
   } finally { _renderAllEnCurso = false; }
@@ -10480,9 +10942,9 @@ const RENDER_PESTANA = {
   temario(){ renderBlocks(); renderLeves(); renderIngles(); renderPsico(); renderOrto(); },
   simulacros(){ renderSimulacrosList(); },
   entrenos(){ renderMarcas(); renderEntrenos(); },
-  progreso(){ renderCiclo(); renderProgreso(); },
+  progreso(){ renderCiclo(); renderRitmo(); renderFlojos(); renderProgreso(); },
   arrastre(){ renderArrastre(); },
-  ajustes(){ renderAjustes(); }   // resumen de días/estadísticas (el resto de cajas de Ajustes no depende de los datos)
+  ajustes(){ renderAjustes(); renderDataSizeBox(); }   // resumen de días/estadísticas (el resto de cajas de Ajustes no depende de los datos)
 };
 function repintarPestana(tab){
   const fn = RENDER_PESTANA[tab];
@@ -10595,6 +11057,12 @@ function startApp(){
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('service-worker.js').then((reg)=>{
+      // Los navegadores solo miran si hay versión nueva al abrir la página (y de vez en cuando).
+      // Para apps que se dejan abiertas días (como esta en el móvil), se comprueba además cada
+      // 30 minutos y al volver a primer plano, y así el aviso llega enseguida.
+      const buscarVersionNueva = ()=>{ try{ reg.update().catch(()=>{}); }catch(e){} };
+      setInterval(buscarVersionNueva, 30*60*1000);
+      document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) buscarVersionNueva(); });
       // Si el navegador detecta un service-worker.js distinto al que ya tenías (porque he
       // publicado una actualización), avisamos con una franja para que la persona recargue
       // cuando le venga bien, en vez de seguir usando en silencio una versión vieja de la app
@@ -10615,15 +11083,30 @@ function renderUpdateAvailableBanner(){
   if(document.getElementById('updateAvailableBanner')) return;
   const banner = document.createElement('div');
   banner.id = 'updateAvailableBanner';
+  banner.setAttribute('role', 'status');
   banner.style.cssText = 'position:fixed;left:0;right:0;top:0;z-index:9999;background:var(--amber);color:#1b2b1f;padding:calc(10px + env(safe-area-inset-top,0px)) 16px 10px;font-family:var(--font-mono);font-size:12px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;justify-content:space-between;';
-  // Puramente informativo: no hay botón de "recargar ahora" que empuje a actuar.
-  // La próxima vez que se recargue la página (por el motivo que sea) se cargará sola
-  // la versión nueva; este aviso solo lo indica, con un botón para cerrarlo si molesta.
+  // «Actualizar ahora» guarda lo que tengas pendiente y recarga la página con la versión nueva.
+  // «Después» cierra el aviso; la versión nueva se cargará sola la próxima vez que abras la app.
   banner.innerHTML = `
-    <span>Hay una versión nueva de la app disponible. Se aplicará sola la próxima vez que recargues la página.</span>
-    <button class="btn small" id="updateAvailableCloseBtn" style="background:#1b2b1f;color:var(--amber-ink);">Cerrar</button>`;
+    <span>Hay una versión nueva de la app.</span>
+    <span style="display:flex;gap:8px;">
+      <button class="btn small" id="updateAvailableNowBtn" style="background:#1b2b1f;color:var(--amber-ink);font-weight:700;">Actualizar ahora</button>
+      <button class="btn small ghost" id="updateAvailableCloseBtn" style="border-color:#1b2b1f;color:#1b2b1f;">Después</button>
+    </span>`;
   document.body.appendChild(banner);
   document.getElementById('updateAvailableCloseBtn').onclick = ()=> banner.remove();
+  document.getElementById('updateAvailableNowBtn').onclick = async (e)=>{
+    const btn = e.currentTarget;
+    btn.disabled = true; btn.textContent = 'Actualizando…';
+    try{
+      // Antes de recargar, se guarda lo pendiente (máximo 4 s de espera, por si no hay conexión).
+      clearTimeout(saveTimer);
+      if(firebaseOk && accessCode){
+        await Promise.race([doSave(), new Promise(r=> setTimeout(r, 4000))]);
+      }
+    }catch(err){ try{ console.error(err); }catch(e2){} }
+    location.reload();
+  };
 }
 
 /* ===================== PWA: banner para instalar la app en pantalla de inicio =====================

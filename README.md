@@ -278,6 +278,77 @@ En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Expo
 **📄 Exportar PDF**, para guardar o imprimir el mes que estés viendo sin depender del archivo
 JSON técnico.
 
+## Tamaño de tus datos (Ajustes) y límite de Firestore
+
+Todo el planning va en **un único documento** de Firestore (`plannings/{uid}`, campo `state`), y
+Firestore no admite documentos de más de **1 MiB (1.048.576 bytes)**. Cosas que hace la app:
+
+- **Ajustes → «Tamaño de tus datos»:** barra con los KB usados sobre el límite (bytes UTF-8, que es lo
+  que cuenta Firestore: una tilde o la «ñ» ocupan 2), un mensaje por niveles (verde, ámbar a partir del
+  75 %, rojo a partir del 90 %, «superado» al 100 %) y el desglose de lo que más pesa
+  (`computeDataSize()` / `renderDataSizeBox()`).
+- **Aviso al guardar:** si al guardar con éxito ocupas ≥ 75 %, sale un aviso (una vez por sesión).
+- **Protección en `doSave()`:** si el `state` supera el límite, **no intenta** subirlo (fallaría siempre y
+  se reintentaría sin parar): lo deja guardado en este dispositivo, muestra «Datos demasiado grandes para
+  la nube» en el indicador de guardado y avisa una vez. En cuanto vuelve a caber, guarda solo.
+- Constantes en `index.html`: `FIRESTORE_DOC_LIMIT`, `FIRESTORE_DOC_MARGEN` (512 B para nombre del
+  documento y campos) y `DATOS_AVISO` (0,75).
+- Las copias del historial (`history/{día}`) son documentos aparte con el mismo límite cada uno.
+- **Ojo si algún día hay que reducir:** no borres meses antiguos del calendario para ganar espacio, porque
+  la secuencia de bloques/leves/inglés se calcula encadenando los meses desde el primero y se reiniciaría.
+  Mejor recortar notas muy largas o el registro de entrenos más antiguo (tras exportar una copia).
+
+## Repaso de flojos (Progreso, debajo del ritmo)
+
+Tarjeta con dos listas para saber qué reforzar (`computeFlojos()` / `renderFlojos()`):
+
+- **🔻 Notas bajas:** temas cuya **última** nota de test está por debajo del umbral (por defecto 60 %;
+  elegible 40-80 %). En inglés cada test cuenta por separado (Test general, Test 1-4). Cada fila
+  muestra la nota anterior (▲ mejora / ▼ empeora), cuándo lo viste por última vez, cuándo te vuelve a
+  tocar según el calendario y, si tarda más de 21 días (o no hay fecha), la marca **⚡ Adelántalo**.
+- **⏳ Sin repasar hace tiempo:** temas que llevan N días o más sin tocarte (por defecto 30; elegible
+  15-90) y sin nota buena (≥ 70 %) o sin nota. Se ocultan los que te tocan en ≤ 7 días.
+- «Última vez» = último día de estudio hasta hoy que trae ese tema y no marcaste «NO completado».
+  «Próxima» = primer día futuro del calendario que lo trae.
+- **Ir al tema →** salta a Temario y notas (reutiliza el buscador global).
+- Ajustes guardados en `state.settings.flojosUmbral` y `state.settings.flojosDias`.
+
+## Ritmo hasta el examen (Progreso, arriba del todo)
+
+Tarjeta que responde a «¿cuántas vueltas completas me da tiempo a dar antes del examen?». Usa la
+fecha del examen de la cuenta atrás (editable) y las **mismas reglas que el calendario**
+(`computeRitmoExamen()` en `index.html`):
+
+- **Bloques:** días impares → grave (1-5), pares → menos grave (6-12). Cada bloque se ve 2 veces por
+  vuelta (azul y morado): vuelta = 2 × nº de bloques de la familia (10 y 14 visitas). En repaso final
+  (unificado) cada visita cuenta doble.
+- **Leves:** uno por día de estudio (`LEVES.length` por vuelta). **Inglés:** uno por día (32 por vuelta).
+  **Psicotécnicos:** solo lunes y miércoles de estudio (`PSICO_ITEMS.length`, 25 por vuelta).
+- **Hechas hasta hoy:** todo día de estudio pasado que no marcaste «NO completado».
+- **Hasta el examen:** los días de estudio de tu calendario; los meses aún sin crear se estiman con tu
+  proporción de días de estudio. Se multiplica por tu **ritmo real** (% de días completados en los
+  últimos 30 días de estudio de cada parte), así que si sueles dejar días sin completar, la
+  proyección baja.
+- **Objetivo:** desplegable (1-15 vueltas, por defecto 6, se guarda en `state.settings.objetivoVueltas`).
+  Por cada parte dice «✓ Llegas · margen de X» o «⚠ Te faltan X vueltas · ritmo ×1,4» (= tendrías que
+  ir un 40 % más rápido).
+- Se repinta sola al cambiar datos o la fecha del examen (`RENDER_PESTANA.progreso`).
+
+## Versiones nuevas: aviso con «Actualizar ahora»
+
+Cuando publicas una versión nueva (cambia `service-worker.js`), a quien tiene la app abierta le sale
+una franja ámbar arriba con **«Actualizar ahora»** (guarda lo pendiente, máx. 4 s, y recarga con la
+versión nueva) y **«Después»** (la cierra; la versión nueva se cargará sola la próxima vez que abra la
+app). La app busca versiones nuevas cada 30 minutos y al volver a primer plano, así que el aviso llega
+aunque la deje abierta días en el móvil.
+
+## Fechas en hora local (no UTC)
+
+«Hoy» se calcula siempre con la hora del dispositivo (`hoyLocalISO()`, `fechaLocalISO(d)`,
+`todayISO()`). No uses `toISOString()` para obtener el día: da la fecha UTC y en España, entre las
+00:00 y las 02:00, devolvería todavía el día anterior (etiqueta «HOY», clases vencidas, copia diaria
+del historial, ventana de 7 días de entrenos…).
+
 ## Actualización automática (sin recargar la página)
 
 Cada vez que se guarda un dato (`scheduleSave()`), la app se pone al día sola en unos 0,35 s:
