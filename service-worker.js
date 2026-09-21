@@ -2,7 +2,7 @@
    Objetivo: que la app siempre abra (aunque no haya internet) y que puedas ver
    la última versión de tus datos sincronizada, aunque no puedas guardar cambios
    nuevos hasta que vuelva la conexión (eso lo sigue gestionando Firebase). */
-const CACHE_NAME = 'operacion-baeza-v79';
+const CACHE_NAME = 'operacion-baeza-v80';
 const FONT_CACHE = 'operacion-baeza-fonts-v1'; // fuentes de Google: se guardan aparte y sobreviven a las versiones de la app
 const APP_SHELL = [
   './',

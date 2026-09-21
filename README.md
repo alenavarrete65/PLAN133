@@ -278,6 +278,24 @@ En la pestaña Calendario, encima de la rejilla, hay dos botones: **🖼️ Expo
 **📄 Exportar PDF**, para guardar o imprimir el mes que estés viendo sin depender del archivo
 JSON técnico.
 
+## Actualización automática (sin recargar la página)
+
+Cada vez que se guarda un dato (`scheduleSave()`), la app se pone al día sola en unos 0,35 s:
+
+- **La cabecera** (cuenta atrás, racha, «Hoy», test de arrastre…) se repinta siempre.
+- **Las pestañas que no estás viendo** se repintan en segundo plano (no molesta: están ocultas). Por
+  ejemplo, una nota puesta en Temario o en la ficha de un día ya está en Progreso, Arrastre, Clases,
+  Calendarios, etc. cuando entras en ellas.
+- **La pestaña que estás viendo** se repinta solo cuando no estás escribiendo en un campo y no hay
+  una ventana abierta; si no, espera a que termines (no se pierde el foco ni lo que tecleas). En
+  Temario no hace falta repintarla, y los bloques desplegados se recuerdan (`_bloquesAbiertos`).
+- **Otro dispositivo (móvil ↔ ordenador):** la app comprueba cada minuto (y al volver a ella) si el
+  planning se guardó desde otro sitio y, si no tienes nada propio sin guardar ni estás escribiendo,
+  adopta los cambios y repinta. Si sí tienes cambios sin guardar, sigue saliendo el aviso de conflicto.
+- Dónde está: `programarActualizacionVistas()`, `actualizarVistasAhora()`, `alEntrarEnPestana()` y el
+  mapa `RENDER_PESTANA` (qué se repinta en cada pestaña). **Si añades una vista nueva que dependa de
+  los datos, añádela a `RENDER_PESTANA`** y se actualizará sola.
+
 ## Test de arrastre: primera tarea del día + aviso al abrir la app
 
 - **En la ficha del día** (pulsando un día de estudio en el Calendario), el **Test de arrastre** es

@@ -2187,7 +2187,38 @@ function setSaveStatus(status, msg){
   else if(status==='error'){ el.classList.add('state-error'); textEl.textContent = msg || 'Error al guardar'; }
   else{ textEl.textContent = 'Sin cambios'; }
 }
+/* ===================== ACTUALIZACIÓN AUTOMÁTICA DE TODA LA APP =====================
+   Cada vez que se guarda un dato (scheduleSave), al cabo de un momento se repintan solas todas las
+   pestañas que dependen de él, sin tener que recargar la página:
+   · La cabecera (cuenta atrás, racha, «Hoy»…) se repinta siempre.
+   · Las pestañas que NO estás viendo se repintan en segundo plano (no molesta: están ocultas).
+   · La pestaña que SÍ estás viendo se repinta solo cuando no estás escribiendo en un campo ni hay
+     una ventana abierta; si no, espera a que termines (así no se pierde el foco ni lo que tecleas).
+   Además, si guardas algo desde otro dispositivo (móvil ↔ ordenador), esta app lo recoge sola
+   cada minuto y al volver a ella. */
+let _vistasTimer = null;
+const _tabsSucias = new Set();   // pestañas con datos cambiados que aún no se han repintado
+let _refrescandoVistas = false;
+const VISTAS_DEBOUNCE_MS = 350;
+const VISTAS_REINTENTO_MS = 700;
+function pestanaActiva(){
+  const b = document.querySelector('.tab-btn.active');
+  return b ? b.dataset.tab : 'calendario';
+}
+// ¿Está la persona escribiendo/eligiendo algo (o tiene una ventana abierta)? Si sí, no tocamos su pestaña.
+function usuarioEditando(){
+  if(document.querySelector('.modal-backdrop.open')) return true;
+  const a = document.activeElement;
+  return !!(a && a !== document.body && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+}
+function programarActualizacionVistas(){
+  if(typeof _appStarted === 'undefined' || !_appStarted || _refrescandoVistas) return;
+  Object.keys(RENDER_PESTANA).forEach(t=> _tabsSucias.add(t));
+  clearTimeout(_vistasTimer);
+  _vistasTimer = setTimeout(actualizarVistasAhora, VISTAS_DEBOUNCE_MS);
+}
 function scheduleSave(){
+  programarActualizacionVistas();
   if(!firebaseOk || !accessCode) return;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(doSave, 500);
@@ -2297,6 +2328,9 @@ async function checkForRemoteChanges(){
     const remoteUpdatedAt = snap.data().updatedAt || null;
     if(lastKnownUpdatedAt !== null && remoteUpdatedAt && remoteUpdatedAt !== lastKnownUpdatedAt){
       if(!hasPendingSync() && !savingInFlight){
+        // Si en este momento estás escribiendo o tienes una ventana abierta, lo dejamos para la
+        // siguiente comprobación (no se pierde: lastKnownUpdatedAt no cambia) y así no te cortamos.
+        if(usuarioEditando()) return;
         // No hay nada propio sin guardar: adoptamos sin más la versión más reciente.
         state = JSON.parse(snap.data().state);
         lastKnownUpdatedAt = remoteUpdatedAt;
@@ -5319,6 +5353,7 @@ function renderFlatSection(hostId, sectionKey, title, grupo, buildItems){
     body.appendChild(grid);
   });
 }
+const _bloquesAbiertos = new Set(); // bloques desplegados en «Temario y notas»: se recuerdan al repintar
 function renderBlocks(){
   const host = document.getElementById('blocksHost');
   renderAccordionSection(host, 'bloques', 'Bloques', (body)=>{
@@ -5333,6 +5368,7 @@ function renderBlocks(){
         </div>
         <div class="chev">▾</div>`;
       const bbody = document.createElement('div'); bbody.className='block-body';
+      if(_bloquesAbiertos.has(num)){ bbody.classList.add('open'); head.querySelector('.chev').textContent = '▴'; }
       // Reordenamos visualmente por color (azul primero, morado después) sin tocar el
       // índice original de cada tema: las notas ya guardadas siguen ligadas a su mismo
       // noteKey ('b'+num+'-'+idx), calculado siempre sobre la posición original en b.temas.
@@ -5366,7 +5402,11 @@ function renderBlocks(){
         row.appendChild(buildTemaControls(noteKey, 'Bloques', 'B'+num+' · '+(t.clase||t.nombre)));
         bbody.appendChild(row);
       });
-      head.onclick = ()=>{ bbody.classList.toggle('open'); head.querySelector('.chev').textContent = bbody.classList.contains('open')?'▴':'▾'; };
+      head.onclick = ()=>{
+        bbody.classList.toggle('open');
+        head.querySelector('.chev').textContent = bbody.classList.contains('open')?'▴':'▾';
+        if(bbody.classList.contains('open')) _bloquesAbiertos.add(num); else _bloquesAbiertos.delete(num);
+      };
       card.appendChild(head); card.appendChild(bbody);
       body.appendChild(card);
     });
@@ -9969,6 +10009,7 @@ function activateTab(tabName){
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
   // Lo repintamos cada vez que se entra en la pestaña (ya visible, así los gráficos toman bien el ancho).
   if(tabName === 'progreso' && typeof renderProgreso === 'function') renderProgreso();
+  else if(typeof alEntrarEnPestana === 'function') alEntrarEnPestana(tabName);
 }
 document.querySelectorAll('.tab-btn').forEach(btn=>{
   btn.onclick = ()=> activateTab(btn.dataset.tab);
@@ -10061,6 +10102,7 @@ function goToSearchResult(entry){
       const chev = card.querySelector('.chev');
       if(bbody) bbody.classList.add('open');
       if(chev) chev.textContent = '▴';
+      _bloquesAbiertos.add(Number(entry.block));
     }
   }
   setTimeout(()=>{
@@ -10426,6 +10468,79 @@ function renderAll(){
   renderHistoryBox();
   } finally { _renderAllEnCurso = false; }
 }
+// Qué hay que repintar en cada pestaña (mismo orden que renderAll).
+const RENDER_PESTANA = {
+  calendario(){
+    renderMonthBar(); renderLegend(); renderNotasPendientes(); renderCalendar();
+    renderClasesCalMonthBar(); renderClaseCalendar(); renderClasesPendientes();
+    renderSimCalMonthBar(); renderSimCalendar(); renderSimulacrosPendientes();
+    renderTodoCalMonthBar(); renderTodoCalLegend(); renderTodoCalendar();
+  },
+  clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); },
+  temario(){ renderBlocks(); renderLeves(); renderIngles(); renderPsico(); renderOrto(); },
+  simulacros(){ renderSimulacrosList(); },
+  entrenos(){ renderMarcas(); renderEntrenos(); },
+  progreso(){ renderCiclo(); renderProgreso(); },
+  arrastre(){ renderArrastre(); },
+  ajustes(){ renderAjustes(); }   // resumen de días/estadísticas (el resto de cajas de Ajustes no depende de los datos)
+};
+function repintarPestana(tab){
+  const fn = RENDER_PESTANA[tab];
+  if(!fn) return;
+  try{ fn(); }catch(err){ try{ console.error('Error al actualizar la pestaña '+tab, err); }catch(e){} }
+}
+function actualizarVistasAhora(){
+  _vistasTimer = null;
+  if(typeof _appStarted === 'undefined' || !_appStarted || !_tabsSucias.size) return;
+  const activa = pestanaActiva();
+  _refrescandoVistas = true;
+  const antesRenderAll = _renderAllEnCurso;
+  _renderAllEnCurso = true;
+  try{
+    invalidarClasesDerivadas();
+    procesarSincronizacionesClaseVencidas();
+    try{ renderHomeDash(); }catch(err){ try{ console.error(err); }catch(e){} }
+    // Pestañas que no estás viendo: se ponen al día en segundo plano.
+    Array.from(_tabsSucias).forEach(tab=>{
+      if(tab === activa) return;
+      repintarPestana(tab);
+      _tabsSucias.delete(tab);
+    });
+    // La que estás viendo: solo si no estás escribiendo. Temario no hace falta repintarlo (lo que se
+    // edita ahí no cambia nada dentro de la propia pestaña, y así no se te pliegan los bloques).
+    if(_tabsSucias.has(activa) && (activa === 'temario' || !usuarioEditando())){
+      if(activa !== 'temario') repintarPestana(activa);
+      _tabsSucias.delete(activa);
+    }
+  } finally {
+    _renderAllEnCurso = antesRenderAll;
+    _refrescandoVistas = false;
+  }
+  // Si estabas escribiendo, la pestaña activa queda para cuando termines.
+  if(_tabsSucias.size){
+    clearTimeout(_vistasTimer);
+    _vistasTimer = setTimeout(actualizarVistasAhora, VISTAS_REINTENTO_MS);
+  }
+}
+// Al cambiar de pestaña, si quedaba algo por pintar en ella, se pinta al entrar (nunca ves datos viejos).
+function alEntrarEnPestana(tab){
+  if(!_tabsSucias.has(tab)) return;
+  _refrescandoVistas = true;
+  const antes = _renderAllEnCurso; _renderAllEnCurso = true;
+  try{
+    invalidarClasesDerivadas();
+    procesarSincronizacionesClaseVencidas();
+    repintarPestana(tab);
+    _tabsSucias.delete(tab);
+  } finally { _renderAllEnCurso = antes; _refrescandoVistas = false; }
+}
+// Al terminar de escribir en un campo, se pone al día lo que hubiera quedado pendiente.
+document.addEventListener('focusout', ()=>{
+  if(_tabsSucias.size){ clearTimeout(_vistasTimer); _vistasTimer = setTimeout(actualizarVistasAhora, VISTAS_REINTENTO_MS); }
+});
+// Otro dispositivo: se comprueba cada minuto mientras la app está a la vista.
+setInterval(()=>{ if(!document.hidden) checkForRemoteChanges(); }, 60000);
+
 // Por si la app se queda abierta y cruza la medianoche: revisamos cada minuto (y al volver
 // a primer plano) si alguna sincronización diferida de Clases ya ha vencido, para que la
 // vuelta se marque sola sin que haga falta recargar la página.
