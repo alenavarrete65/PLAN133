@@ -17,7 +17,10 @@ Planificador de estudio y entrenos para la oposición de Guardia Civil. PWA est�
 
 | Archivo               | Para qué sirve                                                |
 |------------------------|----------------------------------------------------------------|
-| `index.html`           | Toda la app (HTML + CSS + JS en un único archivo)              |
+| `index.html`           | Estructura HTML de la app (referencia a `styles.css` y `app.js`) |
+| `styles.css`           | Todos los estilos (CSS) de la app                               |
+| `app.js`               | Toda la lógica (JS) de la app                                  |
+| `escudo-izquierdo.png` / `escudo-derecho.png` | Escudos de la cabecera (imagen blanca con transparencia: se ven "en blanco" si las abres sobre fondo blanco, pero se ven bien en la app porque el fondo es oscuro) |
 | `manifest.json`        | Metadatos de la PWA (nombre, iconos, colores)                  |
 | `service-worker.js`    | Caché offline del "app shell"                                  |
 | `icon-192.png` / `icon-512.png` | Iconos de la app (escudo de la Guardia Civil)          |
@@ -88,11 +91,12 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 
 ## Cómo publicar un cambio
 
-1. Edita los archivos que necesites (normalmente `index.html`).
-2. Si tocas el `index.html`, `manifest.json`, `service-worker.js` o los iconos,
-   sube **la versión del caché** en `service-worker.js`:
+1. Edita los archivos que necesites (normalmente `app.js` para lógica, `styles.css` para
+   estilos, o `index.html` para estructura/HTML).
+2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
+   o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v3'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v86'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -169,7 +173,8 @@ pestaña **Ajustes** en cuanto abras la app.
 
 ## Aviso de nueva versión de la app disponible
 
-Cuando publiques un cambio (subiendo un `index.html`/`service-worker.js` nuevos), quien tenga
+Cuando publiques un cambio (subiendo `index.html`/`styles.css`/`app.js`/`service-worker.js`
+nuevos), quien tenga
 la app ya abierta verá una franja arriba avisando de que hay una versión nueva, con un botón
 para recargar cuando le venga bien. Así no se queda usando en silencio una versión vieja hasta
 que recargue la pestaña por otro motivo.
@@ -291,7 +296,7 @@ Firestore no admite documentos de más de **1 MiB (1.048.576 bytes)**. Cosas que
 - **Protección en `doSave()`:** si el `state` supera el límite, **no intenta** subirlo (fallaría siempre y
   se reintentaría sin parar): lo deja guardado en este dispositivo, muestra «Datos demasiado grandes para
   la nube» en el indicador de guardado y avisa una vez. En cuanto vuelve a caber, guarda solo.
-- Constantes en `index.html`: `FIRESTORE_DOC_LIMIT`, `FIRESTORE_DOC_MARGEN` (512 B para nombre del
+- Constantes en `app.js`: `FIRESTORE_DOC_LIMIT`, `FIRESTORE_DOC_MARGEN` (512 B para nombre del
   documento y campos) y `DATOS_AVISO` (0,75).
 - Las copias del historial (`history/{día}`) son documentos aparte con el mismo límite cada uno.
 - **Ojo si algún día hay que reducir:** no borres meses antiguos del calendario para ganar espacio, porque
@@ -317,7 +322,7 @@ Tarjeta con dos listas para saber qué reforzar (`computeFlojos()` / `renderFloj
 
 Tarjeta que responde a «¿cuántas vueltas completas me da tiempo a dar antes del examen?». Usa la
 fecha del examen de la cuenta atrás (editable) y las **mismas reglas que el calendario**
-(`computeRitmoExamen()` en `index.html`):
+(`computeRitmoExamen()` en `app.js`):
 
 - **Bloques:** días impares → grave (1-5), pares → menos grave (6-12). Cada bloque se ve 2 veces por
   vuelta (azul y morado): vuelta = 2 × nº de bloques de la familia (10 y 14 visitas). En repaso final
@@ -377,7 +382,7 @@ Cada vez que se guarda un dato (`scheduleSave()`), la app se pone al día sola e
   solo si el test de hoy no está hecho, sale la pregunta «¿Has hecho ya el test de arrastre de
   hoy?». **Sí** lo apunta y ya no vuelve a preguntar ese día (tampoco desde otro dispositivo, porque
   se guarda en tu planning); **No** (o cerrar el aviso) lo repite: cada vez que abras la app y, si la
-  dejas abierta, cada 30 minutos al volver a ella (`ARRASTRE_ASK_REPEAT_MS` en `index.html`).
+  dejas abierta, cada 30 minutos al volver a ella (`ARRASTRE_ASK_REPEAT_MS` en `app.js`).
 - Es un aviso **dentro de la app**, no una notificación push del sistema: no aparece si la app está
   cerrada. Las push reales siguen pendientes (ver más abajo).
 - Dato guardado: `state.arrastreTestHecho` = `{ "YYYY-MM-DD": true }`. La nota sigue en
@@ -461,6 +466,10 @@ restaura el 10 de julio de siempre. Se guarda en `state.settings.examDate` (`"YY
 - [ ] Firebase Hosting como alternativa/respaldo a GitHub Pages (ya está todo
       preparado en `firebase.json` / `.firebaserc`, solo faltaría ejecutar
       `firebase deploy`).
-- [ ] Dividir `index.html` en varios archivos/módulos si el proyecto sigue creciendo (hoy
-      es un único archivo de más de 4700 líneas con HTML+CSS+JS mezclados; funciona bien
-      para el tamaño actual, pero a partir de cierto punto cuesta más mantenerlo).
+- [x] Separar `index.html` en tres archivos: HTML puro (`index.html`), estilos (`styles.css`)
+      y lógica (`app.js`), en vez de un único archivo con todo mezclado (implementado: ver
+      tabla "Archivos del proyecto"). `app.js` sigue siendo un archivo grande (~9.600 líneas);
+      si en el futuro se quiere trocear por función (calendario, entrenos, progreso…) haría
+      falta pasar a módulos ES (`type="module"` + `import`/`export`), un cambio más grande
+      porque hoy todas las funciones viven en el mismo ámbito global y se llaman unas a otras
+      sin pasar por imports.
