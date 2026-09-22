@@ -2259,6 +2259,23 @@ function dayCompletionBadge(info){
 function dayRenderSig(info, dayStatusRaw, isToday, noteTxt){
   return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20);
 }
+// Hace que una celda/fila de calendario (una <div> clicable con el ratón) también se pueda
+// abrir con teclado (Enter o Espacio) y la anuncia como activable a un lector de pantalla.
+// No cambia el comportamiento con ratón: el mismo "onActivar" que antes iba en el onclick.
+function hacerCeldaAccesible(el, onActivar){
+  el.setAttribute('role', 'button');
+  el.setAttribute('tabindex', '0');
+  el.onclick = onActivar;
+  el.onkeydown = (e)=>{
+    // Si el Enter/Espacio viene de un control interno (el <select> de estado, por ejemplo),
+    // lo dejamos que ese control lo gestione a su manera, sin abrir el día por encima.
+    if(e.target !== el) return;
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+      e.preventDefault();
+      onActivar();
+    }
+  };
+}
 function buildCalGridCell(y, m, d, info, daysData, isToday){
   const cell = document.createElement('div');
   cell.className = 'cal-cell status-'+info.status;
@@ -2309,7 +2326,7 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   // Se abre el día entero, sea del tipo que sea: también en descanso, trabajo o sin
   // horario, para poder ponerles notas, clases o simulacro como a cualquier otro día.
   cell.style.cursor = 'pointer';
-  cell.onclick = ()=> openDayModal(d, info);
+  hacerCeldaAccesible(cell, ()=> openDayModal(d, info));
   return cell;
 }
 /* Caché del último render de la vista rejilla, para poder diferenciar día a día
@@ -2414,7 +2431,7 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   }
   // Igual que en la rejilla: cualquier día se abre, sea de estudio o no.
   item.style.cursor = 'pointer';
-  item.onclick = ()=> openDayModal(d, info);
+  hacerCeldaAccesible(item, ()=> openDayModal(d, info));
   return item;
 }
 /* Vista alternativa tipo lista/agenda: una fila por día, apilada verticalmente,
@@ -3871,10 +3888,24 @@ function renderAccordionSection(host, key, titleText, buildFn){
   const head = document.createElement('div'); head.className = 'temario-section-head';
   head.innerHTML = `<h3>${titleText}</h3><div class="chev">${temarioOpen[key] ? '▴' : '▾'}</div>`;
   const body = document.createElement('div'); body.className = 'temario-section-body';
-  head.onclick = ()=>{
+  // Accesible por teclado: antes solo se podía abrir/cerrar con el ratón (onclick en un div
+  // sin ningún rol ni tabindex). Con role="button" + tabindex, un lector de pantalla lo anuncia
+  // como un botón desplegable, y Enter/Espacio funcionan igual que un clic.
+  head.setAttribute('role', 'button');
+  head.setAttribute('tabindex', '0');
+  head.setAttribute('aria-expanded', temarioOpen[key] ? 'true' : 'false');
+  const toggleSection = ()=>{
     temarioOpen[key] = !temarioOpen[key];
     wrap.classList.toggle('open', temarioOpen[key]);
     head.querySelector('.chev').textContent = temarioOpen[key] ? '▴' : '▾';
+    head.setAttribute('aria-expanded', temarioOpen[key] ? 'true' : 'false');
+  };
+  head.onclick = toggleSection;
+  head.onkeydown = (e)=>{
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){
+      e.preventDefault();
+      toggleSection();
+    }
   };
   wrap.appendChild(head); wrap.appendChild(body);
   host.appendChild(wrap);
@@ -3920,6 +3951,8 @@ function renderBlocks(){
         </div>
         <div class="chev">▾</div>`;
       const bbody = document.createElement('div'); bbody.className='block-body';
+      head.setAttribute('role','button'); head.setAttribute('tabindex','0');
+      head.setAttribute('aria-expanded', _bloquesAbiertos.has(num) ? 'true' : 'false');
       if(_bloquesAbiertos.has(num)){ bbody.classList.add('open'); head.querySelector('.chev').textContent = '▴'; }
       // Reordenamos visualmente por color (azul primero, morado después) sin tocar el
       // índice original de cada tema: las notas ya guardadas siguen ligadas a su mismo
@@ -3957,7 +3990,11 @@ function renderBlocks(){
       head.onclick = ()=>{
         bbody.classList.toggle('open');
         head.querySelector('.chev').textContent = bbody.classList.contains('open')?'▴':'▾';
+        head.setAttribute('aria-expanded', bbody.classList.contains('open') ? 'true' : 'false');
         if(bbody.classList.contains('open')) _bloquesAbiertos.add(num); else _bloquesAbiertos.delete(num);
+      };
+      head.onkeydown = (e)=>{
+        if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); head.onclick(); }
       };
       card.appendChild(head); card.appendChild(bbody);
       body.appendChild(card);
@@ -4338,7 +4375,7 @@ function renderArrastre(){
           '<div class="fi-head"><span class="fi-name">'+titleHtml+'</span></div>'+
           metaHtml(it, showPoolTag)+
         '</div>'+
-        (it.manual ? '<button type="button" class="arrastre-manual-remove" title="Quitar este tema añadido a mano">✕</button>' : '')+
+        (it.manual ? '<button type="button" class="arrastre-manual-remove" title="Quitar este tema añadido a mano" aria-label="Quitar este tema añadido a mano">✕</button>' : '')+
       '</div>';
     const toggle = ()=>{
       arrastreChecked[it.key] = !arrastreChecked[it.key];
@@ -5317,7 +5354,7 @@ function renderClaseCalendarGrid(){
     pills.innerHTML = buildClasePillsHTML(entry, 28);
     cell.appendChild(pills);
 
-    cell.onclick = ()=> openClaseDayModal(d, jsDow);
+    hacerCeldaAccesible(cell, ()=> openClaseDayModal(d, jsDow));
     grid.appendChild(cell);
   }
   host.appendChild(grid);
@@ -5365,7 +5402,7 @@ function renderClaseCalendarList(){
     pills.innerHTML = buildClasePillsHTML(entry, 120);
     item.appendChild(pills);
 
-    item.onclick = ()=> openClaseDayModal(d, jsDow);
+    hacerCeldaAccesible(item, ()=> openClaseDayModal(d, jsDow));
     list.appendChild(item);
   }
   host.appendChild(list);
@@ -6646,7 +6683,7 @@ function renderSimCalendarGrid(){
     pills.innerHTML = simCalPillsHTML(sim);
     cell.appendChild(pills);
 
-    cell.onclick = ()=> openSimDayModal(d, jsDow);
+    hacerCeldaAccesible(cell, ()=> openSimDayModal(d, jsDow));
     grid.appendChild(cell);
   }
   host.appendChild(grid);
@@ -6693,7 +6730,7 @@ function renderSimCalendarList(){
     pills.innerHTML = simCalPillsHTML(sim);
     item.appendChild(pills);
 
-    item.onclick = ()=> openSimDayModal(d, jsDow);
+    hacerCeldaAccesible(item, ()=> openSimDayModal(d, jsDow));
     list.appendChild(item);
   }
   host.appendChild(list);
@@ -6853,7 +6890,7 @@ function renderTodoCalendarGrid(){
     cell.appendChild(buildTodoDayContent(d, info, true));
 
     cell.style.cursor = 'pointer';
-    cell.onclick = ()=> openDayModal(d, info);
+    hacerCeldaAccesible(cell, ()=> openDayModal(d, info));
     grid.appendChild(cell);
   }
   host.appendChild(grid);
@@ -6899,7 +6936,7 @@ function renderTodoCalendarList(){
     item.appendChild(buildTodoDayContent(d, info, false));
 
     item.style.cursor = 'pointer';
-    item.onclick = ()=> openDayModal(d, info);
+    hacerCeldaAccesible(item, ()=> openDayModal(d, info));
     list.appendChild(item);
   }
   host.appendChild(list);
@@ -8111,10 +8148,16 @@ function renderEntrenos(){
   const helpBody = document.createElement('div'); helpBody.className = 'collapse-body'+(entrenoAyudaOpenLocal?' open':'');
   renderSugerenciaEntreno(helpBody);
   renderBibliotecaEntrenos(helpBody);
+  helpHead.setAttribute('role','button'); helpHead.setAttribute('tabindex','0');
+  helpHead.setAttribute('aria-expanded', entrenoAyudaOpenLocal ? 'true' : 'false');
   helpHead.onclick = ()=>{
     entrenoAyudaOpen = !entrenoAyudaOpen;
     helpBody.classList.toggle('open', entrenoAyudaOpen);
     helpHead.querySelector('.chev').textContent = entrenoAyudaOpen ? '▴' : '▾';
+    helpHead.setAttribute('aria-expanded', entrenoAyudaOpen ? 'true' : 'false');
+  };
+  helpHead.onkeydown = (e)=>{
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); helpHead.onclick(); }
   };
   helpCard.appendChild(helpHead); helpCard.appendChild(helpBody);
   host.appendChild(helpCard);
@@ -8285,10 +8328,16 @@ function appendAccordionSection(host, key, openMap, titleText, buildFn){
   const head = document.createElement('div'); head.className = 'temario-section-head';
   head.innerHTML = `<h3>${titleText}</h3><div class="chev">${openMap[key] ? '▴' : '▾'}</div>`;
   const body = document.createElement('div'); body.className = 'temario-section-body';
+  head.setAttribute('role','button'); head.setAttribute('tabindex','0');
+  head.setAttribute('aria-expanded', openMap[key] ? 'true' : 'false');
   head.onclick = ()=>{
     openMap[key] = !openMap[key];
     wrap.classList.toggle('open', openMap[key]);
     head.querySelector('.chev').textContent = openMap[key] ? '▴' : '▾';
+    head.setAttribute('aria-expanded', openMap[key] ? 'true' : 'false');
+  };
+  head.onkeydown = (e)=>{
+    if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); head.onclick(); }
   };
   wrap.appendChild(head); wrap.appendChild(body);
   host.appendChild(wrap);
