@@ -1296,8 +1296,18 @@ function renderAuthScreen(){
     authTitleEl.textContent = authMode==='login' ? 'Iniciar sesión' : 'Crear cuenta';
     authSubmitBtnEl.textContent = authMode==='login' ? 'Entrar' : 'Crear cuenta';
     authToggleModeBtnEl.textContent = authMode==='login' ? 'Crear cuenta nueva' : 'Ya tengo cuenta';
+    // El gestor de contraseñas del navegador sugiere mejor una contraseña nueva (o rellena la
+    // guardada) según lo que le digamos aquí: "current-password" al iniciar sesión,
+    // "new-password" al crear cuenta.
+    authPasswordEl.autocomplete = authMode==='login' ? 'current-password' : 'new-password';
     showAuthError('');
+    intentosFallidosAuth = 0;
   };
+  // Colchón extra ante fallos repetidos de login/registro: Firebase Auth ya frena la fuerza
+  // bruta por su cuenta, pero esto añade una espera creciente (3s, 6s, 9s… hasta 15s) tras el
+  // 3er fallo seguido, sin tocar la lógica de login en sí. Se reinicia el contador si acierta
+  // o si cambia de modo (login/registro).
+  let intentosFallidosAuth = 0;
   authSubmitBtnEl.onclick = async ()=>{
     const email = authEmailEl.value.trim();
     const password = authPasswordEl.value;
@@ -1322,8 +1332,27 @@ function renderAuthScreen(){
     }catch(e){
       console.error(e);
       showAuthError(traduceErrorAuth(e.code));
+      intentosFallidosAuth++;
+      if(intentosFallidosAuth >= 3){
+        const espera = Math.min(15, (intentosFallidosAuth-2)*3);
+        let restante = espera;
+        const textoOriginal = authMode==='login' ? 'Entrar' : 'Crear cuenta';
+        authSubmitBtnEl.disabled = true;
+        authSubmitBtnEl.textContent = 'Espera '+restante+'s…';
+        const intervaloEspera = setInterval(()=>{
+          restante--;
+          if(restante <= 0){
+            clearInterval(intervaloEspera);
+            authSubmitBtnEl.disabled = false;
+            authSubmitBtnEl.textContent = textoOriginal;
+          } else {
+            authSubmitBtnEl.textContent = 'Espera '+restante+'s…';
+          }
+        }, 1000);
+        return; // el "finally" de abajo no debe reactivar el botón ya mismo en este caso
+      }
     }finally{
-      authSubmitBtnEl.disabled = false;
+      if(intentosFallidosAuth < 3) authSubmitBtnEl.disabled = false;
     }
   };
   document.getElementById('authForgotBtn').onclick = async ()=>{
@@ -9630,3 +9659,44 @@ function renderUpdateAvailableBanner(){
     );
   }
 })();
+
+/* ===================== Captura de errores globales =====================
+   Antes, si algo reventaba en tiempo de ejecución (un fallo inesperado, un cálculo que
+   rompiera algo), no había ningún aviso: la app se quedaba "rota" en silencio y la única
+   pista era abrir la consola del navegador. Esto no cambia NINGÚN comportamiento existente
+   ni interfiere con nada: solo escucha errores que ya estaban ocurriendo y, como mucho, avisa
+   una vez por carga de página con un toast discreto (el detalle completo sigue yendo a la
+   consola, por si algún día hace falta depurarlo). */
+(function(){
+  let avisado = false; // un único aviso por carga de página, para no bombardear con toasts
+  function avisar(origen, detalle){
+    try{ console.error('[Operación Baeza · '+origen+']', detalle); }catch(e){}
+    if(avisado) return;
+    avisado = true;
+    try{
+      if(typeof showToast === 'function'){
+        showToast('⚠️ Algo ha ido mal. Si algo no responde, prueba a recargar la página.');
+      }
+    }catch(e){}
+  }
+  window.addEventListener('error', (event)=>{
+    avisar('error', (event && (event.error || event.message)) || event);
+  });
+  window.addEventListener('unhandledrejection', (event)=>{
+    avisar('promesa sin capturar', event && event.reason);
+  });
+})();
+
+/* ===================== Aviso al cerrar con cambios sin sincronizar =====================
+   Si hay algo guardado solo en este dispositivo pero aún no confirmado en la nube (por
+   ejemplo, escribiste sin conexión), el navegador pregunta antes de cerrar/recargar la
+   pestaña, para que no se te olvide que falta subirlo. No afecta a nada si no hay nada
+   pendiente: en ese caso este aviso ni siquiera aparece. */
+window.addEventListener('beforeunload', (event)=>{
+  try{
+    if(typeof hasPendingSync === 'function' && hasPendingSync()){
+      event.preventDefault();
+      event.returnValue = '';
+    }
+  }catch(e){}
+});

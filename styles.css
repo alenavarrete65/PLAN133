@@ -33,6 +33,7 @@
   }
   /* ---- MODO CLARO ---- */
   html[data-theme="light"]{
+    color-scheme: light;
     --bg:#f4ecd6;
     --bg-panel:#fffdf6;
     --bg-panel-2:#efe4c4;
