@@ -8849,6 +8849,42 @@ function renderSyncBox(){
   `;
 }
 
+/* "Limpiar caché de la app": borra SOLO la copia local de los archivos que guarda el service
+   worker (HTML/CSS/JS/imágenes/fuentes) y fuerza a que se descarguen de cero. No toca
+   localStorage, ni IndexedDB, ni nada de Firestore: tu planning, tus notas, tu PIN y el resto
+   de tus datos quedan exactamente igual. Útil cuando la app se queda pillada en una versión
+   vieja o algo no carga bien y "Actualizar ahora" del aviso de nueva versión no es suficiente. */
+const clearCacheBtnEl = document.getElementById('clearCacheBtn');
+if(clearCacheBtnEl){
+  clearCacheBtnEl.onclick = async ()=>{
+    if(!confirm('Esto va a borrar la copia local de los archivos de la app (no tus datos) y va a recargar la página. ¿Continuar?')) return;
+    clearCacheBtnEl.disabled = true;
+    const textoOriginal = clearCacheBtnEl.textContent;
+    clearCacheBtnEl.textContent = 'Limpiando…';
+    try{
+      // Guarda lo pendiente antes de recargar, igual que hace "Actualizar ahora" (máximo 4 s de
+      // espera, por si no hay conexión).
+      clearTimeout(saveTimer);
+      if(firebaseOk && accessCode){
+        await Promise.race([doSave(), new Promise(r=> setTimeout(r, 4000))]);
+      }
+    }catch(err){ try{ console.error(err); }catch(e2){} }
+    try{
+      if('caches' in window){
+        const nombres = await caches.keys();
+        await Promise.all(nombres.map((n)=> caches.delete(n)));
+      }
+    }catch(err){ try{ console.error(err); }catch(e2){} }
+    try{
+      if('serviceWorker' in navigator){
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((r)=> r.unregister()));
+      }
+    }catch(err){ try{ console.error(err); }catch(e2){} }
+    location.reload();
+  };
+}
+
 document.getElementById('resetBtn').onclick = ()=>{
   // Borrar todo es irreversible desde la app (aparte de las copias automáticas/manuales), así
   // que pedimos escribir una palabra exacta en vez de un simple aceptar/cancelar, para evitar
