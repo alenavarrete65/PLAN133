@@ -471,6 +471,16 @@
     color:var(--amber-ink);margin-bottom:8px;display:flex;align-items:center;gap:6px;
   }
   .day-section .note-inline{min-height:74px;}
+  /* ---- Modo foco: colapsa todas las secciones del día salvo la primera (Tareas del día,
+     donde vive el test de arrastre), para poder centrarse en una sola cosa a la vez. Cada
+     sección colapsada se reabre con su propio botón "Mostrar" sin perder nada de lo escrito. */
+  .day-section.foco-colapsada > div:not(.day-section-title){display:none;}
+  .day-section-foco-btn{
+    background:none;border:1px solid var(--line-strong);color:var(--amber-ink);border-radius:6px;
+    font-family:var(--font-mono);font-size:11px;padding:2px 8px;cursor:pointer;margin-left:auto;
+  }
+  .day-section-foco-btn:hover{background:var(--bg-panel-2);}
+  #dayFocoBtn[aria-pressed="true"]{background:var(--amber);color:var(--bg);border-color:var(--amber);}
   .day-pend-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
   .day-pend-row select{
     flex:1;min-width:150px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line);
@@ -499,6 +509,23 @@
     transition:opacity .2s;
   }
   .day-saved-flash.on{opacity:1;}
+  /* ---- Micro-animación al completar una vuelta o el test de arrastre: un pequeño "pop" en el
+     elemento y unas chispas que suben y se desvanecen. Nada intrusivo ni que estorbe al texto. */
+  @keyframes obPop{ 0%{transform:scale(1);} 35%{transform:scale(1.06);} 100%{transform:scale(1);} }
+  .ob-celebrate-pop{ animation: obPop .38s ease; }
+  @keyframes obSparkUp{
+    0%{ transform:translateY(0) scale(.6); opacity:0; }
+    15%{ opacity:1; }
+    100%{ transform:translateY(-34px) scale(1); opacity:0; }
+  }
+  .ob-spark{
+    position:absolute; pointer-events:none; font-size:15px; z-index:40;
+    animation: obSparkUp .8s ease-out forwards;
+  }
+  @media (prefers-reduced-motion: reduce){
+    .ob-celebrate-pop{ animation:none; }
+    .ob-spark{ display:none; }
+  }
   .day-warn{
     font-family:var(--font-mono);font-size:12px;color:var(--red-text);
     border:1px solid var(--red-text);border-radius:2px;padding:8px;margin-top:10px;line-height:1.5;

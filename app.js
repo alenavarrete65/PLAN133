@@ -862,6 +862,29 @@ function showToast(msg){
   t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 1200);
 }
+/* Micro-animación al completar algo (test de arrastre, vuelta con nota…): un pequeño "pop" en
+   el propio elemento y un par de chispas que suben y se desvanecen. Puramente decorativo —
+   nunca bloquea nada ni afecta al guardado — y respeta prefers-reduced-motion (ver CSS). */
+const OB_SPARKS = ['✨','⭐','🌟'];
+function celebrarCompletado(el){
+  if(!el) return;
+  try{
+    el.classList.remove('ob-celebrate-pop');
+    void el.offsetWidth; // reinicia la animación si se dispara varias veces seguidas
+    el.classList.add('ob-celebrate-pop');
+    setTimeout(()=> el.classList.remove('ob-celebrate-pop'), 400);
+    const rect = el.getBoundingClientRect();
+    if(rect.width === 0 && rect.height === 0) return; // elemento no visible, sin chispas
+    for(let i=0;i<3;i++){
+      const s = document.createElement('span'); s.className='ob-spark';
+      s.textContent = OB_SPARKS[i % OB_SPARKS.length];
+      s.style.left = (rect.left + rect.width*(0.2+0.3*i) + window.scrollX)+'px';
+      s.style.top = (rect.top + window.scrollY - 4)+'px';
+      document.body.appendChild(s);
+      setTimeout(()=> s.remove(), 820);
+    }
+  }catch(e){ /* nunca debe romper el guardado por un fallo puramente visual */ }
+}
 
 /* ===================== SEGURIDAD: PIN de acceso ===================== */
 // Nota importante: este PIN protege la app frente a alguien que abra el enlace y use la
@@ -1142,10 +1165,16 @@ function renderBackupBox(){
       <button class="btn ghost small" id="importJsonBtn">Importar copia (JSON)</button>
       <input type="file" id="importJsonFile" accept="application/json,.json" style="display:none;" aria-label="Seleccionar archivo de copia de seguridad">
     </div>
+    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 6px;">Exportar calendario</div>
+    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Descarga tu calendario (estudio, descanso/trabajo y simulacros) en formato .ics para verlo en Google Calendar, Apple Calendario, Outlook…</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn ghost small" id="exportIcsBtn">Exportar calendario (.ics)</button>
+    </div>
   `;
   document.getElementById('exportJsonBtn').onclick = exportBackup;
   document.getElementById('importJsonBtn').onclick = ()=> document.getElementById('importJsonFile').click();
   document.getElementById('importJsonFile').onchange = importBackup;
+  document.getElementById('exportIcsBtn').onclick = exportarCalendarioICS;
 }
 function exportBackup(){
   const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
@@ -1158,6 +1187,73 @@ function exportBackup(){
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
   showToast('Copia exportada');
+}
+/* Exporta el calendario a un archivo .ics estándar: un evento de todo el día por cada día de
+   estudio/descanso/trabajo (con el bloque, los temas, la leve, la lección de inglés, el
+   entreno y el psicotécnico que tocan) y un evento aparte por cada simulacro con fecha. Los
+   días "sin horario" no se exportan porque no tienen contenido que resumir. No modifica
+   nada de tus datos: solo lee el calendario ya calculado (computePlan) y arma el archivo. */
+function icsEscapeText(s){
+  return String(s).replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n');
+}
+function icsDateCompact(fechaISO){ return fechaISO.replace(/-/g,''); }
+function exportarCalendarioICS(){
+  const keys = sortedMonthKeys();
+  if(!keys.length){ showToast('No hay calendario guardado todavía'); return; }
+  const plan = computePlan();
+  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Operación Baeza//Planning//ES','CALSCALE:GREGORIAN'];
+  const nowStamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  let n = 0;
+  keys.forEach(mk=>{
+    const dias = plan[mk] || {};
+    Object.keys(dias).forEach(dStr=>{
+      const d = Number(dStr);
+      const info = dias[d];
+      if(!info) return;
+      const fecha = mk+'-'+pad2(d);
+      let summary, desc = '';
+      if(info.status === 'DESCANSO') summary = 'Descanso';
+      else if(info.status === 'TRABAJO') summary = 'Trabajo';
+      else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
+      else {
+        summary = 'Estudio: Bloque '+info.bloque+' ('+info.color+')';
+        const partes = [];
+        if(Array.isArray(info.temasDelDia) && info.temasDelDia.length){
+          partes.push('Temas: '+info.temasDelDia.map(t=> t.clase || t.nombre).join(', '));
+        }
+        if(info.leveInfo && info.leveInfo.nombre) partes.push('Leve: '+info.leveInfo.nombre);
+        if(info.inglesNum) partes.push('Inglés: lección '+info.inglesNum);
+        if(info.entreno) partes.push('Entreno');
+        if(info.psico && info.psico.nombre) partes.push('Psicotécnico: '+info.psico.nombre);
+        desc = partes.join('\n');
+      }
+      n++;
+      lines.push('BEGIN:VEVENT');
+      lines.push('UID:ob-dia-'+fecha+'@operacion-baeza');
+      lines.push('DTSTAMP:'+nowStamp);
+      lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
+      lines.push('SUMMARY:'+icsEscapeText(summary));
+      if(desc) lines.push('DESCRIPTION:'+icsEscapeText(desc));
+      lines.push('END:VEVENT');
+    });
+  });
+  (state.simulacros||[]).forEach((sim,i)=>{
+    if(!sim.fecha) return;
+    lines.push('BEGIN:VEVENT');
+    lines.push('UID:ob-sim-'+(sim.id||(sim.fecha+'-'+i))+'@operacion-baeza');
+    lines.push('DTSTAMP:'+nowStamp);
+    lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(sim.fecha));
+    lines.push('SUMMARY:'+icsEscapeText('Simulacro'+(sim.nombre ? ': '+sim.nombre : '')));
+    lines.push('END:VEVENT');
+  });
+  lines.push('END:VCALENDAR');
+  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'operacion-baeza-calendario-'+hoyLocalISO()+'.ics';
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+  showToast(n ? 'Calendario exportado ('+n+' días)' : 'Calendario exportado');
 }
 function importBackup(e){
   const file = e.target.files && e.target.files[0];
@@ -2835,6 +2931,7 @@ function openDayModal(d, info){
     renderPendingNotes();
   }
 
+  aplicarModoFocoDia();
   document.getElementById('dayModal').classList.add('open');
   const modalBox = document.querySelector('#dayModal .modal');
   if(modalBox) modalBox.scrollTop = 0;
@@ -3221,15 +3318,21 @@ function addArrastreTestRow(body, fechaISO){
     noBtn.disabled = tieneNota; // con nota puesta ya cuenta como hecho
     noBtn.title = tieneNota ? 'Ya has puesto nota, así que cuenta como hecho. Borra la nota para desmarcarlo.' : '';
   };
-  yesBtn.onclick = ()=>{ setArrastreTestHecho(fechaISO, true); paintState(); renderCalendar(); };
+  yesBtn.onclick = ()=>{
+    const yaEstabaHecho = arrastreTestHechoDe(fechaISO);
+    setArrastreTestHecho(fechaISO, true); paintState(); renderCalendar();
+    if(!yaEstabaHecho) celebrarCompletado(card);
+  };
   noBtn.onclick = ()=>{ setArrastreTestHecho(fechaISO, false); paintState(); renderCalendar(); };
   inp.oninput = ()=>{
     if(!state.arrastreTestNotas) state.arrastreTestNotas = {};
+    const yaEstabaHecho = arrastreTestHechoDe(fechaISO);
     if(inp.value === '') delete state.arrastreTestNotas[fechaISO];
     else state.arrastreTestNotas[fechaISO] = Number(inp.value);
     scheduleSave();
     paintState();
     renderCalendar();
+    if(!yaEstabaHecho && inp.value !== '') celebrarCompletado(card);
   };
   paintState();
   body.appendChild(card);
@@ -3307,6 +3410,45 @@ document.getElementById('resetExamDate').onclick = ()=>{
 };
 document.getElementById('closeDayModal').onclick = ()=> document.getElementById('dayModal').classList.remove('open');
 document.getElementById('dayModal').addEventListener('click', e=>{ if(e.target.id==='dayModal') e.currentTarget.classList.remove('open'); });
+
+/* ===================== MODO FOCO (ficha del día) ===================== */
+/* Colapsa todas las secciones de la ficha del día salvo la primera (Tareas del día, donde
+   vive el test de arrastre), para poder centrarte en una sola cosa. Cada sección colapsada
+   lleva su propio botón "Mostrar" para abrirla sin perder nada de lo ya escrito. Se recuerda
+   entre visitas (localStorage), pero es solo una preferencia visual: no toca ningún dato. */
+let modoFocoDia = false;
+try{ modoFocoDia = localStorage.getItem('ob-foco-dia') === '1'; }catch(e){}
+function aplicarModoFocoDia(){
+  const btn = document.getElementById('dayFocoBtn');
+  if(btn){
+    btn.setAttribute('aria-pressed', modoFocoDia ? 'true' : 'false');
+    btn.textContent = modoFocoDia ? '🎯 Modo foco (activo)' : '🎯 Modo foco';
+  }
+  const secciones = document.querySelectorAll('#dayModalBody .day-section');
+  secciones.forEach((sec, i)=>{
+    // Quita cualquier botón "Mostrar" que hubiera quedado de una apertura anterior.
+    const existente = sec.querySelector('.day-section-foco-btn');
+    if(existente) existente.remove();
+    if(!modoFocoDia || i===0){
+      sec.classList.remove('foco-colapsada');
+      return;
+    }
+    sec.classList.add('foco-colapsada');
+    const titleEl = sec.querySelector('.day-section-title');
+    if(titleEl){
+      const showBtn = document.createElement('button');
+      showBtn.type='button'; showBtn.className='day-section-foco-btn';
+      showBtn.textContent = 'Mostrar';
+      showBtn.onclick = (e)=>{ e.stopPropagation(); sec.classList.remove('foco-colapsada'); showBtn.remove(); };
+      titleEl.appendChild(showBtn);
+    }
+  });
+}
+document.getElementById('dayFocoBtn').onclick = ()=>{
+  modoFocoDia = !modoFocoDia;
+  try{ localStorage.setItem('ob-foco-dia', modoFocoDia ? '1' : '0'); }catch(e){}
+  aplicarModoFocoDia();
+};
 
 /* ===================== MODAL: AÑADIR MES ===================== */
 function openAddMonthModal(){
@@ -7272,10 +7414,90 @@ function buildArrastreTrend(numPoints){
   }
   return points;
 }
+const CICLO_MES_NOMBRE = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+/* Resumen automático de un mes concreto: vueltas completadas (con o sin nota, de cualquier
+   categoría: bloques, leves, inglés, psicotécnicos), media de las que llevan nota numérica,
+   entrenos registrados, simulacros con fecha ese mes y test de arrastre hechos. Todo se lee
+   de datos que ya existen (state.ticks, entrenosLog, simulacros, arrastreTestHecho); esta
+   función no guarda nada nuevo, solo agrega. */
+function calcularResumenMes(monthKey){
+  const plan = computePlan();
+  const diasMes = plan[monthKey] || {};
+  const hoy = hoyLocalISO();
+  let diasEstudio=0, diasEstudioPasados=0;
+  Object.keys(diasMes).forEach(d=>{
+    const info = diasMes[d];
+    if(info && info.status==='ESTUDIO'){
+      diasEstudio++;
+      if(monthKey+'-'+pad2(Number(d)) <= hoy) diasEstudioPasados++;
+    }
+  });
+  let vueltas = 0; const notas = [];
+  Object.keys(state.ticks||{}).forEach(key=>{
+    (state.ticks[key]||[]).forEach(raw=>{
+      const e = migrateTickEntry(raw);
+      if(e && e.fecha && e.fecha.indexOf(monthKey)===0 && e.mode && e.mode!=='pendiente'){
+        vueltas++;
+        if(e.mode==='nota' && typeof e.nota==='number') notas.push(e.nota);
+      }
+    });
+  });
+  const entrenos = (state.entrenosLog||[]).filter(e=> e.date && e.date.indexOf(monthKey)===0).length;
+  const simulacros = (state.simulacros||[]).filter(s=> s.fecha && s.fecha.indexOf(monthKey)===0);
+  const testsArrastre = Object.keys(state.arrastreTestHecho||{}).filter(f=> f.indexOf(monthKey)===0 && state.arrastreTestHecho[f]).length;
+  return {
+    monthKey, diasEstudio, diasEstudioPasados, vueltas,
+    mediaNotas: notas.length ? notas.reduce((a,b)=>a+b,0)/notas.length : null,
+    notasCount: notas.length, entrenos, simulacros, testsArrastre
+  };
+}
+let resumenMesSeleccionado = null; // se fija al mes actual la primera vez que se pinta Progreso
+function renderResumenMesBox(host){
+  const keys = sortedMonthKeys();
+  if(!keys.length) return;
+  const hoyKey = hoyLocalISO().slice(0,7);
+  if(resumenMesSeleccionado === null) resumenMesSeleccionado = keys.includes(hoyKey) ? hoyKey : keys[keys.length-1];
+  if(!keys.includes(resumenMesSeleccionado)) resumenMesSeleccionado = keys[keys.length-1];
+  const idx = keys.indexOf(resumenMesSeleccionado);
+  const r = calcularResumenMes(resumenMesSeleccionado);
+  const [y,m] = resumenMesSeleccionado.split('-').map(Number);
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'background:var(--bg-panel-2);border:1px solid var(--amber);border-radius:8px;padding:12px 14px;margin-bottom:16px;';
+  const head = document.createElement('div');
+  head.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;flex-wrap:wrap;';
+  head.innerHTML = '<div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.06em;">Resumen de '+CICLO_MES_NOMBRE[m-1]+' de '+y+'</div>';
+  const nav = document.createElement('div'); nav.style.cssText='display:flex;gap:6px;';
+  const prevBtn = document.createElement('button'); prevBtn.type='button'; prevBtn.className='btn ghost small'; prevBtn.textContent='←'; prevBtn.disabled = idx<=0;
+  const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn ghost small'; nextBtn.textContent='→'; nextBtn.disabled = idx>=keys.length-1;
+  prevBtn.onclick = ()=>{ resumenMesSeleccionado = keys[idx-1]; renderProgreso(); };
+  nextBtn.onclick = ()=>{ resumenMesSeleccionado = keys[idx+1]; renderProgreso(); };
+  nav.appendChild(prevBtn); nav.appendChild(nextBtn);
+  head.appendChild(nav);
+  wrap.appendChild(head);
+
+  const body = document.createElement('div');
+  body.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);line-height:1.8;';
+  let txt = '📅 Días de estudio: <strong style="color:var(--cream);">'+r.diasEstudioPasados+'</strong> de '+r.diasEstudio+' pasados en el mes.';
+  txt += '<br>🔁 Vueltas registradas (todas las categorías): <strong style="color:var(--cream);">'+r.vueltas+'</strong>.';
+  txt += r.mediaNotas!==null
+    ? (' Media de las '+r.notasCount+' con nota numérica: <strong style="color:var(--cream);">'+r.mediaNotas.toFixed(1)+'</strong>.')
+    : ' Ninguna con nota numérica todavía.';
+  txt += '<br>⭐ Test de arrastre hecho: <strong style="color:var(--cream);">'+r.testsArrastre+'</strong> día'+(r.testsArrastre!==1?'s':'')+'.';
+  txt += '<br>🏋️ Entrenos registrados: <strong style="color:var(--cream);">'+r.entrenos+'</strong>.';
+  txt += r.simulacros.length
+    ? ('<br>📝 Simulacros: <strong style="color:var(--cream);">'+r.simulacros.length+'</strong> ('+r.simulacros.map(s=>s.nombre||'sin nombre').join(', ')+').')
+    : '<br>📝 Ningún simulacro este mes.';
+  body.innerHTML = txt;
+  wrap.appendChild(body);
+  host.appendChild(wrap);
+}
 function renderProgreso(){
   const host = document.getElementById('progresoHost');
   if(!host) return;
   host.innerHTML = '';
+
+  renderResumenMesBox(host);
 
   // Se calcula aquí arriba (antes de las demás secciones) porque el resumen general lo
   // necesita ya, y así "Detalle por tema" más abajo reutiliza el mismo cálculo sin repetirlo.
@@ -7366,6 +7588,33 @@ function renderProgreso(){
       const sub = document.createElement('div'); sub.className='sub'; sub.style.marginBottom='10px';
       sub.textContent = 'Tus simulacros ordenados de mejor a peor resultado (conocimientos + inglés + psicotécnico + baremo; NO APTO manda sobre cualquier nota si ortografía o gramática han suspendido).';
       body.appendChild(sub);
+
+      // Evolución en el tiempo: solo los simulacros con fecha (colocados en el calendario de
+      // simulacros) y APTO, ordenados cronológicamente, para ver si el total va a mejor o a peor.
+      const evolPoints = simsConDatos
+        .filter(x=> x.sim.fecha && !x.noApto)
+        .map(x=> ({date:x.sim.fecha, value:x.total}))
+        .sort((a,b)=> a.date.localeCompare(b.date));
+      if(evolPoints.length >= 2){
+        const evolWrap = document.createElement('div'); evolWrap.style.cssText='width:100%;margin-bottom:14px;';
+        const evolLbl = document.createElement('div'); evolLbl.className='sub'; evolLbl.style.marginBottom='6px';
+        evolLbl.textContent = 'Evolución del total en el tiempo (simulacros con fecha en el calendario, APTO):';
+        evolWrap.appendChild(evolLbl);
+        const evolCanvas = document.createElement('canvas'); evolCanvas.setAttribute('role','img');
+        const evolFirst = evolPoints[0].value, evolLast = evolPoints[evolPoints.length-1].value;
+        const evolDiff = evolLast - evolFirst;
+        const evolVeredicto = evolDiff > 0 ? ('Ha subido '+evolDiff.toFixed(1)+' puntos desde el primero.')
+          : evolDiff < 0 ? ('Ha bajado '+Math.abs(evolDiff).toFixed(1)+' puntos desde el primero.')
+          : 'Se mantiene estable.';
+        evolCanvas.setAttribute('aria-label', 'Evolución del total de los simulacros. '+evolVeredicto);
+        evolWrap.appendChild(evolCanvas);
+        body.appendChild(evolWrap);
+        const evolVerdictEl = document.createElement('div');
+        evolVerdictEl.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);margin:-8px 0 14px;';
+        evolVerdictEl.textContent = evolVeredicto;
+        body.appendChild(evolVerdictEl);
+        drawTrendChart(evolCanvas, evolPoints, '#8ec0cf');
+      }
 
       const ranked = simsConDatos.slice().sort((a,b)=>{
         if(a.noApto && !b.noApto) return 1;
