@@ -1165,16 +1165,10 @@ function renderBackupBox(){
       <button class="btn ghost small" id="importJsonBtn">Importar copia (JSON)</button>
       <input type="file" id="importJsonFile" accept="application/json,.json" style="display:none;" aria-label="Seleccionar archivo de copia de seguridad">
     </div>
-    <div style="font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin:14px 0 6px;">Exportar calendario</div>
-    <div style="font-size:12px;color:var(--cream-dim);margin-bottom:10px;">Descarga tu calendario (estudio, descanso/trabajo y simulacros) en formato .ics para verlo en Google Calendar, Apple Calendario, Outlook…</div>
-    <div style="display:flex;gap:8px;flex-wrap:wrap;">
-      <button class="btn ghost small" id="exportIcsBtn">Exportar calendario (.ics)</button>
-    </div>
   `;
   document.getElementById('exportJsonBtn').onclick = exportBackup;
   document.getElementById('importJsonBtn').onclick = ()=> document.getElementById('importJsonFile').click();
   document.getElementById('importJsonFile').onchange = importBackup;
-  document.getElementById('exportIcsBtn').onclick = exportarCalendarioICS;
 }
 function exportBackup(){
   const email = firebaseUser && firebaseUser.email ? firebaseUser.email : '';
@@ -1188,21 +1182,37 @@ function exportBackup(){
   URL.revokeObjectURL(url);
   showToast('Copia exportada');
 }
-/* Exporta el calendario a un archivo .ics estándar: un evento de todo el día por cada día de
-   estudio/descanso/trabajo (con el bloque, los temas, la leve, la lección de inglés, el
-   entreno y el psicotécnico que tocan) y un evento aparte por cada simulacro con fecha. Los
-   días "sin horario" no se exportan porque no tienen contenido que resumir. No modifica
-   nada de tus datos: solo lee el calendario ya calculado (computePlan) y arma el archivo. */
+/* ===================== EXPORTAR CADA CALENDARIO A .ICS (por separado) ===================== */
+/* Cada uno de los tres calendarios "reales" (estudio, clases, simulacros) tiene su propio
+   botón "📆 Exportar .ics" junto a Exportar imagen/PDF, para poder importarlo suelto en
+   Google Calendar, Apple Calendario, Outlook, etc. Adrede NO hay botón en "Todo incluido":
+   es solo una vista conjunta de los otros tres, así que exportarla aparte duplicaría los
+   mismos eventos que ya se exportan desde cada calendario. No modifican ningún dato: solo
+   leen lo que ya hay guardado y arman el archivo. */
 function icsEscapeText(s){
   return String(s).replace(/\\/g,'\\\\').replace(/,/g,'\\,').replace(/;/g,'\\;').replace(/\n/g,'\\n');
 }
 function icsDateCompact(fechaISO){ return fechaISO.replace(/-/g,''); }
-function exportarCalendarioICS(){
+function descargarICS(lines, filename){
+  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+function icsCabecera(){
+  return ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Operación Baeza//Planning//ES','CALSCALE:GREGORIAN'];
+}
+function icsNowStamp(){ return new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z'; }
+
+/* ---- 1. Calendario de estudio: un evento por día de estudio/descanso/trabajo ---- */
+function exportarCalendarioEstudioICS(){
   const keys = sortedMonthKeys();
   if(!keys.length){ showToast('No hay calendario guardado todavía'); return; }
   const plan = computePlan();
-  const lines = ['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//Operación Baeza//Planning//ES','CALSCALE:GREGORIAN'];
-  const nowStamp = new Date().toISOString().replace(/[-:]/g,'').split('.')[0]+'Z';
+  const lines = icsCabecera();
+  const nowStamp = icsNowStamp();
   let n = 0;
   keys.forEach(mk=>{
     const dias = plan[mk] || {};
@@ -1229,7 +1239,7 @@ function exportarCalendarioICS(){
       }
       n++;
       lines.push('BEGIN:VEVENT');
-      lines.push('UID:ob-dia-'+fecha+'@operacion-baeza');
+      lines.push('UID:ob-estudio-'+fecha+'@operacion-baeza');
       lines.push('DTSTAMP:'+nowStamp);
       lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
       lines.push('SUMMARY:'+icsEscapeText(summary));
@@ -1237,23 +1247,78 @@ function exportarCalendarioICS(){
       lines.push('END:VEVENT');
     });
   });
+  lines.push('END:VCALENDAR');
+  descargarICS(lines, 'operacion-baeza-estudio-'+hoyLocalISO()+'.ics');
+  showToast(n ? 'Calendario de estudio exportado ('+n+' días)' : 'No había nada que exportar');
+}
+
+/* ---- 2. Calendario de clases: un evento por día con clase registrada ---- */
+function claseResumenTextoPlano(entry){
+  const partes = [];
+  if(entry.conocimientos && entry.conocimientos.length) partes.push('Conocimientos: tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', '));
+  if(entry.ingles && entry.ingles.length) partes.push('Inglés: lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', '));
+  if(entry.psico && entry.psico.length) partes.push('Psicotécnico: '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).filter(Boolean).join(', '));
+  if(entry.psicoExtra && entry.psicoExtra.filter(x=>x&&x.trim()).length) partes.push('Psicotécnico: '+entry.psicoExtra.filter(x=>x&&x.trim()).join(', '));
+  if(entry.orto && entry.orto.length) partes.push('Ortografía'+(entry.orto.some(x=>x&&x.trim())?': '+entry.orto.filter(x=>x&&x.trim()).join(', '):(entry.orto.length>1?' ×'+entry.orto.length:'')));
+  if(entry.gram && entry.gram.length) partes.push('Gramática'+(entry.gram.some(x=>x&&x.trim())?': '+entry.gram.filter(x=>x&&x.trim()).join(', '):(entry.gram.length>1?' ×'+entry.gram.length:'')));
+  if(entry.nota && entry.nota.trim()) partes.push('Nota: '+entry.nota.trim());
+  return partes;
+}
+function exportarCalendarioClasesICS(){
+  const lines = icsCabecera();
+  const nowStamp = icsNowStamp();
+  let n = 0;
+  Object.keys(state.claseCal||{}).sort().forEach(mk=>{
+    const mes = state.claseCal[mk] || {};
+    Object.keys(mes).sort((a,b)=>Number(a)-Number(b)).forEach(dStr=>{
+      const entry = mes[dStr];
+      if(!entry) return;
+      const partes = claseResumenTextoPlano(entry);
+      if(!partes.length) return;
+      const fecha = mk+'-'+pad2(Number(dStr));
+      n++;
+      lines.push('BEGIN:VEVENT');
+      lines.push('UID:ob-clase-'+fecha+'@operacion-baeza');
+      lines.push('DTSTAMP:'+nowStamp);
+      lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
+      lines.push('SUMMARY:'+icsEscapeText('Clase: '+partes[0]));
+      lines.push('DESCRIPTION:'+icsEscapeText(partes.join('\n')));
+      lines.push('END:VEVENT');
+    });
+  });
+  lines.push('END:VCALENDAR');
+  if(!n){ showToast('No hay clases registradas todavía'); return; }
+  descargarICS(lines, 'operacion-baeza-clases-'+hoyLocalISO()+'.ics');
+  showToast('Calendario de clases exportado ('+n+' días)');
+}
+
+/* ---- 3. Calendario de simulacros: un evento por simulacro con fecha ---- */
+function exportarCalendarioSimulacrosICS(){
+  const lines = icsCabecera();
+  const nowStamp = icsNowStamp();
+  let n = 0;
   (state.simulacros||[]).forEach((sim,i)=>{
     if(!sim.fecha) return;
+    n++;
+    const {total, noApto} = computeSimTotal(sim);
+    const desc = [];
+    if(sim.conocimientos!=null) desc.push('Conocimientos: '+sim.conocimientos+'/100');
+    if(sim.ingles!=null) desc.push('Inglés: '+sim.ingles+'/20');
+    if(sim.psico!=null) desc.push('Psicotécnico: '+sim.psico+'/30');
+    if(sim.baremo!=null) desc.push('Baremo: '+sim.baremo);
+    desc.push(noApto ? 'Total: NO APTO' : ('Total: '+total));
     lines.push('BEGIN:VEVENT');
     lines.push('UID:ob-sim-'+(sim.id||(sim.fecha+'-'+i))+'@operacion-baeza');
     lines.push('DTSTAMP:'+nowStamp);
     lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(sim.fecha));
     lines.push('SUMMARY:'+icsEscapeText('Simulacro'+(sim.nombre ? ': '+sim.nombre : '')));
+    lines.push('DESCRIPTION:'+icsEscapeText(desc.join('\n')));
     lines.push('END:VEVENT');
   });
   lines.push('END:VCALENDAR');
-  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url; a.download = 'operacion-baeza-calendario-'+hoyLocalISO()+'.ics';
-  document.body.appendChild(a); a.click(); a.remove();
-  URL.revokeObjectURL(url);
-  showToast(n ? 'Calendario exportado ('+n+' días)' : 'Calendario exportado');
+  if(!n){ showToast('No hay simulacros con fecha todavía'); return; }
+  descargarICS(lines, 'operacion-baeza-simulacros-'+hoyLocalISO()+'.ics');
+  showToast('Calendario de simulacros exportado ('+n+')');
 }
 function importBackup(e){
   const file = e.target.files && e.target.files[0];
@@ -9605,8 +9670,10 @@ function exportarSimCalendarioComoPDF(){ return exportarComoPDF('simCalHost', 's
 
 document.getElementById('exportCalImageBtn').addEventListener('click', exportarCalendarioComoImagen);
 document.getElementById('exportCalPdfBtn').addEventListener('click', exportarCalendarioComoPDF);
+document.getElementById('exportCalIcsBtn').addEventListener('click', exportarCalendarioEstudioICS);
 document.getElementById('exportClasesCalImageBtn').addEventListener('click', exportarClasesCalendarioComoImagen);
 document.getElementById('exportClasesCalPdfBtn').addEventListener('click', exportarClasesCalendarioComoPDF);
+document.getElementById('exportClasesCalIcsBtn').addEventListener('click', exportarCalendarioClasesICS);
 
 /* Vaciar de una vez todo el calendario de clases, para empezarlo de cero. Como la pestaña
    "Clases" se calcula a partir de este calendario, al vaciarlo se quedan también todas las
@@ -9660,6 +9727,7 @@ document.getElementById('exportTodoCalImageBtn').addEventListener('click', expor
 document.getElementById('exportTodoCalPdfBtn').addEventListener('click', exportarTodoCalendarioComoPDF);
 document.getElementById('exportSimCalImageBtn').addEventListener('click', exportarSimCalendarioComoImagen);
 document.getElementById('exportSimCalPdfBtn').addEventListener('click', exportarSimCalendarioComoPDF);
+document.getElementById('exportSimCalIcsBtn').addEventListener('click', exportarCalendarioSimulacrosICS);
 
 
 /* ===================== INIT ===================== */
