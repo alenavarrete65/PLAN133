@@ -7866,19 +7866,48 @@ function renderProgreso(){
         tbody.appendChild(tr);
       };
 
+      // Cabeceras: nivel 1 (Graves / Menos graves) y nivel 2 (Tema N), más discreto.
+      const addSubHeader = (texto, colorVar)=>{
+        const trh = document.createElement('tr');
+        trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:var(--bg-panel-2);'+
+          'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:6px 8px;">'+texto+'</td>';
+        tbody.appendChild(trh);
+      };
+      const addTemaHeader = (texto, colorVar)=>{
+        const trh = document.createElement('tr');
+        trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:transparent;'+
+          'font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px 5px 14px;border-bottom:1px solid var(--line, rgba(0,0,0,.08));">'+texto+'</td>';
+        tbody.appendChild(trh);
+      };
+      // Número de tema (el primer número de la clase: «15.1» → 15, «1 (1-2)» → 1, «9,1-2» → 9).
+      // Los temas sin clase numérica van al final, en «Sin tema».
+      const temaDe = (label)=>{
+        const limpio = String(label||'').replace(/^B\d+\s*·\s*/, '').replace(/^\d+\.\s+/, '');
+        const m = /^(\d+)/.exec(limpio);
+        return m ? Number(m[1]) : 999;
+      };
+      const bloqueNum = (label)=>{ const m = /^B(\d+)/.exec(label); return m ? Number(m[1]) : 999; };
+      const porTema = (items, colorVar)=>{
+        const sorted = items.slice().sort((a,b)=>
+          temaDe(a.label) - temaDe(b.label) ||
+          bloqueNum(a.label) - bloqueNum(b.label) ||
+          a.label.localeCompare(b.label, 'es', {numeric:true}));
+        let actual = null;
+        sorted.forEach(it=>{
+          const t = temaDe(it.label);
+          if(t !== actual){ actual = t; addTemaHeader(t===999 ? 'Sin tema' : 'Tema '+t, colorVar); }
+          renderItemRow(it);
+        });
+      };
+
       if(grupo === 'Bloques'){
-        const bloqueNum = (label)=>{ const m = /^B(\d+)/.exec(label); return m ? Number(m[1]) : 999; };
-        const items = data.porGrupo[grupo].slice().sort((a,b)=> bloqueNum(a.label) - bloqueNum(b.label) || a.label.localeCompare(b.label));
+        const items = data.porGrupo[grupo];
         const graves = items.filter(it=> bloqueNum(it.label) <= 5);
         const menosGraves = items.filter(it=> bloqueNum(it.label) >= 6);
-        const addSubHeader = (texto, colorVar)=>{
-          const trh = document.createElement('tr');
-          trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:var(--bg-panel-2);'+
-            'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:6px 8px;">'+texto+'</td>';
-          tbody.appendChild(trh);
-        };
-        if(graves.length){ addSubHeader('Graves (bloques 1–5)', 'var(--red)'); graves.forEach(renderItemRow); }
-        if(menosGraves.length){ addSubHeader('Menos graves (bloques 6–12)', 'var(--amber)'); menosGraves.forEach(renderItemRow); }
+        if(graves.length){ addSubHeader('Graves (bloques 1–5)', 'var(--red)'); porTema(graves, 'var(--red)'); }
+        if(menosGraves.length){ addSubHeader('Menos graves (bloques 6–12)', 'var(--amber)'); porTema(menosGraves, 'var(--amber)'); }
+      } else if(grupo === 'Leves'){
+        porTema(data.porGrupo[grupo], 'var(--green)');
       } else {
         data.porGrupo[grupo].forEach(renderItemRow);
       }
