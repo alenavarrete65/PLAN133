@@ -376,7 +376,24 @@
       <button type="button" class="btn ghost" id="arrastreAskNo">No, todavía no</button>
     </div>
     <button type="button" class="btn ghost small" id="arrastreAskGo">Ver qué temas son →</button>
-    <div class="sub" style="margin:12px 0 0;">Si dices que no, te lo volveré a preguntar más tarde.</div>
+    <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line);">
+      <div style="font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--cream-dim);margin-bottom:8px;">⏰ Recuérdamelo dentro de…</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+        <button type="button" class="btn ghost small" data-snooze-min="30">30 min</button>
+        <button type="button" class="btn ghost small" data-snooze-min="60">1 h</button>
+        <button type="button" class="btn ghost small" data-snooze-min="120">2 h</button>
+        <button type="button" class="btn ghost small" data-snooze-min="240">4 h</button>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+        <input type="number" id="arrastreSnoozeNum" min="1" max="1440" step="1" inputmode="numeric" placeholder="Otro tiempo" aria-label="Tiempo para el recordatorio" style="width:110px;padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;">
+        <select id="arrastreSnoozeUnit" aria-label="Unidad de tiempo" style="padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;">
+          <option value="1">minutos</option>
+          <option value="60" selected>horas</option>
+        </select>
+        <button type="button" class="btn small" id="arrastreSnoozeCustom">Recordar</button>
+      </div>
+    </div>
+    <div class="sub" id="arrastreAskHint" style="margin:12px 0 0;">Si dices que no, te lo volveré a preguntar más tarde.</div>
   </div>
 </div>
 <div class="modal-backdrop" id="examDateModal">

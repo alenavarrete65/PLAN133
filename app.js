@@ -3404,12 +3404,27 @@ function addArrastreTestRow(body, fechaISO){
 }
 
 /* ===================== AVISO: «¿has hecho el test de arrastre de hoy?» ===================== */
-/* Al abrir la app (y, si la dejas abierta, cada cierto rato) se pregunta SOLO en días de estudio
-   y SOLO si el test de hoy no está hecho. «Sí» lo apunta y ya no vuelve a preguntar ese día;
-   «No» (o cerrar el aviso) hace que se repita más tarde. */
-const ARRASTRE_ASK_REPEAT_MS = 30*60*1000; // si dices «No» y dejas la app abierta, se repite pasados 30 min
+/* Solo en días de estudio y solo si el test de hoy no está hecho. «Sí» lo apunta y ya no vuelve a
+   preguntar ese día. Para no ser pesado:
+     · Se pregunta como mucho una vez cada ARRASTRE_ASK_REPEAT_MS (2 h), aunque recargues la página
+       o cierres y abras la app: el momento de la última pregunta se guarda en este dispositivo.
+     · «Recuérdamelo dentro de…» aplaza el aviso el tiempo que elijas (minutos u horas); hasta que
+       pase ese tiempo no vuelve a salir, ni al recargar.
+   Ojo: es un aviso dentro de la app; solo puede salir cuando la app está abierta (o al abrirla). */
+const ARRASTRE_ASK_REPEAT_MS = 2*60*60*1000; // sin aplazar: como mucho un aviso cada 2 h
+const ARRASTRE_AVISO_KEY = 'ob_arrastre_aviso';
 let _appStarted = false;
-let _arrastreAskLastShown = 0;
+function _arrastreAvisoKey(){ return ARRASTRE_AVISO_KEY+'_'+(typeof accessCode!=='undefined' && accessCode ? accessCode : ''); }
+function leerAvisoArrastre(){
+  try{
+    const o = JSON.parse(localStorage.getItem(_arrastreAvisoKey()) || 'null');
+    if(o && o.fecha === todayISO()) return {fecha:o.fecha, ultimo:Number(o.ultimo)||0, hasta:Number(o.hasta)||0};
+  }catch(e){}
+  return {fecha: todayISO(), ultimo:0, hasta:0}; // otro día (o sin datos): empieza limpio
+}
+function guardarAvisoArrastre(o){
+  try{ localStorage.setItem(_arrastreAvisoKey(), JSON.stringify(o)); }catch(e){}
+}
 function hoyEsDiaDeEstudio(){
   try{
     const now = new Date();
@@ -3425,9 +3440,27 @@ function maybeAskArrastreTest(esArranque){
   if(document.querySelector('.modal-backdrop.open')) return; // no apilar sobre otro modal abierto
   if(!hoyEsDiaDeEstudio()) return;                            // solo días de estudio
   if(arrastreTestHechoDe(todayISO())) return;                 // ya hecho → no se repite
-  if(!esArranque && Date.now() - _arrastreAskLastShown < ARRASTRE_ASK_REPEAT_MS) return;
-  _arrastreAskLastShown = Date.now();
+  const av = leerAvisoArrastre();
+  const ahora = Date.now();
+  if(av.hasta){
+    if(ahora < av.hasta) return;                              // aplazado por ti: aún no toca
+  } else if(av.ultimo && ahora - av.ultimo < ARRASTRE_ASK_REPEAT_MS){
+    return;                                                   // preguntado hace poco (p. ej. al recargar)
+  }
+  guardarAvisoArrastre({fecha: av.fecha, ultimo: ahora, hasta: 0});
+  const hint = document.getElementById('arrastreAskHint');
+  if(hint) hint.textContent = 'Si dices que no, te lo volveré a preguntar dentro de unas '+Math.round(ARRASTRE_ASK_REPEAT_MS/3600000)+' h.';
   document.getElementById('arrastreAskModal').classList.add('open');
+}
+function aplazarAvisoArrastre(minutos){
+  if(!(minutos >= 1)){ showToast('Pon un tiempo válido'); return; }
+  minutos = Math.min(Math.round(minutos), 1440);
+  const ahora = Date.now();
+  const av = leerAvisoArrastre();
+  guardarAvisoArrastre({fecha: av.fecha, ultimo: ahora, hasta: ahora + minutos*60000});
+  cerrarAvisoArrastre();
+  const d = new Date(ahora + minutos*60000);
+  showToast('Te lo recuerdo a las '+pad2(d.getHours())+':'+pad2(d.getMinutes()));
 }
 document.getElementById('arrastreAskYes').onclick = ()=>{
   setArrastreTestHecho(todayISO(), true);
@@ -3435,11 +3468,19 @@ document.getElementById('arrastreAskYes').onclick = ()=>{
   renderCalendar();
   showToast('Test de arrastre de hoy hecho ✓');
 };
-document.getElementById('arrastreAskNo').onclick = cerrarAvisoArrastre; // sin marcar: se volverá a preguntar
+document.getElementById('arrastreAskNo').onclick = cerrarAvisoArrastre; // sin marcar: se volverá a preguntar pasado el intervalo
 document.getElementById('arrastreAskGo').onclick = ()=>{
   cerrarAvisoArrastre();
   const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
   if(tabBtn) tabBtn.click();
+};
+document.querySelectorAll('#arrastreAskModal [data-snooze-min]').forEach(b=>{
+  b.onclick = ()=> aplazarAvisoArrastre(Number(b.getAttribute('data-snooze-min')));
+});
+document.getElementById('arrastreSnoozeCustom').onclick = ()=>{
+  const n = parseFloat(document.getElementById('arrastreSnoozeNum').value);
+  const unidad = Number(document.getElementById('arrastreSnoozeUnit').value) || 1;
+  aplazarAvisoArrastre(n * unidad);
 };
 document.getElementById('arrastreAskModal').addEventListener('click', e=>{ if(e.target.id==='arrastreAskModal') cerrarAvisoArrastre(); });
 // Si la app se queda abierta (o vuelve a primer plano), se revisa cada minuto / al volver.
