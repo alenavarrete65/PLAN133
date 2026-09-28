@@ -7764,6 +7764,47 @@ function renderProgreso(){
       'Inglés':'#5c8a99',
       'Psicotécnicos':'#7a5c9c'
     };
+    // Cada parte del temario (Graves, Menos graves, Leves, Inglés, Psicotécnicos) es un desplegable:
+    // su cabecera es una fila clicable y las filas que la siguen se muestran u ocultan. El estado
+    // abierto/cerrado se recuerda en detalleSeccionesOpen para que no se cierre al repintar.
+    let secKey = null, secRows = [];
+    const pushRow = (tr)=>{
+      tbody.appendChild(tr);
+      if(secKey){
+        secRows.push(tr);
+        if(!detalleSeccionesOpen[secKey]) tr.style.display = 'none';
+      }
+    };
+    const startSection = (key, texto, colorVar, count)=>{
+      secKey = key; secRows = [];
+      const rows = secRows;
+      const abierto = ()=> !!detalleSeccionesOpen[key];
+      const trh = document.createElement('tr');
+      trh.className = 'detalle-seccion-head';
+      trh.setAttribute('role','button'); trh.setAttribute('tabindex','0');
+      trh.setAttribute('aria-expanded', abierto() ? 'true' : 'false');
+      trh.style.cursor = 'pointer';
+      const td = document.createElement('td');
+      td.colSpan = 5;
+      td.style.cssText = 'border-left:3px solid '+colorVar+';background:var(--bg-panel-2);font-family:var(--font-mono);font-size:12px;'+
+        'text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:10px 8px;user-select:none;';
+      const render = ()=>{
+        td.innerHTML = '<span class="chev" style="display:inline-block;width:16px;">'+(abierto()?'▴':'▾')+'</span>'+texto+
+          ' <span style="color:var(--muted);text-transform:none;">· '+count+' tema'+(count!==1?'s':'')+'</span>';
+        trh.setAttribute('aria-expanded', abierto() ? 'true' : 'false');
+      };
+      render();
+      trh.appendChild(td);
+      trh.onclick = ()=>{
+        detalleSeccionesOpen[key] = !abierto();
+        rows.forEach(r=>{ r.style.display = abierto() ? '' : 'none'; });
+        render();
+      };
+      trh.onkeydown = (e)=>{
+        if(e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); trh.onclick(); }
+      };
+      tbody.appendChild(trh);
+    };
     grupos.forEach(grupo=>{
       const tagClass = grupoTagClass[grupo] || 'g-bloques';
       // Dentro de "Bloques", separamos Graves (1-5) de Menos graves (6-12) con su propio
@@ -7863,21 +7904,15 @@ function renderProgreso(){
         } else {
           sparkTd.innerHTML = '<span style="color:var(--muted);font-size:12px;">— sin notas —</span>';
         }
-        tbody.appendChild(tr);
+        pushRow(tr);
       };
 
       // Cabeceras: nivel 1 (Graves / Menos graves) y nivel 2 (Tema N), más discreto.
-      const addSubHeader = (texto, colorVar)=>{
-        const trh = document.createElement('tr');
-        trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:var(--bg-panel-2);'+
-          'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.05em;color:var(--cream-dim);padding:6px 8px;">'+texto+'</td>';
-        tbody.appendChild(trh);
-      };
       const addTemaHeader = (texto, colorVar)=>{
         const trh = document.createElement('tr');
         trh.innerHTML = '<td colspan="5" style="border-left:3px solid '+colorVar+';background:transparent;'+
           'font-family:var(--font-mono);font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:5px 8px 5px 14px;border-bottom:1px solid var(--line, rgba(0,0,0,.08));">'+texto+'</td>';
-        tbody.appendChild(trh);
+        pushRow(trh);
       };
       // Número de tema (el primer número de la clase: «15.1» → 15, «1 (1-2)» → 1, «9,1-2» → 9).
       // Los temas sin clase numérica van al final, en «Sin tema».
@@ -7904,11 +7939,13 @@ function renderProgreso(){
         const items = data.porGrupo[grupo];
         const graves = items.filter(it=> bloqueNum(it.label) <= 5);
         const menosGraves = items.filter(it=> bloqueNum(it.label) >= 6);
-        if(graves.length){ addSubHeader('Graves (bloques 1–5)', 'var(--red)'); porTema(graves, 'var(--red)'); }
-        if(menosGraves.length){ addSubHeader('Menos graves (bloques 6–12)', 'var(--amber)'); porTema(menosGraves, 'var(--amber)'); }
+        if(graves.length){ startSection('graves', 'Graves (bloques 1–5)', 'var(--red)', graves.length); porTema(graves, 'var(--red)'); }
+        if(menosGraves.length){ startSection('menosGraves', 'Menos graves (bloques 6–12)', 'var(--amber)', menosGraves.length); porTema(menosGraves, 'var(--amber)'); }
       } else if(grupo === 'Leves'){
+        startSection('leves', 'Leves', 'var(--green)', data.porGrupo[grupo].length);
         porTema(data.porGrupo[grupo], 'var(--green)');
       } else {
+        startSection(grupo === 'Inglés' ? 'ingles' : grupo === 'Psicotécnicos' ? 'psico' : grupo, grupo, GRUPO_BORDER_COLOR[grupo] || 'var(--amber)', data.porGrupo[grupo].length);
         data.porGrupo[grupo].forEach(renderItemRow);
       }
     });
@@ -8053,6 +8090,7 @@ function renderProgreso(){
     host.appendChild(sArr);
   }
 }
+const detalleSeccionesOpen = {graves:false, menosGraves:false, leves:false, ingles:false, psico:false};
 const progresoOpen = {detalleTema:false, tendenciaArrastre:true, comparativaSimulacros:true, testArrastre:true};
 // Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
 // aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
