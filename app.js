@@ -3704,34 +3704,119 @@ function migrateTickEntry(v){
   return v ? {mode:'solo_lectura', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null} : {mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null};
 }
 /* ---- Recuperar ----
-   «Recuperar» es un estado más de la vuelta (junto a Nota test / No test / No tiempo…), y sirve
-   para los temas que hoy no te ha dado tiempo de hacer y quieres recuperar otro día:
-   · NO pasan al Arrastre: al elegirlo desde el día del calendario se quita la casilla «NO completado»
-     de ese tema (esa casilla es la que mandaba el tema al Arrastre).
-   · Aparecen en la pestaña «Recuperar», que se rellena sola leyendo state.ticks (no hay lista aparte
-     que mantener). Ahí puedes poner la fecha en la que lo has recuperado (entry.recuperado).
-   Se guarda dentro de la propia vuelta: recDesde (día en que lo marcaste) y recuperado (día en que lo recuperaste). */
-function streamDeKey(key){
-  key = String(key);
-  if(/^ingles-/.test(key)) return 'ingles';
-  if(/^psico-/.test(key)) return 'psico';
-  if(/^leve-/.test(key)) return 'leve';
-  if(/^b\d+-/.test(key)) return 'bloque';
-  return null;
+   «Recuperar» es un estado más de la vuelta (junto a Nota test / No test / No tiempo…) para los
+   temas que un día no te da tiempo a hacer y quieres recuperar otro día:
+   · Mientras estén pendientes de recuperar NO entran en el Arrastre (computeArrastreData los salta);
+     en la pestaña Arrastre solo aparece un aviso «Pendiente de recuperar».
+   · Se ven en la pestaña «Recuperar», que se rellena sola leyendo state.ticks (no hay lista aparte).
+     También se pueden añadir a mano ahí (desplegable por materia).
+   · Al pulsar «Recuperado» se pone la fecha y se elige el resultado (Nota test / No test / …); ese
+     resultado se guarda en la propia vuelta, así que Progreso lo recoge como cualquier otra nota.
+   Se guarda dentro de la vuelta: recDesde (día que lo marcaste) y recuperado (día que lo recuperaste). */
+let _catRecCache = null;
+function catalogoRecuperar(){
+  if(_catRecCache) return _catRecCache;
+  const items = [];
+  Object.keys(BLOCKS).map(Number).sort((x,y)=>x-y).forEach(num=>{
+    BLOCKS[num].temas.forEach((t,idx)=>{
+      if(t.type==='armas_explosivos'){
+        [['armas',t.armas],['explosivos',t.explosivos]].forEach(([sub,label])=>{
+          items.push({key:'b'+num+'-'+idx+'-'+sub, grupo:'Bloques', materia:'bloques', bloque:num,
+            label:'B'+num+' · '+(t.clase||label), detalle:label, arrKey:'b'+num+'-'+label});
+        });
+      } else {
+        items.push({key:'b'+num+'-'+idx, grupo:'Bloques', materia:'bloques', bloque:num,
+          label:'B'+num+' · '+(t.clase||t.nombre), detalle:t.nombre, arrKey:'b'+num+'-'+t.nombre});
+      }
+    });
+  });
+  LEVES.forEach((t,idx)=>{
+    if(t.type==='l39_l40'){
+      [['l39',t.l39],['l40',t.l40]].forEach(([sub,label])=>{
+        items.push({key:'leve-'+idx+'-'+sub, grupo:'Leves', materia:'leves',
+          label:(idx+1)+'. '+(t.clase||label), detalle:label, arrKey:'leve-'+idx+'-'+label});
+      });
+    } else {
+      items.push({key:'leve-'+idx, grupo:'Leves', materia:'leves',
+        label:(idx+1)+'. '+(t.clase||t.nombre), detalle:t.nombre, arrKey:'leve-'+idx+'-'+t.nombre});
+    }
+  });
+  for(let i=1;i<=INGLES_TOTAL;i++){
+    items.push({key:'ingles-'+i, grupo:'Inglés', materia:'ingles', label:'Tema '+i, detalle:'', arrKey:'ingles-'+i});
+  }
+  PSICO_ITEMS.forEach((name,idx)=>{
+    items.push({key:'psico-'+idx, grupo:'Psicotécnicos', materia:'psico', label:name, detalle:'', arrKey:'psico-'+idx});
+  });
+  const porKey = {};
+  items.forEach(it=>{ porKey[it.key] = it; });
+  _catRecCache = {items, porKey};
+  return _catRecCache;
+}
+/* Todo lo que está en estado «Recuperar» (pendiente) o ya recuperado. Devuelve referencias a los
+   objetos reales de state.ticks. No depende de que Temario esté pintado. */
+function collectRecuperar(){
+  const out = [];
+  const porKey = catalogoRecuperar().porKey;
+  Object.keys(state.ticks || {}).forEach(key=>{
+    const meta = porKey[key];
+    if(!meta) return; // tema que ya no existe en el temario
+    const esIng = esKeyIngles(key);
+    (state.ticks[key] || []).forEach((raw, idx)=>{
+      if(!raw || typeof raw !== 'object') return;
+      const e = migrateTickEntry(raw);
+      const slots = esIng ? slotsDeVuelta(e) : [{id:null, s:e}];
+      slots.forEach(({id, s})=>{
+        if(!s) return;
+        // Por si quedó de la versión anterior: recuperado pero todavía en «Recuperar» → pasa a «elige resultado».
+        if(s.mode === 'recuperar' && s.recuperado) s.mode = 'pendiente';
+        if(s.mode === 'recuperar' || s.recuperado){
+          out.push({key, grupo:meta.grupo, label:meta.label, detalle:meta.detalle, vuelta:idx+1, slot:id, s});
+        }
+      });
+    });
+  });
+  return out;
+}
+// Claves (en el formato del Arrastre) de los temas pendientes de recuperar: no deben entrar en el Arrastre.
+function recuperarArrastreKeys(){
+  const set = new Set();
+  const porKey = catalogoRecuperar().porKey;
+  collectRecuperar().forEach(x=>{ if(!x.s.recuperado && porKey[x.key]) set.add(porKey[x.key].arrKey); });
+  return set;
 }
 function aplicarModoRecuperar(target, key, fechaISO){
   if(target.mode === 'recuperar'){
-    if(!target.recDesde) target.recDesde = fechaISO || todayISO();
-    if(fechaISO && /^\d{4}-\d{2}-\d{2}$/.test(fechaISO)){
-      const stream = streamDeKey(key);
-      const mk = fechaISO.slice(0,7), day = Number(fechaISO.slice(8,10));
-      const dt = state.dayTicks && state.dayTicks[mk] && state.dayTicks[mk][day];
-      if(stream && dt && dt[stream]) setDayTick(mk, day, stream, false); // fuera del Arrastre
-    }
-  } else {
-    delete target.recDesde; delete target.recuperado;
+    target.recDesde = fechaISO || target.recDesde || todayISO();
+    delete target.recuperado;
+  } else if(!target.recuperado){
+    delete target.recDesde;
   }
   try{ renderRecuperar(); }catch(err){ try{ console.error(err); }catch(e){} }
+}
+// Añade un tema a mano a Recuperar: marca como «Recuperar» la primera vuelta libre de ese tema
+// (o crea una vuelta nueva si ya no queda ninguna libre).
+function anadirRecuperarManual(key, testId){
+  const meta = catalogoRecuperar().porKey[key];
+  if(!meta) return;
+  const esIng = esKeyIngles(key);
+  const id = esIng ? (testId || 'general') : 'general';
+  if(collectRecuperar().some(x=> x.key===key && !x.s.recuperado && (x.slot||'general')===id)){
+    showToast('Ese tema ya está pendiente de recuperar'); return;
+  }
+  const arr = ensureTicksArray(key);
+  const libre = (e)=>{
+    const sl = id === 'general' ? e : (e.textos && e.textos[id]);
+    return !sl || (sl.mode === 'pendiente' && !sl.recuperado && !sl.recDesde && !testsDeVuelta(sl).length);
+  };
+  let idx = arr.findIndex(libre);
+  if(idx === -1){ arr.push({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}); idx = arr.length-1; }
+  const target = slotDe(arr[idx], id);
+  target.mode = 'recuperar'; target.nota = null; target.notasExtra = [];
+  target.recDesde = todayISO(); delete target.recuperado;
+  if(!KEY_LABELS[key]) KEY_LABELS[key] = {grupo:meta.grupo, label:meta.label, max:GROUP_MAX_NOTA[meta.grupo]};
+  scheduleSave();
+  renderRecuperar();
+  showToast('Añadido a Recuperar (vuelta '+(idx+1)+')');
 }
 /* ---- Inglés: cada tema (lección) tiene 4 tests ----
    Dentro de cada vuelta se puede elegir sobre qué se apunta el resultado: «Test general» (lo de
@@ -3768,7 +3853,7 @@ function slotsDeVuelta(entry){
   return out;
 }
 function slotVacio(s){
-  return !s || (s.mode === 'pendiente' && !testsDeVuelta(s).length && !notasDeVuelta(s).length);
+  return !s || (s.mode === 'pendiente' && !s.recuperado && !s.recDesde && !testsDeVuelta(s).length && !notasDeVuelta(s).length);
 }
 function podarTextos(entry){
   if(!entry.textos) return;
@@ -4469,6 +4554,7 @@ function arrastreManualCatalog(poolKey){
 function computeArrastreData(asOfDayKey){
   const pools = {};
   Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}}; });
+  const recSkip = recuperarArrastreKeys(); // temas pendientes de recuperar: no entran en el arrastre
 
   const keys = sortedMonthKeys();
   if(!keys.length) return pools;
@@ -4487,6 +4573,7 @@ function computeArrastreData(asOfDayKey){
   function pushItem(poolKey, lap, item){
     const p = pools[poolKey];
     p.lap = lap;
+    if(recSkip.has(item.key)) return;
     if(!p.items[lap]) p.items[lap] = [];
     if(!p.seenKeys[lap]) p.seenKeys[lap] = {};
     if(p.seenKeys[lap][item.key]) return;
@@ -4632,6 +4719,33 @@ function renderArrastre(){
   }
 
   const pools = computeArrastreData();
+
+  // Aviso: temas pendientes de recuperar (no cuentan en el arrastre hasta que los recuperes).
+  {
+    const pendRec = collectRecuperar().filter(x=> !x.s.recuperado);
+    const det = document.createElement('details'); det.className = 'arr-rec';
+    if(pendRec.length) det.open = true;
+    const sm = document.createElement('summary');
+    sm.textContent = '🔁 Pendiente de recuperar ('+pendRec.length+')';
+    det.appendChild(sm);
+    if(pendRec.length){
+      pendRec.forEach(x=>{
+        const l = document.createElement('div'); l.className = 'arr-rec-item';
+        l.textContent = x.label+(x.detalle && x.label.indexOf(x.detalle)===-1 ? ' — '+x.detalle : '')+(x.slot ? ' · '+slotEtiqueta(x.slot) : '')+' · '+x.grupo;
+        det.appendChild(l);
+      });
+      const nota = document.createElement('div'); nota.className = 'arr-rec-nota';
+      nota.textContent = 'No entran en el arrastre hasta que los recuperes.';
+      det.appendChild(nota);
+      const go = document.createElement('button'); go.type = 'button'; go.className = 'btn small ghost'; go.textContent = 'Ir a Recuperar →';
+      go.onclick = ()=> activateTab('recuperar');
+      det.appendChild(go);
+    } else {
+      const l = document.createElement('div'); l.className = 'arr-rec-nota'; l.textContent = 'Nada pendiente de recuperar.';
+      det.appendChild(l);
+    }
+    host.appendChild(det);
+  }
 
   // Construye la línea de meta-datos (bloque/leve + grave-menos grave-leve + azul/morado)
   // que va debajo del nombre de cada tema.
@@ -7346,23 +7460,66 @@ document.getElementById('closeSimDayModal').onclick = ()=> document.getElementBy
 document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.target.id==='simDayModal') e.currentTarget.classList.remove('open'); });
 
 /* ===================== RENDER: RECUPERAR ===================== */
-/* Recoge de state.ticks todo lo que esté en estado «Recuperar» (temas de bloque, leves, inglés — cada test
-   por separado — y psicotécnicos). Solo cuenta lo que existe en el temario actual (KEY_LABELS). */
-function collectRecuperar(){
-  const out = [];
-  Object.keys(state.ticks || {}).forEach(key=>{
-    const meta = KEY_LABELS[key];
-    if(!meta) return;
-    const esIng = esKeyIngles(key);
-    (state.ticks[key] || []).map(migrateTickEntry).forEach((e, idx)=>{
-      if(!e || typeof e !== 'object') return;
-      const slots = esIng ? slotsDeVuelta(e) : [{id:null, s:e}];
-      slots.forEach(({id, s})=>{
-        if(s && s.mode === 'recuperar') out.push({key, grupo:meta.grupo, label:meta.label, vuelta:idx+1, slot:id, s});
-      });
+const _recForm = {materia:'bloques', bloque:1, key:'', test:'general'};
+const REC_MATERIAS = [['bloques','Bloques'],['leves','Leves'],['ingles','Inglés'],['psico','Psicotécnicos']];
+function buildRecuperarForm(host){
+  host.innerHTML = '';
+  const cat = catalogoRecuperar();
+  const box = document.createElement('div'); box.className = 'rec-form';
+  const tit = document.createElement('div'); tit.className = 'rec-form-tit'; tit.textContent = '➕ Añadir un tema a mano';
+  box.appendChild(tit);
+  const fila = document.createElement('div'); fila.className = 'rec-form-fila';
+  const mkSel = (aria)=>{ const x = document.createElement('select'); x.className = 'rec-sel'; x.setAttribute('aria-label', aria); return x; };
+  const repintar = ()=> buildRecuperarForm(host);
+
+  const selMat = mkSel('Materia');
+  REC_MATERIAS.forEach(([v,t])=>{ const o = document.createElement('option'); o.value = v; o.textContent = t; if(v===_recForm.materia) o.selected = true; selMat.appendChild(o); });
+  selMat.onchange = ()=>{ _recForm.materia = selMat.value; _recForm.key = ''; repintar(); };
+  fila.appendChild(selMat);
+
+  if(_recForm.materia === 'bloques'){
+    const selBl = mkSel('Bloque');
+    Object.keys(BLOCKS).map(Number).sort((x,y)=>x-y).forEach(n=>{
+      const o = document.createElement('option'); o.value = String(n);
+      o.textContent = 'Bloque '+n+(BLOCKS[n].graves ? ' (grave)' : ' (menos grave)');
+      if(n === Number(_recForm.bloque)) o.selected = true; selBl.appendChild(o);
     });
+    selBl.onchange = ()=>{ _recForm.bloque = Number(selBl.value); _recForm.key = ''; repintar(); };
+    fila.appendChild(selBl);
+  }
+
+  let temas = cat.items.filter(it=> it.materia === _recForm.materia);
+  if(_recForm.materia === 'bloques') temas = temas.filter(it=> it.bloque === Number(_recForm.bloque));
+  if(!temas.some(it=> it.key === _recForm.key)) _recForm.key = temas.length ? temas[0].key : '';
+  const selTema = mkSel('Tema');
+  temas.forEach(it=>{
+    const o = document.createElement('option'); o.value = it.key;
+    o.textContent = it.materia==='bloques' ? (it.label.replace(/^B\d+ · /,'') + (it.detalle && it.label.indexOf(it.detalle)===-1 ? ' — '+it.detalle : ''))
+      : (it.detalle && it.label.indexOf(it.detalle)===-1 ? it.label+' — '+it.detalle : it.label);
+    if(it.key === _recForm.key) o.selected = true; selTema.appendChild(o);
   });
-  return out;
+  selTema.onchange = ()=>{ _recForm.key = selTema.value; };
+  fila.appendChild(selTema);
+
+  let selTest = null;
+  if(_recForm.materia === 'ingles'){
+    selTest = mkSel('Qué test de inglés');
+    ['general'].concat(INGLES_TEXTOS).forEach(id=>{
+      const o = document.createElement('option'); o.value = id; o.textContent = slotEtiqueta(id);
+      if(id === _recForm.test) o.selected = true; selTest.appendChild(o);
+    });
+    selTest.onchange = ()=>{ _recForm.test = selTest.value; };
+    fila.appendChild(selTest);
+  }
+
+  const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn small'; btn.textContent = 'Añadir a Recuperar';
+  btn.onclick = ()=>{
+    if(!_recForm.key) return;
+    anadirRecuperarManual(_recForm.key, selTest ? selTest.value : 'general');
+  };
+  fila.appendChild(btn);
+  box.appendChild(fila);
+  host.appendChild(box);
 }
 function renderRecuperar(){
   const host = document.getElementById('recuperarHost');
@@ -7371,6 +7528,8 @@ function renderRecuperar(){
   const badge = document.getElementById('recuperarBadge');
   if(badge){ badge.textContent = pend.length; badge.style.display = pend.length ? '' : 'none'; }
   if(!host) return;
+  const formHost = document.getElementById('recuperarFormHost');
+  if(formHost && !formHost.firstChild) buildRecuperarForm(formHost);
   host.innerHTML = '';
 
   const fechaCorta = (iso)=>{ if(!iso) return ''; const [y,m,d] = iso.split('-').map(Number); return d+' '+MESES[m-1].slice(0,3).toLowerCase()+' '+y; };
@@ -7384,7 +7543,7 @@ function renderRecuperar(){
     const row = document.createElement('div'); row.className = 'rec-item'+(hecho?' hecho':'');
     const info = document.createElement('div'); info.className = 'rec-info';
     const nombre = document.createElement('div'); nombre.className = 'rec-nombre';
-    nombre.textContent = it.label;
+    nombre.textContent = it.label+(it.detalle && it.label.indexOf(it.detalle)===-1 ? ' — '+it.detalle : '');
     info.appendChild(nombre);
     const meta = document.createElement('div'); meta.className = 'rec-meta';
     const partes = [it.grupo, 'Vuelta '+it.vuelta];
@@ -7405,30 +7564,53 @@ function renderRecuperar(){
       btn.onclick = ()=>{
         if(!inp.value) return;
         it.s.recuperado = inp.value;
-        scheduleSave(); renderRecuperar(); renderProgreso();
+        it.s.mode = 'pendiente'; // ahora toca elegir el resultado del test (Nota test / No test…)
+        scheduleSave(); renderRecuperar();
         showToast('Recuperado el '+fechaCorta(inp.value));
       };
       acc.appendChild(btn);
     } else {
-      inp.onchange = ()=>{
-        if(!inp.value) return;
-        it.s.recuperado = inp.value;
-        scheduleSave(); renderRecuperar();
-      };
+      inp.onchange = ()=>{ if(inp.value){ it.s.recuperado = inp.value; scheduleSave(); } };
       const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn small ghost';
       undo.textContent = 'Deshacer';
-      undo.title = 'Vuelve a dejarlo pendiente de recuperar';
-      undo.onclick = ()=>{ delete it.s.recuperado; scheduleSave(); renderRecuperar(); renderProgreso(); };
+      undo.title = 'Vuelve a dejarlo pendiente de recuperar (se borra el resultado)';
+      undo.onclick = ()=>{
+        delete it.s.recuperado; it.s.mode = 'recuperar'; it.s.nota = null; it.s.notasExtra = [];
+        scheduleSave(); renderRecuperar();
+      };
       acc.appendChild(undo);
     }
     row.appendChild(acc);
+
+    if(hecho){
+      // Resultado del test, igual que en el resto de la app: Nota test / No test / No tiempo / Solo lectura.
+      const res = document.createElement('div'); res.className = 'rec-resultado';
+      const sel = document.createElement('select'); sel.className = 'vuelta-select';
+      sel.setAttribute('aria-label', 'Resultado del test de '+it.label);
+      VUELTA_MODES.filter(m=> m[0] !== 'recuperar').forEach(([val,txt])=>{
+        const o = document.createElement('option'); o.value = val;
+        o.textContent = val === 'pendiente' ? 'Resultado del test…' : txt;
+        if(it.s.mode === val) o.selected = true;
+        sel.appendChild(o);
+      });
+      sel.onchange = ()=>{
+        it.s.mode = sel.value;
+        if(it.s.mode !== 'nota'){ it.s.nota = null; it.s.notasExtra = []; }
+        scheduleSave(); renderRecuperar();
+      };
+      res.appendChild(sel);
+      if(it.s.mode === 'nota'){
+        res.appendChild(buildTestsVuelta(it.s, GROUP_MAX_NOTA[it.grupo] || 10, 'Nota del test recuperado de '+it.label));
+      }
+      row.appendChild(res);
+    }
     return row;
   }
 
   if(pend.length){
     const sec = document.createElement('section'); sec.className = 'temario-group';
     const h = document.createElement('h3'); h.textContent = 'Por recuperar'; sec.appendChild(h);
-    pend.sort((a,b)=> String(a.s.recDesde||'9999').localeCompare(String(b.s.recDesde||'9999'))); // los más antiguos primero
+    pend.sort((x,y)=> String(x.s.recDesde||'9999').localeCompare(String(y.s.recDesde||'9999'))); // los más antiguos primero
     pend.forEach(it=> sec.appendChild(buildRow(it, false)));
     host.appendChild(sec);
   }
@@ -7436,13 +7618,13 @@ function renderRecuperar(){
   if(hechos.length){
     const sec = document.createElement('section'); sec.className = 'temario-group';
     const h = document.createElement('h3'); h.textContent = 'Recuperados'; sec.appendChild(h);
-    hechos.sort((a,b)=> String(b.s.recuperado).localeCompare(String(a.s.recuperado)));
+    hechos.sort((x,y)=> String(y.s.recuperado).localeCompare(String(x.s.recuperado)));
     hechos.forEach(it=> sec.appendChild(buildRow(it, true)));
     host.appendChild(sec);
   }
   if(!items.length){
     const empty = document.createElement('div'); empty.className = 'empty-state';
-    empty.textContent = 'Cuando en un tema pongas el estado «Recuperar» (en el día del calendario o en Temario y notas), aparecerá aquí para que lo recuperes otro día.';
+    empty.textContent = 'Todavía no hay nada aquí. Añade un tema a mano arriba, o pon el estado «Recuperar» a un tema desde el día del calendario o desde Temario y notas.';
     host.appendChild(empty);
   }
 }
