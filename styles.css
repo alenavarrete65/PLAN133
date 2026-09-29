@@ -1224,3 +1224,14 @@
   #examDateModal input[type="date"]{
     width:100%;background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);padding:8px;border-radius:2px;font-family:var(--font-mono);
   }
+
+/* ===== Pestaña Recuperar ===== */
+.vuelta-row.mode-recuperar{border-color:var(--amber);}
+.rec-resumen{font-family:var(--font-mono);font-size:13px;color:var(--amber-ink);margin:10px 0 14px;}
+.rec-item{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;justify-content:space-between;padding:10px 12px;margin-bottom:8px;background:var(--bg-panel-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:2px;}
+.rec-item.hecho{border-left-color:var(--green);opacity:.85;}
+.rec-info{flex:1;min-width:200px;}
+.rec-nombre{font-size:14px;color:var(--cream);}
+.rec-meta{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:3px;}
+.rec-acciones{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
+.rec-fecha{padding:7px;font-family:var(--font-mono);background:var(--bg-panel);border:1px solid var(--line);color:var(--cream);border-radius:2px;}

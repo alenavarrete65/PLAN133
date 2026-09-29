@@ -101,6 +101,7 @@
         <span class="tabs-group-label">Seguimiento</span>
         <button class="tab-btn" data-tab="entrenos">Entrenos</button>
         <button class="tab-btn" data-tab="arrastre">Arrastre</button>
+        <button class="tab-btn" data-tab="recuperar">Recuperar<span id="recuperarBadge" style="display:none;margin-left:6px;font-family:var(--font-mono);font-size:12px;font-weight:700;background:var(--amber);color:#16302a;border-radius:8px;padding:1px 6px;"></span></button>
         <button class="tab-btn" data-tab="progreso">Progreso</button>
       </div>
       <div class="tabs-group">
@@ -247,6 +248,16 @@
       con la vuelta siguiente.
     </div>
     <div id="arrastreHost"></div>
+  </div>
+
+  <!-- RECUPERAR (temas marcados «Recuperar» para hacerlos otro día) -->
+  <div class="view" id="view-recuperar">
+    <div class="sub" style="max-width:640px;margin-bottom:6px;">
+      Aquí se juntan los temas a los que has puesto el estado «Recuperar» porque ese día no te dio tiempo.
+      No van al Arrastre. Cuando los recuperes (un día de descanso o el que te venga bien), pon la fecha
+      y pulsa «Recuperado».
+    </div>
+    <div id="recuperarHost"></div>
   </div>
 
 
