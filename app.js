@@ -3077,7 +3077,7 @@ function openDayModal(d, info){
 function renderDayClasesEditor(host, d, jsDow){
   host.innerHTML = '';
   const entry = ensureClaseCalDay(currentMonthKey, d);
-  const MATERIAS = getClaseMateriasDef();
+  const MATERIAS = getClaseMateriasDef().concat([SEMINARIO_DEF]);
   const fecha = currentMonthKey+'-'+pad2(d);
 
   const repintar = ()=>{
@@ -3144,12 +3144,31 @@ function renderDayClasesEditor(host, d, jsDow){
     });
   });
 
-  if(!chips.children.length){
+  if(!chips.children.length && !(entry.seminarios||[]).length){
     const empty = document.createElement('span'); empty.className='cclase-empty';
     empty.textContent = 'Sin clases registradas este día.';
     chips.appendChild(empty);
   }
   host.appendChild(chips);
+
+  // Seminarios ya registrados: título y notas editables aquí mismo.
+  (entry.seminarios||[]).forEach((sm,i)=>{
+    const box = document.createElement('div'); box.className='clase-sem-item'; box.style.marginTop='8px';
+    const top = document.createElement('div'); top.className='clase-named-item';
+    const tag = document.createElement('span'); tag.className='cclase-pill p-sem'; tag.textContent='SEM';
+    const inp = document.createElement('input'); inp.type='text'; inp.placeholder='¿De qué trata el seminario?'; inp.value = sm.titulo||'';
+    inp.setAttribute('aria-label','Título del seminario #'+(i+1));
+    inp.oninput = ()=>{ sm.titulo = inp.value; scheduleSave(); };
+    inp.onblur = ()=> renderClaseCalendar();
+    const rm = document.createElement('button'); rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar este seminario');
+    rm.onclick = ()=>{ const q = entry.seminarios.splice(i,1)[0]; devolverSeminarioAPendientes(q); repintar(); };
+    top.appendChild(tag); top.appendChild(inp); top.appendChild(rm);
+    const ta = document.createElement('textarea'); ta.className='note-inline'; ta.placeholder='Notas del seminario…'; ta.value = sm.notas||'';
+    ta.setAttribute('aria-label','Notas del seminario #'+(i+1));
+    ta.oninput = ()=>{ sm.notas = ta.value; scheduleSave(); };
+    box.appendChild(top); box.appendChild(ta);
+    host.appendChild(box);
+  });
 
   /* --- Añadir una clase --- */
   const form = document.createElement('div'); form.style.marginTop='10px';
@@ -3187,7 +3206,10 @@ function renderDayClasesEditor(host, d, jsDow){
         if(!p) return;
         const mat = MATERIAS.find(mm=>mm.key===p.materiaKey);
         if(!mat) return;
-        if(mat.kind==='text'){
+        if(mat.key==='seminario'){
+          if(!Array.isArray(entry.seminarios)) entry.seminarios = [];
+          entry.seminarios.push({titulo:p.temaLabel||'', notas:p.nota||''});
+        } else if(mat.kind==='text'){
           if(!Array.isArray(entry[mat.arrKey])) entry[mat.arrKey] = [];
           entry[mat.arrKey].push(p.temaLabel || '');
         } else if(p.useExtra){
@@ -3220,6 +3242,20 @@ function renderDayClasesEditor(host, d, jsDow){
     completaWrap.appendChild(completaCb);
     completaWrap.appendChild(document.createTextNode('Con esta clase queda completo el tema (si quedan más partes, desmárcalo)'));
 
+    if(mat.key === 'seminario'){
+      const col = document.createElement('div'); col.style.cssText='display:flex;flex-direction:column;gap:6px;width:100%;';
+      const inp = document.createElement('input'); inp.type='text'; inp.className='clase-quiz-text-input';
+      inp.placeholder='¿De qué trata el seminario? (opcional)';
+      const nt = document.createElement('textarea'); nt.className='note-inline'; nt.placeholder='Notas del seminario… (opcional)';
+      col.appendChild(inp); col.appendChild(nt); col.appendChild(btn);
+      detalle.appendChild(col);
+      btn.onclick = ()=>{
+        if(!Array.isArray(entry.seminarios)) entry.seminarios = [];
+        entry.seminarios.push({titulo:inp.value.trim(), notas:nt.value.trim()});
+        repintar();
+      };
+      return;
+    }
     if(mat.kind === 'text'){
       const inp = document.createElement('input'); inp.type='text';
       inp.className='clase-quiz-text-input'; inp.placeholder='Nombre de la clase (p. ej. «Acentuación»)';
@@ -5231,7 +5267,7 @@ function formatFechaEs(iso){
 // calendario de clases como por el tablón de clases pendientes), para no repetirla dos veces.
 // «Seminario» es una materia aparte: no tiene temas numerados ni vueltas en la pestaña Clases.
 // Solo se usa en el tablón de pendientes y en la elección de pendientes del calendario.
-const SEMINARIO_DEF = {key:'seminario', label:'Seminario', kind:'text', arrKey:'seminarios'};
+var SEMINARIO_DEF = {key:'seminario', label:'Seminario', kind:'text', arrKey:'seminarios'};
 function getClaseMateriasDef(){
   const conOptions = []; for(let i=1;i<=23;i++) conOptions.push({value:i, label:'Tema '+i});
   const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
@@ -6036,6 +6072,14 @@ function removeClaseNotaTag(entry, materiaLabel, temaLabel){
 // al tablón de "Clases pendientes" (el mismo tablón desde el que se colocan las clases),
 // en vez de perderla sin más. Es el mecanismo simétrico al que ya existía al revés: al
 // colocar una clase pendiente en un día del calendario, desaparecía del tablón.
+function devolverSeminarioAPendientes(sm){
+  if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
+  state.clasesPendientes.push({
+    id: Date.now()+'-'+Math.random(), materiaKey:'seminario', temaValue:null,
+    temaLabel: (sm && sm.titulo) || '', useExtra:false, nota: (sm && sm.notas) || '', disponibleDesde:null
+  });
+  renderClasesPendientes();
+}
 function devolverClaseAPendientes(materiaKey, temaValue, temaLabel, useExtra){
   if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
   state.clasesPendientes.push({
@@ -6150,6 +6194,20 @@ function renderClaseDayPreview(entry, d, jsDow){
     cls:'gram', text: n && n.trim() ? n : 'Clase '+(i+1),
     onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); cancelarSincronizacionClasePendiente('gram', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('gram', n || '', n || '', false); }
   }))));
+  addRow('Seminario', (val)=>{
+    const sems = Array.isArray(entry.seminarios) ? entry.seminarios : [];
+    fillRow(val, sems.map((sm,i)=>({
+      cls:'sem', text: (sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario',
+      onRemove: ()=>{ const q = entry.seminarios.splice(i,1)[0]; devolverSeminarioAPendientes(q); }
+    })));
+    sems.forEach(sm=>{
+      if(sm.notas && sm.notas.trim()){
+        const n = document.createElement('div'); n.className='clase-preview-nota'; n.style.marginTop='4px';
+        n.textContent = '📝 '+((sm.titulo && sm.titulo.trim()) ? sm.titulo.trim()+': ' : '')+sm.notas.trim();
+        val.appendChild(n);
+      }
+    });
+  });
   addRow('Notas', (val)=>{
     if(entry.nota && entry.nota.trim()){
       const notaSpan = document.createElement('span'); notaSpan.className='clase-preview-nota';
