@@ -206,6 +206,10 @@
     .home-dash{grid-template-columns:1fr 1fr;}
     .home-card-wide{grid-column:1 / -1;}
   }
+  /* Móvil: se oculta el panel de tarjetas de arriba para una vista más limpia */
+  @media (max-width:640px){
+    .home-dash{display:none;}
+  }
   @media (max-width:480px){
     .home-dash{grid-template-columns:1fr;}
     .home-card-value{font-size:22px;}

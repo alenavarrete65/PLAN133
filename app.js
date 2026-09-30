@@ -2399,14 +2399,11 @@ function renderHomeDash(){
         : '<div class="home-card-value">—</div>'+
           '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
       '<button type="button" class="home-exam-edit" id="homeExamEditBtn">✏️ Cambiar fecha</button></div>'+
-    '<div class="home-card home-card-compact"><div class="home-card-label">Racha</div>'+
-      '<div class="home-card-value">'+racha+'</div>'+
-      '<div class="home-card-sub">'+(racha===1?'día seguido':'días seguidos')+'</div></div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
-    '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div>'+
-    '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
+    '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div>';
 
   const examEditBtn = document.getElementById('homeExamEditBtn');
   if(examEditBtn) examEditBtn.onclick = openExamDateModal;
