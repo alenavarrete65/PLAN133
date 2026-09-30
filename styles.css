@@ -1322,3 +1322,58 @@
 #tiempoCalHost .horas-chart{margin:0 0 6px;}
 #tiempoCalHost .horas-semanas{margin:0 0 14px;}
 @media (max-width:640px){ .tiempo-big{font-size:14px;} .tiempo-grid .tiempo-cell{min-height:64px;} .tiempo-small{font-size:9px;} }
+
+/* ===== Objetivo diario, comparación de semanas, mapa de calor, carga del día ===== */
+.tiempo-meta{flex-basis:100%;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-top:6px;}
+.tiempo-meta input{width:64px;padding:4px 6px;text-align:right;font-family:var(--font-mono);}
+.horas-barwrap{position:relative;}
+.horas-meta{position:absolute;left:-2px;right:-2px;height:0;border-top:1px dashed var(--green);opacity:.85;pointer-events:none;}
+.horas-col.meta .horas-bar{background:var(--green);}
+.horas-leyenda{display:flex;flex-wrap:wrap;gap:4px 16px;font-family:var(--font-mono);font-size:11px;color:var(--muted);margin:2px 0 6px;}
+.horas-leyenda i{display:inline-block;vertical-align:middle;margin-right:4px;}
+.lg-meta{width:14px;height:0;border-top:1px dashed var(--green);}
+.lg-ok{width:10px;height:10px;background:var(--green);border-radius:2px;}
+.horas-semanas em{font-style:normal;margin-left:2px;}
+.horas-semanas em.sube{color:var(--green);}
+.horas-semanas em.baja{color:var(--red-text,#c0584a);}
+.horas-semanas .semana-actual{border-bottom:2px solid var(--amber);}
+.tiempo-cell.meta-ok{box-shadow:inset 0 -4px 0 var(--green);}
+.tiempo-cell.meta-med{box-shadow:inset 0 -4px 0 var(--amber);}
+.tiempo-check{font-size:11px;}
+.todo-cell.carga-1{box-shadow:inset 0 -3px 0 rgba(201,162,39,.30);}
+.todo-cell.carga-2{box-shadow:inset 0 -3px 0 rgba(201,162,39,.50);}
+.todo-cell.carga-3{box-shadow:inset 0 -3px 0 rgba(201,162,39,.70);}
+.todo-cell.carga-4{box-shadow:inset 0 -3px 0 rgba(201,162,39,.90);}
+.todo-cell.carga-5{box-shadow:inset 0 -4px 0 var(--green);}
+.heat-wrap{margin-top:22px;}
+.heat-title{font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);font-size:14px;letter-spacing:.06em;margin-bottom:8px;}
+.heat-row{display:flex;gap:6px;align-items:flex-start;}
+.heat-dow{display:grid;grid-template-rows:repeat(7,12px);gap:3px;margin-top:16px;font-family:var(--font-mono);font-size:9px;color:var(--muted);line-height:12px;}
+.heat-scroll{overflow-x:auto;padding-bottom:4px;}
+.heat-months{display:grid;grid-auto-flow:column;grid-auto-columns:12px;gap:3px;height:14px;font-family:var(--font-mono);font-size:9px;color:var(--muted);white-space:nowrap;}
+.heat-grid{display:grid;grid-auto-flow:column;grid-template-rows:repeat(7,12px);grid-auto-columns:12px;gap:3px;margin-top:2px;}
+.heat-c{display:inline-block;width:12px;height:12px;border-radius:2px;background:rgba(201,162,39,.08);border:1px solid rgba(201,162,39,.12);box-sizing:border-box;}
+.heat-c.vacio{background:transparent;border-color:transparent;}
+.heat-c.l1{background:rgba(201,162,39,.25);}
+.heat-c.l2{background:rgba(201,162,39,.45);}
+.heat-c.l3{background:rgba(201,162,39,.65);}
+.heat-c.l4{background:rgba(201,162,39,.85);}
+.heat-c.l5{background:var(--green);border-color:var(--green);}
+.heat-c.fut{opacity:.45;}
+.heat-c.hoy{outline:2px solid var(--amber);outline-offset:1px;}
+.heat-legend{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin-top:8px;font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+.heat-legend span{margin-left:6px;}
+.backup-banner{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:8px 14px;background:rgba(201,162,39,.14);border-bottom:1px solid var(--amber);font-family:var(--font-mono);font-size:12px;color:var(--cream);}
+.backup-banner-btn{padding:5px 10px;border:1px solid var(--amber);background:var(--amber);color:#1b2a22;border-radius:2px;cursor:pointer;font-family:var(--font-mono);font-size:12px;}
+.backup-banner-btn.ghost{background:transparent;color:var(--amber-ink);}
+/* Microanimaciones (solo si no has pedido reducir el movimiento) */
+@media (prefers-reduced-motion:no-preference){
+  .horas-chart.animar .horas-bar{transform-origin:bottom;animation:barraCrece .55s cubic-bezier(.2,.8,.2,1) both;animation-delay:calc(var(--i,0) * 18ms);}
+  @keyframes barraCrece{from{transform:scaleY(0);}to{transform:scaleY(1);}}
+  input[type="checkbox"].pop{animation:casillaPop .28s ease-out;}
+  @keyframes casillaPop{0%{transform:scale(1);}45%{transform:scale(1.35);}100%{transform:scale(1);}}
+  .modal-backdrop.open{animation:fondoIn .18s ease-out;}
+  .modal-backdrop.open .modal{animation:modalIn .24s cubic-bezier(.2,.8,.2,1);}
+  @keyframes fondoIn{from{opacity:0;}to{opacity:1;}}
+  @keyframes modalIn{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:none;}}
+}

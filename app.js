@@ -471,6 +471,8 @@ function normalizeState(){
   // Objetivo de vueltas completas de todo el temario antes del examen (tarjeta «Ritmo hasta el examen»).
   if(!(state.settings.objetivoVueltas >= 1)) state.settings.objetivoVueltas = 6;
   // Repaso de flojos: umbral de nota baja (% del máximo) y días sin repasar a partir de los cuales avisa.
+  // Objetivo diario de horas de estudio (en minutos) para el calendario de tiempos.
+  if(!(state.settings.objetivoMin > 0)) state.settings.objetivoMin = 360;
   if(!(state.settings.flojosUmbral > 0)) state.settings.flojosUmbral = 60;
   if(!(state.settings.flojosDias > 0)) state.settings.flojosDias = 30;
   // Recuperar: máximo de temas que «Programar» apila en un mismo día de descanso.
@@ -1205,7 +1207,9 @@ function exportBackup(){
   a.href = url; a.download = 'planning-backup-'+(email||'sin-cuenta')+'-'+today+'.json';
   document.body.appendChild(a); a.click(); a.remove();
   URL.revokeObjectURL(url);
+  try{ state.settings.ultimaCopia = today; scheduleSave(); }catch(e){}
   showToast('Copia exportada');
+  if(typeof renderBackupReminder==='function') renderBackupReminder();
 }
 /* ===================== EXPORTAR CADA CALENDARIO A .ICS (por separado) ===================== */
 /* Cada uno de los tres calendarios "reales" (estudio, clases, simulacros) tiene su propio
@@ -2401,7 +2405,7 @@ function renderHomeDash(){
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
       (exam.daysLeft >= 0
-        ? '<div class="home-card-value">'+exam.daysLeft+'</div>'+
+        ? '<div class="home-card-value" data-countup="'+exam.daysLeft+'" data-fmt="int" data-countkey="exam-dias">'+exam.daysLeft+'</div>'+
           '<div class="home-card-sub">'+(exam.daysLeft===1?'día':'días')+' para el examen ('+exam.etiqueta+')</div>'
         : '<div class="home-card-value">—</div>'+
           '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
@@ -7582,7 +7586,7 @@ function renderTiempoCalMonthBar(){
   if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
   const controls = document.createElement('div'); controls.className='month-controls';
   const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title='Anterior';
-  prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
+  prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; _animarBarras=true; renderAll(); } };
   controls.appendChild(prevBtn);
   const sel = document.createElement('select'); sel.setAttribute('aria-label','Cambiar de mes');
   keys.forEach(k=>{
@@ -7591,21 +7595,50 @@ function renderTiempoCalMonthBar(){
     if(k===currentMonthKey) opt.selected = true;
     sel.appendChild(opt);
   });
-  sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
+  sel.onchange = ()=>{ currentMonthKey = sel.value; _animarBarras=true; renderAll(); };
   controls.appendChild(sel);
   const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title='Siguiente';
-  nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
+  nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; _animarBarras=true; renderAll(); } };
   controls.appendChild(nextBtn);
   bar.appendChild(controls);
 
   const {dias} = tiempoMesDatos();
-  let est=0, des=0, conEstudio=0;
-  dias.forEach(x=>{ est+=x.tm.estudio; des+=x.tm.descanso; if(x.tm.estudio>0) conEstudio++; });
+  const obj = objetivoMin();
+  let est=0, des=0, conEstudio=0, cumplidos=0;
+  dias.forEach(x=>{ est+=x.tm.estudio; des+=x.tm.descanso; if(x.tm.estudio>0) conEstudio++; if(x.tm.estudio>=obj) cumplidos++; });
   const media = conEstudio ? est/conEstudio : 0;
+  const cnt = (k,v)=> '<strong data-countup="'+Math.round(v)+'" data-fmt="min" data-countkey="'+k+'">'+fmtMin(v)+'</strong>';
   const tot = document.createElement('div'); tot.className='tiempo-mes';
-  tot.innerHTML = '⏱ Total del mes: 📚 Estudio <strong>'+fmtMin(est)+'</strong> · 😴 Descanso <strong>'+fmtMin(des)+'</strong> · Total <strong>'+fmtMin(est+des)+'</strong>'+
-    (conEstudio ? ' · Media por día de estudio <strong>'+fmtMin(media)+'</strong> ('+conEstudio+' días)' : '');
+  tot.innerHTML = '⏱ Total del mes: 📚 Estudio '+cnt('mes-est',est)+' · 😴 Descanso '+cnt('mes-des',des)+' · Total '+cnt('mes-tot',est+des)+
+    (conEstudio ? ' · Media por día de estudio '+cnt('mes-media',media)+' ('+conEstudio+' días)' : '')+
+    '<br>🎯 Objetivo cumplido en <strong>'+cumplidos+'</strong> de '+dias.length+' días';
   bar.appendChild(tot);
+  // Objetivo diario de horas (se guarda en los ajustes y colorea la rejilla, la gráfica y el mapa de calor).
+  const metaBox = document.createElement('label'); metaBox.className='tiempo-meta';
+  metaBox.appendChild(document.createTextNode('🎯 Objetivo diario '));
+  const metaInp = document.createElement('input'); metaInp.type='number'; metaInp.min='0.5'; metaInp.step='0.5'; metaInp.inputMode='decimal';
+  metaInp.value = String(Math.round(obj/60*10)/10); metaInp.setAttribute('aria-label','Objetivo diario de horas de estudio');
+  metaInp.onchange = ()=>{
+    const h = Number(String(metaInp.value).replace(',','.'));
+    if(!(h>0)){ metaInp.value = String(Math.round(obj/60*10)/10); return; }
+    normalizeState(); state.settings.objetivoMin = Math.round(h*60); scheduleSave();
+    refrescarVistasTiempo();
+  };
+  metaBox.appendChild(metaInp); metaBox.appendChild(document.createTextNode(' h'));
+  bar.appendChild(metaBox);
+}
+var _animarBarras = true;
+function objetivoMin(){ return (state.settings && state.settings.objetivoMin > 0) ? state.settings.objetivoMin : 360; }
+function lunesDe(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
+function estudioDeFecha(dt, plan){
+  const iso = fechaLocalISO(dt);
+  const info = ((plan[iso.slice(0,7)]||{})[Number(iso.slice(8))]) || {status:'ESTUDIO'};
+  return computeTiempoDia(iso, info).estudio;
+}
+function nivelMeta(est, obj){
+  if(!(est>0)) return 0;
+  const r = est/obj;
+  return r>=1 ? 5 : r>=.75 ? 4 : r>=.5 ? 3 : r>=.25 ? 2 : 1;
 }
 function renderTiempoCalendar(){
   const host = document.getElementById('tiempoCalHost');
@@ -7616,33 +7649,57 @@ function renderTiempoCalendar(){
     return;
   }
   const {yy, mm, dias} = tiempoMesDatos();
+  const plan = computePlan();
   const hoyISO = hoyLocalISO();
-  const maxMin = Math.max(600, ...dias.map(x=>x.tm.estudio)); // escala mínima de 10 h
+  const obj = objetivoMin();
+  const maxMin = Math.max(600, obj, ...dias.map(x=>x.tm.estudio)); // escala mínima de 10 h
+  const animar = _animarBarras && calSelectorMode==='tiempos';
 
-  // Gráfica de barras: horas de estudio por día.
-  const chart = document.createElement('div'); chart.className='horas-chart';
+  // Gráfica de barras: horas de estudio por día, con una línea en el objetivo diario.
+  const chart = document.createElement('div'); chart.className='horas-chart'+(animar?' animar':'');
   chart.setAttribute('aria-label','Horas de estudio por día');
-  dias.forEach(x=>{
+  dias.forEach((x,i)=>{
     const est = x.tm.estudio;
     const col = document.createElement('div');
-    col.className = 'horas-col'+(x.iso===hoyISO?' hoy':'')+(x.dow===0||x.dow===6?' finde':'');
+    col.className = 'horas-col'+(x.iso===hoyISO?' hoy':'')+(x.dow===0||x.dow===6?' finde':'')+(est>=obj?' meta':'');
     const hh = Math.round((est/60)*10)/10;
     col.title = x.dd+' de '+MESES[mm-1]+': '+fmtMin(est)+' de estudio';
     col.innerHTML = '<span class="horas-val">'+(est ? (hh%1===0?hh:String(hh).replace('.',',')) : '')+'</span>'+
-      '<div class="horas-barwrap"><div class="horas-bar" style="height:'+(est ? Math.max(3, Math.round(est/maxMin*100)) : 0)+'%"></div></div>'+
+      '<div class="horas-barwrap"><i class="horas-meta" style="bottom:'+Math.round(obj/maxMin*100)+'%"></i>'+
+      '<div class="horas-bar" style="--i:'+i+';height:'+(est ? Math.max(3, Math.round(est/maxMin*100)) : 0)+'%"></div></div>'+
       '<span class="horas-dia">'+'DLMXJVS'[x.dow]+'</span><span class="horas-num">'+x.dd+'</span>';
     chart.appendChild(col);
   });
   host.appendChild(chart);
+  const leyenda = document.createElement('div'); leyenda.className='horas-leyenda';
+  leyenda.innerHTML = '<span><i class="lg-meta"></i> Objetivo diario ('+fmtMin(obj)+')</span><span><i class="lg-ok"></i> Objetivo cumplido</span>';
+  host.appendChild(leyenda);
 
-  // Totales por semana (lunes a domingo).
-  const semanas = []; let cur = null;
-  dias.forEach(x=>{
-    if(!cur || x.dow===1){ cur = {ini:x.dd, fin:x.dd, est:0}; semanas.push(cur); }
-    cur.fin = x.dd; cur.est += x.tm.estudio;
-  });
+  // Totales por semana completa (lunes a domingo) comparados con la semana anterior.
+  const primero = new Date(yy, mm-1, 1), ultimo = new Date(yy, mm-1, dias.length);
+  const hoyLunes = lunesDe(new Date());
   const wk = document.createElement('div'); wk.className='horas-semanas';
-  wk.innerHTML = semanas.map(w=>'<span>Sem. '+(w.ini===w.fin ? w.ini : w.ini+'–'+w.fin)+': <strong>'+fmtMin(w.est)+'</strong></span>').join('');
+  const mes3 = (dt)=> MESES[dt.getMonth()].slice(0,3).toLowerCase();
+  for(let lun = lunesDe(primero); lun <= ultimo; lun = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+7)){
+    const dom = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+6);
+    const prev = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()-7);
+    let cur = 0, ant = 0;
+    for(let k=0;k<7;k++){
+      cur += estudioDeFecha(new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+k), plan);
+      ant += estudioDeFecha(new Date(prev.getFullYear(), prev.getMonth(), prev.getDate()+k), plan);
+    }
+    const etiqueta = (lun.getMonth()===dom.getMonth()) ? lun.getDate()+'–'+dom.getDate() : lun.getDate()+' '+mes3(lun)+'–'+dom.getDate()+' '+mes3(dom);
+    let cmp = '';
+    if(cur>0 || ant>0){
+      const diff = cur-ant;
+      cmp = diff>0 ? ' <em class="sube">▲ +'+fmtMin(diff)+'</em>' : diff<0 ? ' <em class="baja">▼ −'+fmtMin(-diff)+'</em>' : ' <em>= igual</em>';
+    }
+    const chip = document.createElement('span');
+    chip.className = (lun.getTime()===hoyLunes.getTime()) ? 'semana-actual' : '';
+    chip.title = 'Comparado con la semana anterior ('+fmtMin(ant)+')';
+    chip.innerHTML = 'Sem. '+etiqueta+': <strong>'+fmtMin(cur)+'</strong>'+cmp;
+    wk.appendChild(chip);
+  }
   host.appendChild(wk);
 
   // Rejilla del mes con las horas de cada día bien visibles.
@@ -7651,19 +7708,21 @@ function renderTiempoCalendar(){
     const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
     grid.appendChild(dow);
   });
-  const firstDow = new Date(yy, mm-1, 1).getDay();
+  const firstDow = primero.getDay();
   const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1;
   for(let i=0;i<leadingBlanks;i++){
     const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b);
   }
   dias.forEach(x=>{
+    const est = x.tm.estudio;
     const cell = document.createElement('div');
-    cell.className = 'cal-cell tiempo-cell status-'+x.info.status+(x.iso===hoyISO?' today':'');
+    cell.className = 'cal-cell tiempo-cell status-'+x.info.status+(x.iso===hoyISO?' today':'')+(est>=obj ? ' meta-ok' : est>=obj/2 ? ' meta-med' : '');
     const numRow = document.createElement('div'); numRow.className='cal-daynum';
     const dn = document.createElement('span'); dn.textContent = x.dd; numRow.appendChild(dn);
+    if(est>=obj){ const ck = document.createElement('span'); ck.className='tiempo-check'; ck.textContent='🎯'; ck.title='Objetivo diario cumplido'; numRow.appendChild(ck); }
     cell.appendChild(numRow);
-    const big = document.createElement('div'); big.className='tiempo-big'+(x.tm.estudio? '':' vacio');
-    big.textContent = x.tm.estudio ? fmtMin(x.tm.estudio) : '—';
+    const big = document.createElement('div'); big.className='tiempo-big'+(est? '':' vacio');
+    big.textContent = est ? fmtMin(est) : '—';
     cell.appendChild(big);
     const sm = document.createElement('div'); sm.className='tiempo-small';
     sm.textContent = '😴 '+fmtMin(x.tm.descanso);
@@ -7673,11 +7732,117 @@ function renderTiempoCalendar(){
     grid.appendChild(cell);
   });
   host.appendChild(grid);
+
+  // Mapa de calor: todo el camino hasta el examen, una casilla por día (más oscuro = más horas).
+  const claves = sortedMonthKeys();
+  const hoy0 = new Date(); hoy0.setHours(0,0,0,0);
+  let ini = claves.length ? new Date(Number(claves[0].slice(0,4)), Number(claves[0].slice(5,7))-1, 1) : new Date(hoy0);
+  const ex = nextExamInfo();
+  let fin = new Date(Number(ex.iso.slice(0,4)), Number(ex.iso.slice(5,7))-1, Number(ex.iso.slice(8)));
+  if(fin < hoy0) fin = new Date(hoy0);
+  const heatWrap = document.createElement('div'); heatWrap.className='heat-wrap';
+  heatWrap.innerHTML = '<div class="heat-title">🔥 Mapa de calor hasta el examen</div>';
+  const scroller = document.createElement('div'); scroller.className='heat-scroll';
+  const meses = document.createElement('div'); meses.className='heat-months';
+  const cuerpo = document.createElement('div'); cuerpo.className='heat-grid';
+  const diasSem = document.createElement('div'); diasSem.className='heat-dow';
+  ['L','','X','','V','','D'].forEach(t=>{ const sp=document.createElement('span'); sp.textContent=t; diasSem.appendChild(sp); });
+  let semanasN = 0;
+  for(let lun = lunesDe(ini); lun <= fin; lun = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+7)){
+    const lbl = document.createElement('span');
+    const finde = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+6);
+    if(lun.getDate()<=7 || semanasN===0) lbl.textContent = mes3(finde.getDate()<=7 && lun.getMonth()!==finde.getMonth() ? finde : lun);
+    meses.appendChild(lbl);
+    for(let k=0;k<7;k++){
+      const dt = new Date(lun.getFullYear(), lun.getMonth(), lun.getDate()+k);
+      const c = document.createElement('i');
+      if(dt < ini || dt > fin){ c.className='heat-c vacio'; }
+      else {
+        const est = estudioDeFecha(dt, plan);
+        const iso = fechaLocalISO(dt);
+        c.className = 'heat-c l'+nivelMeta(est, obj)+(dt>hoy0?' fut':'')+(iso===hoyISO?' hoy':'');
+        c.title = dt.getDate()+' '+mes3(dt)+' '+dt.getFullYear()+': '+(est? fmtMin(est) : 'sin estudio');
+      }
+      cuerpo.appendChild(c);
+    }
+    semanasN++;
+  }
+  scroller.style.setProperty('--semanas', String(semanasN));
+  scroller.appendChild(meses); scroller.appendChild(cuerpo);
+  const fila = document.createElement('div'); fila.className='heat-row';
+  fila.appendChild(diasSem); fila.appendChild(scroller);
+  heatWrap.appendChild(fila);
+  const leyenda2 = document.createElement('div'); leyenda2.className='heat-legend';
+  leyenda2.innerHTML = 'Menos <i class="heat-c l0"></i><i class="heat-c l1"></i><i class="heat-c l2"></i><i class="heat-c l3"></i><i class="heat-c l4"></i><i class="heat-c l5"></i> Más <span>(el más oscuro = objetivo diario cumplido)</span>';
+  heatWrap.appendChild(leyenda2);
+  host.appendChild(heatWrap);
+
+  if(animar){ _animarBarras = false; }
 }
 // Al cerrar la ficha del día se repintan las vistas que muestran horas (los campos de tiempo
 // se guardan al teclear, pero las vistas no se repintaban hasta la siguiente acción).
 function refrescarVistasTiempo(){
-  try{ renderTodoCalMonthBar(); renderTodoCalendar(); renderTiempoCalMonthBar(); renderTiempoCalendar(); }catch(e){ console.error(e); }
+  try{ renderTodoCalMonthBar(); renderTodoCalendar(); renderTiempoCalMonthBar(); renderTiempoCalendar(); aplicarContadores(document); }catch(e){ console.error(e); }
+}
+
+/* ===================== MICROANIMACIONES Y AVISO DE COPIA ===================== */
+// Contadores que «suben» hasta su valor: cualquier elemento con data-countup (número final),
+// data-fmt ("min" o "int") y data-countkey. Solo se anima cuando el valor cambia (o es la primera
+// vez), para que los repintados constantes de la app no lo repitan sin parar.
+var _contadorPrev = {};
+function aplicarContadores(root){
+  const reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  (root||document).querySelectorAll('[data-countup]').forEach(el=>{
+    const fin = Number(el.getAttribute('data-countup'))||0;
+    const key = el.getAttribute('data-countkey') || '';
+    const fmt = el.getAttribute('data-fmt')==='min' ? fmtMin : (n=> String(Math.round(n)));
+    const desde = (key in _contadorPrev) ? _contadorPrev[key] : 0;
+    _contadorPrev[key] = fin;
+    if(reduce || desde===fin){ el.textContent = fmt(fin); return; }
+    const t0 = performance.now(), dur = 700;
+    const paso = (t)=>{
+      const p = Math.min(1, (t-t0)/dur), e = 1-Math.pow(1-p, 3);
+      el.textContent = fmt(desde + (fin-desde)*e);
+      if(p<1 && document.body.contains(el)) requestAnimationFrame(paso); else el.textContent = fmt(fin);
+    };
+    requestAnimationFrame(paso);
+  });
+}
+// «Pop» al marcar o desmarcar cualquier casilla.
+document.addEventListener('change', (e)=>{
+  const t = e.target;
+  if(t && t.matches && t.matches('input[type="checkbox"]')){
+    t.classList.remove('pop'); void t.offsetWidth; t.classList.add('pop');
+  }
+});
+// Aviso suave si llevas días sin exportar una copia de seguridad.
+const BACKUP_AVISO_DIAS = 14;
+function renderBackupReminder(){
+  let banner = document.getElementById('backupReminder');
+  let dias = null;
+  const ult = state && state.settings ? state.settings.ultimaCopia : null;
+  if(typeof ult==='string' && /^\d{4}-\d{2}-\d{2}$/.test(ult)){
+    const p = ult.split('-').map(Number);
+    dias = Math.floor((new Date().setHours(0,0,0,0) - new Date(p[0],p[1]-1,p[2]).getTime())/86400000);
+  }
+  let pospuesto = false;
+  try{ pospuesto = (localStorage.getItem('backupSnoozeHasta') === hoyLocalISO()); }catch(e){}
+  const mostrar = !pospuesto && (dias===null || dias>=BACKUP_AVISO_DIAS);
+  if(!mostrar){ if(banner) banner.style.display='none'; return; }
+  if(!banner){
+    banner = document.createElement('div'); banner.id='backupReminder'; banner.className='backup-banner';
+    const nav = document.querySelector('nav');
+    if(nav && nav.parentNode) nav.parentNode.insertBefore(banner, nav.nextSibling); else document.body.prepend(banner);
+  }
+  banner.style.display='';
+  banner.innerHTML = '';
+  const txt = document.createElement('span');
+  txt.textContent = dias===null ? '💾 Todavía no has exportado ninguna copia de seguridad.' : '💾 Hace '+dias+' días que no exportas una copia de seguridad.';
+  const ok = document.createElement('button'); ok.type='button'; ok.className='backup-banner-btn'; ok.textContent='Exportar ahora';
+  ok.onclick = ()=>{ exportBackup(); };
+  const later = document.createElement('button'); later.type='button'; later.className='backup-banner-btn ghost'; later.textContent='Más tarde';
+  later.onclick = ()=>{ try{ localStorage.setItem('backupSnoozeHasta', hoyLocalISO()); }catch(e){} banner.style.display='none'; };
+  banner.appendChild(txt); banner.appendChild(ok); banner.appendChild(later);
 }
 
 /* ===================== CALENDARIO "TODO INCLUIDO" =====================
@@ -7821,6 +7986,7 @@ function renderTodoCalendarGrid(){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const cell = document.createElement('div');
     cell.className = 'cal-cell todo-cell status-'+info.status;
+    { const nv = nivelMeta(computeTiempoDia(currentMonthKey+'-'+pad2(d), info).estudio, objetivoMin()); if(nv>0) cell.classList.add('carga-'+nv); }
     if(isCurrentMonth && d===now.getDate()){ cell.classList.add('today'); cell.id = 'todayTodoCell'; }
 
     const numRow = document.createElement('div'); numRow.className='cal-daynum';
@@ -10754,6 +10920,7 @@ function setCalSelectorMode(mode){
   calSelectorMode = mode;
   try{ localStorage.setItem('calSelectorMode', mode); }catch(e){}
   syncCalSelectorToggle();
+  if(mode==='tiempos'){ _animarBarras = true; try{ renderTiempoCalendar(); aplicarContadores(document); }catch(e){ console.error(e); } }
 }
 document.querySelectorAll('#calSelectorToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setCalSelectorMode(btn.dataset.cal);
@@ -11032,6 +11199,8 @@ function renderAll(){
   renderTodoCalendar();
   renderTiempoCalMonthBar();
   renderTiempoCalendar();
+  aplicarContadores(document);
+  renderBackupReminder();
   renderCiclo();
   renderRitmo();
   renderFlojos();
