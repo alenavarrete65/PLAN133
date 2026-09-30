@@ -1275,3 +1275,10 @@
 .rec-edad.edad-alta{background:#b5483a;color:#fff;}
 .rec-item.edad-warn{border-left-color:var(--amber);}
 .rec-item.edad-alta{border-left-color:#b5483a;}
+
+.rec-aviso{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin:6px 0 12px;padding:8px 12px;background:var(--bg-panel-2);border:1px solid #b5483a;border-left:3px solid #b5483a;border-radius:2px;max-width:760px;font-family:var(--font-mono);font-size:13px;color:var(--cream);}
+.rec-item.vencido{border-left-color:#b5483a;background:rgba(181,72,58,.08);}
+
+.cal-cell.status-RECUPERACION,.cal-list-item.status-RECUPERACION,.cclase-cell.status-RECUPERACION{background:rgba(184,144,31,.14);border-color:var(--amber);}
+.rec-dia-resumen{margin-top:4px;font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);line-height:1.4;}
+.rec-dia-resumen-it.hecho{color:var(--green-ink);}

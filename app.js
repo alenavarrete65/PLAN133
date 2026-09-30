@@ -473,6 +473,8 @@ function normalizeState(){
   // Repaso de flojos: umbral de nota baja (% del máximo) y días sin repasar a partir de los cuales avisa.
   if(!(state.settings.flojosUmbral > 0)) state.settings.flojosUmbral = 60;
   if(!(state.settings.flojosDias > 0)) state.settings.flojosDias = 30;
+  // Recuperar: máximo de temas que «Programar» apila en un mismo día de descanso.
+  if(!(state.settings.recuperarMaxDia >= 1)) state.settings.recuperarMaxDia = 3;
   // Días en los que has confirmado que hiciste el test de arrastre: {fechaISO: true}.
   if(!state.arrastreTestHecho || typeof state.arrastreTestHecho !== 'object' || Array.isArray(state.arrastreTestHecho)){
     state.arrastreTestHecho = {};
@@ -1093,6 +1095,25 @@ function renderThemeBox(){
   }
 }
 
+/* ===================== RECUPERAR en Ajustes: máximo de temas por día de descanso ===================== */
+function renderRecuperarAjBox(){
+  const host = document.getElementById('recuperarAjBox');
+  if(!host) return;
+  host.innerHTML = '';
+  const tit = document.createElement('div');
+  tit.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px;';
+  tit.textContent = 'Recuperar';
+  host.appendChild(tit);
+  const p = document.createElement('div'); p.style.cssText = 'font-size:13px;margin-bottom:8px;';
+  p.textContent = 'Al pulsar «Programar» en la pestaña Recuperar, los temas se reparten entre tus días de descanso sin pasar de este máximo por día.';
+  host.appendChild(p);
+  const lab = document.createElement('label'); lab.setAttribute('for','recuperarMaxDiaSel'); lab.textContent = 'Máximo de temas por día de descanso: ';
+  const sel = document.createElement('select'); sel.id = 'recuperarMaxDiaSel';
+  [1,2,3,4,5,6,8,10].forEach(n=>{ const o = document.createElement('option'); o.value = String(n); o.textContent = String(n); if(n === recMaxPorDia()) o.selected = true; sel.appendChild(o); });
+  sel.onchange = ()=>{ state.settings.recuperarMaxDia = Number(sel.value); scheduleSave(); showToast('Máximo por día: '+sel.value); };
+  lab.appendChild(sel); host.appendChild(lab);
+}
+
 /* ===================== COPIA DE SEGURIDAD: exportar / importar JSON ===================== */
 /* ===================== TAMAÑO DE TUS DATOS (límite de Firestore) =====================
    Todo tu planning se guarda en UN solo documento de Firestore, y Firestore no admite documentos de más de
@@ -1224,6 +1245,7 @@ function exportarCalendarioEstudioICS(){
       let summary, desc = '';
       if(info.status === 'DESCANSO') summary = 'Descanso';
       else if(info.status === 'TRABAJO') summary = 'Trabajo';
+      else if(info.status === 'RECUPERACION'){ summary = 'Recuperación'; desc = recuperarDelDia(fecha).map(x=> x.label).join('\n'); }
       else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
       else {
         summary = 'Estudio: Bloque '+info.bloque+' ('+info.color+')';
@@ -2292,7 +2314,7 @@ function renderHomeDash(){
       (doneTxt ? '<div class="home-today-status">'+doneTxt+'</div>' : '')+
       (entrenoHoy ? '<button class="btn small ghost" id="homeEntrenoBtn" style="margin-top:8px;">Ver entreno sugerido →</button>' : '');
   } else if(todayInfo){
-    const lbl = todayInfo.status==='DESCANSO' ? 'Descanso' : todayInfo.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    const lbl = todayInfo.status==='DESCANSO' ? 'Descanso' : todayInfo.status==='TRABAJO' ? 'Trabajo' : todayInfo.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
     resumenHtml = '<div class="home-today-status">Hoy: '+lbl+'</div>';
   } else {
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
@@ -2336,10 +2358,14 @@ function renderHomeDash(){
     } else {
       recuperarHomeHtml = '<div class="home-card-value" style="font-size:22px;">'+rr.pend+' tema'+(rr.pend!==1?'s':'')+'</div>'+
         '<div class="home-card-sub">por recuperar'+(rr.masAntiguo!==null ? ' · el más antiguo lleva '+rr.masAntiguo+(rr.masAntiguo===1?' día':' días') : '')+'</div>'+
+        (rr.vencidos ? '<div class="home-card-note">⚠ '+rr.vencidos+' vencido'+(rr.vencidos!==1?'s':'')+' (programado'+(rr.vencidos!==1?'s':'')+' para un día que ya pasó).</div>' : '')+
         (rr.hoyN ? '<div class="home-card-note">Hoy tienes '+rr.hoyN+' programado'+(rr.hoyN!==1?'s':'')+' para recuperar.</div>' : '')+
         (rr.sinDia ? '<div class="home-card-note">'+rr.sinDia+' sin día asignado.</div>' : '');
     }
-    recuperarHomeHtml += '<button class="btn small ghost" id="homeRecuperarBtn" style="margin-top:8px;">Ir a Recuperar →</button>';
+    recuperarHomeHtml += '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px;">'+
+      (rr.hoyN ? '<button class="btn small" id="homeRecuperarHoyBtn">Ver lo de hoy →</button>' : '')+
+      (rr.vencidos ? '<button class="btn small ghost" id="homeRecuperarVencBtn">Ver vencidos →</button>' : '')+
+      '<button class="btn small ghost" id="homeRecuperarBtn">Ir a Recuperar →</button></div>';
   }
 
   // Clases (academia) que tocan hoy, según el Calendario de clases.
@@ -2392,10 +2418,11 @@ function renderHomeDash(){
   };
 
   const recBtn = document.getElementById('homeRecuperarBtn');
-  if(recBtn) recBtn.onclick = ()=>{
-    const tabBtn = document.querySelector('.tab-btn[data-tab="recuperar"]');
-    if(tabBtn) tabBtn.click();
-  };
+  if(recBtn) recBtn.onclick = ()=> abrirRecuperarConFiltro('todos');
+  const recHoyBtn = document.getElementById('homeRecuperarHoyBtn');
+  if(recHoyBtn) recHoyBtn.onclick = ()=> abrirRecuperarConFiltro('hoy');
+  const recVencBtn = document.getElementById('homeRecuperarVencBtn');
+  if(recVencBtn) recVencBtn.onclick = ()=> abrirRecuperarConFiltro('vencidos');
 
   const clasesBtn = document.getElementById('homeClasesBtn');
   if(clasesBtn) clasesBtn.onclick = ()=>{
@@ -2482,9 +2509,9 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
-    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : opt==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
     statusSel.appendChild(o);
   });
@@ -2505,8 +2532,9 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   } else {
     const lbl = document.createElement('div');
     lbl.className = 'off-label';
-    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
     cell.appendChild(lbl);
+    if(info.status === 'RECUPERACION') cell.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
   }
   // Se abre el día entero, sea del tipo que sea: también en descanso, trabajo o sin
   // horario, para poder ponerles notas, clases o simulacro como a cualquier otro día.
@@ -2587,9 +2615,9 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select cal-list-status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
-    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : opt==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
     statusSel.appendChild(o);
   });
@@ -2613,8 +2641,9 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
     const lbl = document.createElement('div');
     lbl.className = 'off-label';
     lbl.style.margin = '2px 0 0';
-    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
     item.appendChild(lbl);
+    if(info.status === 'RECUPERACION') item.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
   }
   // Igual que en la rejilla: cualquier día se abre, sea de estudio o no.
   item.style.cursor = 'pointer';
@@ -2712,7 +2741,7 @@ function openDayModal(d, info){
   const esHoy = (fechaISO === hoyLocalISO());
 
   document.getElementById('dayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
-  const statusTxt = status==='ESTUDIO' ? 'Día de estudio' : status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+  const statusTxt = status==='ESTUDIO' ? 'Día de estudio' : status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
   document.getElementById('dayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)] + ' · ' + statusTxt + (esHoy ? ' · HOY' : '');
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
@@ -3853,6 +3882,19 @@ function anadirRecuperarManual(key, testId){
   scheduleSave();
   renderRecuperar();
   showToast('Añadido a Recuperar (vuelta '+(idx+1)+')');
+}
+// Mini-resumen (en las celdas del calendario) de los temas de un día marcado como «Recuperación».
+function recDiaResumenEl(fechaISO){
+  const l = recuperarDelDia(fechaISO);
+  const box = document.createElement('div'); box.className = 'rec-dia-resumen';
+  if(!l.length){ box.textContent = 'Nada asignado'; return box; }
+  l.slice(0,3).forEach(x=>{
+    const r = document.createElement('div'); r.className = 'rec-dia-resumen-it'+(x.s.recuperado ? ' hecho' : '');
+    r.textContent = (x.s.recuperado ? '✓ ' : '• ')+x.label;
+    box.appendChild(r);
+  });
+  if(l.length > 3){ const mas = document.createElement('div'); mas.className = 'rec-dia-resumen-it'; mas.textContent = '+'+(l.length-3)+' más'; box.appendChild(mas); }
+  return box;
 }
 // Lo que toca (o se ha hecho) en un día concreto: asignado a ese día o recuperado ese día.
 function recuperarDelDia(fechaISO){
@@ -5888,7 +5930,7 @@ function renderClaseCalendarGrid(){
 
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       cell.appendChild(lbl);
     }
 
@@ -5935,7 +5977,7 @@ function renderClaseCalendarList(){
     head.appendChild(dateWrap);
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       head.appendChild(lbl);
     }
     item.appendChild(head);
@@ -7217,7 +7259,7 @@ function renderSimCalendarGrid(){
 
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       cell.appendChild(lbl);
     }
 
@@ -7263,7 +7305,7 @@ function renderSimCalendarList(){
     head.appendChild(dateWrap);
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       head.appendChild(lbl);
     }
     item.appendChild(head);
@@ -7427,7 +7469,7 @@ function renderTodoCalendarGrid(){
 
     if(info.status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       cell.appendChild(lbl);
     }
     cell.appendChild(buildTodoDayContent(d, info, true));
@@ -7470,7 +7512,7 @@ function renderTodoCalendarList(){
     if(badge) headRight.appendChild(badge);
     if(info.status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : 'Sin horario';
+      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
       headRight.appendChild(lbl);
     }
     head.appendChild(headRight);
@@ -7671,9 +7713,12 @@ function buildRecuperarForm(host){
 const _recFiltro = {q:'', orden:'temario', prog:'todos'};
 const _recSel = new Set();      // temas seleccionados en la pestaña (para acciones en bloque)
 let _recFechaBulk = '';         // fecha elegida para «Recuperados» en bloque
-const REC_MAX_POR_DIA = 3;      // al sugerir día, no se apilan más de estos temas en un mismo descanso
+// Al sugerir día, no se apilan más de estos temas en un mismo descanso (se cambia en Ajustes; por defecto 3).
+function recMaxPorDia(){ const n = Number(state.settings && state.settings.recuperarMaxDia); return n >= 1 ? n : 3; }
 const REC_DIAS_AVISO = 7, REC_DIAS_ALTO = 14;
 function recId(it){ return it.key+'|'+it.vuelta+'|'+(it.slot||''); }
+// Programado para un día que ya pasó y sin recuperar.
+function recVencido(it){ return !it.s.recuperado && !!it.s.recDia && it.s.recDia < todayISO(); }
 function diasEntre(isoA, isoB){
   const [a1,a2,a3] = isoA.split('-').map(Number), [b1,b2,b3] = isoB.split('-').map(Number);
   return Math.round((Date.UTC(b1,b2-1,b3) - Date.UTC(a1,a2-1,a3)) / 86400000);
@@ -7683,24 +7728,28 @@ function siguienteDiaISO(iso){
   return dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate());
 }
 function fechaCortaRec(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-').map(Number); return d+' '+MESES[m-1].slice(0,3).toLowerCase()+' '+y; }
-// Primer día de DESCANSO (desde esa fecha) sin simulacro y con sitio (máx. REC_MAX_POR_DIA temas ese día).
+// Primer día libre (desde esa fecha) para recuperar: primero los días marcados como «Recuperación» y, si no
+// queda ninguno, los de DESCANSO. Sin simulacro y con sitio (máx. recMaxPorDia() temas ese día).
 function proximoDiaDescanso(desdeISO){
   const claves = sortedMonthKeys();
-  for(let i=0;i<claves.length;i++){
-    const mk = claves[i];
-    const [y,m] = mk.split('-').map(Number);
-    const n = daysInMonth(y,m);
-    const days = (state.months[mk] && state.months[mk].days) || {};
-    for(let d=1; d<=n; d++){
-      const f = mk+'-'+pad2(d);
-      if(f < desdeISO) continue;
-      if(days[d] !== 'DESCANSO') continue;
-      if(buscarSimulacroPorFecha(f)) continue;
-      if(recuperarDelDia(f).length >= REC_MAX_POR_DIA) continue;
-      return f;
+  const buscar = (estado)=>{
+    for(let i=0;i<claves.length;i++){
+      const mk = claves[i];
+      const [y,m] = mk.split('-').map(Number);
+      const n = daysInMonth(y,m);
+      const days = (state.months[mk] && state.months[mk].days) || {};
+      for(let d=1; d<=n; d++){
+        const f = mk+'-'+pad2(d);
+        if(f < desdeISO) continue;
+        if(days[d] !== estado) continue;
+        if(buscarSimulacroPorFecha(f)) continue;
+        if(recuperarDelDia(f).length >= recMaxPorDia()) continue;
+        return f;
+      }
     }
-  }
-  return null;
+    return null;
+  };
+  return buscar('RECUPERACION') || buscar('DESCANSO');
 }
 // Asigna (o reasigna) el tema al próximo descanso libre. Devuelve la fecha o null si no hay.
 function programarRecuperar(it){
@@ -7731,8 +7780,18 @@ function recuperarResumen(){
     pend: pend.length, hechos: hechos.length, esteMes, masAntiguo, media,
     sinDia: pend.filter(x=> !x.s.recDia).length,
     conDia: pend.filter(x=> x.s.recDia).length,
-    hoyN: pend.filter(x=> x.s.recDia === hoy).length
+    hoyN: pend.filter(x=> x.s.recDia === hoy).length,
+    vencidos: pend.filter(recVencido).length
   };
+}
+// Abre la pestaña Recuperar ya filtrada (hoy / vencidos / todos), p. ej. desde el panel de Inicio.
+function abrirRecuperarConFiltro(prog){
+  _recFiltro.prog = prog || 'todos'; _recFiltro.q = ''; _recSel.clear();
+  const th = document.getElementById('recuperarToolsHost');
+  if(th) buildRecuperarTools(th);
+  const tb = document.querySelector('.tab-btn[data-tab="recuperar"]');
+  if(tb && !tb.classList.contains('active')) tb.click();
+  renderRecuperar();
 }
 function buildRecuperarTools(host){
   host.innerHTML = '';
@@ -7748,7 +7807,7 @@ function buildRecuperarTools(host){
   ord.onchange = ()=>{ _recFiltro.orden = ord.value; renderRecuperar(); };
   box.appendChild(ord);
   const pr = document.createElement('select'); pr.className = 'rec-sel'; pr.setAttribute('aria-label', 'Filtrar por día asignado');
-  [['todos','Todos'],['sin','Sin día asignado'],['con','Con día asignado']].forEach(([v,t])=>{
+  [['todos','Todos'],['hoy','Programados para hoy'],['vencidos','Vencidos (se pasó el día)'],['sin','Sin día asignado'],['con','Con día asignado']].forEach(([v,t])=>{
     const o = document.createElement('option'); o.value = v; o.textContent = t; if(v===_recFiltro.prog) o.selected = true; pr.appendChild(o);
   });
   pr.onchange = ()=>{ _recFiltro.prog = pr.value; renderRecuperar(); };
@@ -7779,6 +7838,8 @@ function renderRecuperar(){
   let pendVis = pend.filter(pasa);
   if(_recFiltro.prog === 'sin') pendVis = pendVis.filter(x=> !x.s.recDia);
   if(_recFiltro.prog === 'con') pendVis = pendVis.filter(x=> !!x.s.recDia);
+  if(_recFiltro.prog === 'hoy') pendVis = pendVis.filter(x=> x.s.recDia === todayISO());
+  if(_recFiltro.prog === 'vencidos') pendVis = pendVis.filter(recVencido);
   const hechosVis = hechos.filter(pasa);
 
   // ----- estadísticas -----
@@ -7791,6 +7852,7 @@ function renderRecuperar(){
     b.appendChild(v); b.appendChild(l); stats.appendChild(b);
   };
   stat(String(rs.pend), 'pendientes'+(rs.pend ? ' ('+rs.sinDia+' sin día)' : ''), rs.pend ? 'warn' : '');
+  if(rs.vencidos) stat(String(rs.vencidos), 'programados que se pasaron', 'alto');
   stat(rs.masAntiguo===null ? '—' : rs.masAntiguo+(rs.masAntiguo===1?' día':' días'), 'el más antiguo esperando', rs.masAntiguo!==null && rs.masAntiguo>=REC_DIAS_ALTO ? 'alto' : '');
   stat(String(rs.esteMes), 'recuperados este mes');
   stat(rs.media===null ? '—' : (Math.round(rs.media*10)/10).toString().replace('.',',')+' d', 'espera media hasta recuperar');
@@ -7801,6 +7863,29 @@ function renderRecuperar(){
     ? pend.length+' tema'+(pend.length!==1?'s':'')+' por recuperar · '+REC_MATERIAS.map(([mat,nom])=>({nom, n:pend.filter(x=>x.materia===mat).length})).filter(x=>x.n).map(x=>x.nom+' '+x.n).join(' · ')
     : 'No tienes nada pendiente de recuperar';
   host.appendChild(resumen);
+
+  // Aviso de vencidos: lo que programaste para un día que ya pasó y no recuperaste.
+  if(rs.vencidos){
+    const av = document.createElement('div'); av.className = 'rec-aviso';
+    const t = document.createElement('span');
+    t.textContent = '⚠ '+rs.vencidos+' tema'+(rs.vencidos!==1?'s':'')+' programado'+(rs.vencidos!==1?'s':'')+' para un día que ya pasó sin recuperarse.';
+    av.appendChild(t);
+    const b1 = document.createElement('button'); b1.type = 'button'; b1.className = 'btn small'; b1.textContent = '📅 Reprogramar vencidos';
+    b1.onclick = ()=>{
+      let ok = 0, ultima = null;
+      pend.filter(recVencido).sort((x,y)=> x.orden-y.orden).forEach(x=>{ const f = programarRecuperar(x); if(f){ ok++; ultima = f; } });
+      scheduleSave();
+      showToast(ok ? ok+' reprogramado'+(ok!==1?'s':'')+' (hasta el '+fechaCortaRec(ultima)+')'+(ok<rs.vencidos ? ' · no quedan más descansos libres' : '') : 'No hay días de descanso libres en los meses creados');
+      renderRecuperar();
+    };
+    av.appendChild(b1);
+    if(_recFiltro.prog !== 'vencidos'){
+      const b2 = document.createElement('button'); b2.type = 'button'; b2.className = 'btn small ghost'; b2.textContent = 'Ver solo vencidos';
+      b2.onclick = ()=> abrirRecuperarConFiltro('vencidos');
+      av.appendChild(b2);
+    }
+    host.appendChild(av);
+  }
 
   // ----- barra de acciones en bloque -----
   const barra = document.createElement('div'); barra.className = 'rec-bulk';
@@ -7848,7 +7933,8 @@ function renderRecuperar(){
     const hoy = todayISO();
     const dias = (!hecho && it.s.recDesde) ? Math.max(0, diasEntre(it.s.recDesde, hoy)) : null;
     const claseEdad = dias===null ? '' : dias >= REC_DIAS_ALTO ? ' edad-alta' : dias >= REC_DIAS_AVISO ? ' edad-warn' : '';
-    const row = document.createElement('div'); row.className = 'rec-item'+(hecho?' hecho':'')+claseEdad;
+    const venc = !hecho && recVencido(it);
+    const row = document.createElement('div'); row.className = 'rec-item'+(hecho?' hecho':'')+claseEdad+(venc?' vencido':'');
     if(!hecho){
       const lab = document.createElement('label'); lab.className = 'rec-chk-wrap';
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'rec-chk'; cb.checked = _recSel.has(recId(it));
@@ -7864,7 +7950,7 @@ function renderRecuperar(){
     const partes = [it.grupo, 'Vuelta '+it.vuelta];
     if(it.slot) partes.push(slotEtiqueta(it.slot));
     if(it.s.recDesde) partes.push('marcado el '+fechaCortaRec(it.s.recDesde));
-    if(it.s.recDia && !hecho) partes.push('📅 programado el '+fechaCortaRec(it.s.recDia));
+    if(it.s.recDia && !hecho) partes.push(venc ? '⚠ vencido: tocaba el '+fechaCortaRec(it.s.recDia) : '📅 programado el '+fechaCortaRec(it.s.recDia));
     meta.textContent = partes.join(' · ');
     if(dias !== null){
       const e = document.createElement('span'); e.className = 'rec-edad'+(claseEdad ? ' '+claseEdad.trim() : '');
@@ -8004,7 +8090,7 @@ function collectNotaData(){
           // de la misma vuelta).
           testsDeVuelta(sl).forEach((n,k)=>{
             notas.push(n);
-            seq.push(Object.assign({mode:'nota', nota:n, extra:k>0, vuelta}, tag));
+            seq.push(Object.assign({mode:'nota', nota:n, extra:k>0, vuelta, rec:!!sl.recuperado}, tag));
           });
         } else if(sl.mode==='no_test' || sl.mode==='no_tiempo' || sl.mode==='solo_lectura' || sl.mode==='recuperar'){
           seq.push(Object.assign({mode:sl.mode, vuelta, rec:!!sl.recuperado}, tag));
@@ -8319,6 +8405,38 @@ function renderProgreso(){
     host.appendChild(box);
   }
 
+  // Recuperados frente al resto: ¿sacas peor nota en lo que haces tarde? Solo aparece si hay notas de tests recuperados.
+  {
+    const filas = [];
+    grupos.forEach(grupo=>{
+      const rec = [], norm = []; let mx = null;
+      data.porGrupo[grupo].forEach(item=>{
+        mx = item.max;
+        item.seq.forEach(x=>{ if(x.mode==='nota') (x.rec ? rec : norm).push(x.nota); });
+      });
+      if(rec.length){
+        const media = (a)=> a.reduce((p,q)=>p+q,0)/a.length;
+        filas.push({grupo, max:mx, nRec:rec.length, mRec:media(rec), nNorm:norm.length, mNorm:norm.length ? media(norm) : null});
+      }
+    });
+    if(filas.length){
+      const box = document.createElement('div');
+      box.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);margin-bottom:16px;line-height:1.8;background:var(--bg-panel-2);border:1px solid var(--line);border-left:3px solid var(--amber);border-radius:8px;padding:12px 14px;';
+      let t = '🔁 <strong>Tests recuperados frente al resto</strong>';
+      filas.forEach(f=>{
+        t += '<br>'+f.grupo+': recuperados <strong>'+f.mRec.toFixed(1)+'/'+f.max+'</strong> ('+f.nRec+' nota'+(f.nRec!==1?'s':'')+')';
+        if(f.mNorm !== null){
+          const dif = Math.round((f.mRec - f.mNorm)*10)/10;
+          t += ' · resto <strong>'+f.mNorm.toFixed(1)+'/'+f.max+'</strong> ('+f.nNorm+') · '+
+            (dif < 0 ? '<span style="color:var(--red-text);">▼ '+dif+'</span> en lo que recuperas'
+              : dif > 0 ? '<span style="color:var(--green-ink);">▲ +'+dif+'</span> en lo que recuperas' : '= igual');
+        } else t += ' · aún no hay notas de otros tests para comparar';
+      });
+      box.innerHTML = t;
+      host.appendChild(box);
+    }
+  }
+
   // Tendencia del arrastre: no depende de tener notas de tests, así que se muestra siempre
   // que haya algo de historial en el calendario.
   const trendPoints = buildArrastreTrend(21);
@@ -8563,7 +8681,7 @@ function renderProgreso(){
             else deltaTxt = ' <span style="color:var(--muted);">=</span>';
           }
           lastPorSlot[slotKey] = n;
-          group.parts.push(slotTxt+'<span class="nota-pill '+notaPillClass(n, max)+'">'+n+'/'+max+'</span>'+deltaTxt);
+          group.parts.push(slotTxt+'<span class="nota-pill '+notaPillClass(n, max)+'"'+(entry.rec ? ' title="Test recuperado"' : '')+'>'+(entry.rec ? '🔁 ' : '')+n+'/'+max+'</span>'+deltaTxt);
         });
         // Cada vuelta va en su propia línea, con su etiqueta «Vuelta N»; los tests de una
         // misma vuelta van unidos entre sí con «+».
@@ -9338,13 +9456,14 @@ function renderEntrenos(){
 function renderAjustes(){
   const host = document.getElementById('statGrid');
   const keys = sortedMonthKeys();
-  let studyDays=0, restDays=0, workDays=0, unknownDays=0;
+  let studyDays=0, restDays=0, workDays=0, recupDays=0, unknownDays=0;
   const plan = computePlan();
   keys.forEach(k=>{
     Object.values(plan[k]).forEach(v=>{
       if(v.status==='ESTUDIO') studyDays++;
       else if(v.status==='DESCANSO') restDays++;
       else if(v.status==='TRABAJO') workDays++;
+      else if(v.status==='RECUPERACION') recupDays++;
       else unknownDays++;
     });
   });
@@ -9353,6 +9472,7 @@ function renderAjustes(){
     ['Días de estudio', studyDays],
     ['Días de descanso', restDays],
     ['Días de trabajo', workDays],
+    ['Días de recuperación', recupDays],
     ['Días sin horario', unknownDays],
   ];
   host.innerHTML = '';
@@ -10552,6 +10672,7 @@ function renderAll(){
   if(isAdmin) renderAdminBox();
   renderSecurity();
   renderThemeBox();
+  renderRecuperarAjBox();
   renderDataSizeBox();
   renderBackupBox();
   renderHistoryBox();
