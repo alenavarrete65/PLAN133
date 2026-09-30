@@ -1287,6 +1287,9 @@ function claseResumenTextoPlano(entry){
   if(entry.psicoExtra && entry.psicoExtra.filter(x=>x&&x.trim()).length) partes.push('Psicotécnico: '+entry.psicoExtra.filter(x=>x&&x.trim()).join(', '));
   if(entry.orto && entry.orto.length) partes.push('Ortografía'+(entry.orto.some(x=>x&&x.trim())?': '+entry.orto.filter(x=>x&&x.trim()).join(', '):(entry.orto.length>1?' ×'+entry.orto.length:'')));
   if(entry.gram && entry.gram.length) partes.push('Gramática'+(entry.gram.some(x=>x&&x.trim())?': '+entry.gram.filter(x=>x&&x.trim()).join(', '):(entry.gram.length>1?' ×'+entry.gram.length:'')));
+  if(Array.isArray(entry.seminarios)) entry.seminarios.forEach(sm=>{
+    if(sm) partes.push('Seminario'+(sm.titulo&&sm.titulo.trim()?': '+sm.titulo.trim():'')+(sm.notas&&sm.notas.trim()?' ('+sm.notas.trim()+')':''));
+  });
   if(entry.nota && entry.nota.trim()) partes.push('Nota: '+entry.nota.trim());
   return partes;
 }
@@ -5846,6 +5849,8 @@ function ensureClaseCalDay(monthKey, day){
   // más partes" al añadirlas). Se guardan como 'materia:tema' (p. ej. 'conocimientos:5') y
   // sirven para que la pestaña Clases no dé por vista una vuelta entera con media clase.
   e.parciales = Array.isArray(e.parciales) ? e.parciales.filter(v=> typeof v==='string') : [];
+  // Seminarios del día: cada uno con su título (de qué trata) y sus notas propias.
+  e.seminarios = Array.isArray(e.seminarios) ? e.seminarios.filter(x=> x && typeof x==='object').map(x=>({titulo:String(x.titulo||''), notas:String(x.notas||'')})) : [];
   return e;
 }
 /* Marca/desmarca una clase concreta de un día como "parte suelta" del tema. */
@@ -5868,6 +5873,11 @@ function buildClasePillsHTML(entry, notePreviewLen){
   if(entry.orto && entry.orto.length){
     const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
     html += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+  }
+  if(Array.isArray(entry.seminarios) && entry.seminarios.length){
+    entry.seminarios.forEach(sm=>{
+      html += '<span class="cclase-pill p-sem">SEM · '+((sm && sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario').replace(/</g,'&lt;')+'</span>'; any=true;
+    });
   }
   if(entry.gram && entry.gram.length){
     const label = entry.gram.filter(n=>n && n.trim()).join(', ') || ('GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:''));
@@ -6257,9 +6267,41 @@ function renderClaseDayQuiz(entry, d, jsDow){
       b.onclick = ()=>{ sel.materia=mat; sel.temaValue=null; sel.temaLabel=null; sel.useExtra=false; sel.pendienteId=null; sel.nota=null; sel.completaTema=null; stepTema(); };
       opts.appendChild(b);
     });
+    const semBtn = document.createElement('button'); semBtn.type='button'; semBtn.className='clase-quiz-opt'; semBtn.textContent='Seminario';
+    semBtn.onclick = ()=> stepSeminario();
+    opts.appendChild(semBtn);
     wrap.appendChild(opts);
     addBackBtn(wrap, '← Atrás', ()=> ((state.clasesPendientes||[]).length ? stepOrigen() : stepVisto(addedCount===0)));
     body.appendChild(wrap);
+  }
+
+  // Seminario: no tiene temas fijos (puede ser de cualquier cosa), así que se pide de qué
+  // trata y se dejan notas. No toca las vueltas de la pestaña Clases ni el tablón de pendientes.
+  function stepSeminario(){
+    clearBody();
+    const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
+    const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent='Seminario';
+    wrap.appendChild(eyebrow);
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿De qué trata el seminario?';
+    wrap.appendChild(q);
+    const inp = document.createElement('input'); inp.type='text'; inp.placeholder='Tema del seminario (opcional)';
+    wrap.appendChild(inp);
+    const ta = document.createElement('textarea'); ta.className='note-inline'; ta.style.marginTop='8px';
+    ta.placeholder='Notas del seminario… (opcional)';
+    wrap.appendChild(ta);
+    const saveBtn = document.createElement('button'); saveBtn.type='button'; saveBtn.className='btn'; saveBtn.style.marginTop='10px';
+    saveBtn.textContent='Guardar seminario';
+    saveBtn.onclick = ()=>{
+      if(!Array.isArray(entry.seminarios)) entry.seminarios = [];
+      entry.seminarios.push({titulo:inp.value.trim(), notas:ta.value.trim()});
+      addedCount++;
+      scheduleSave(); renderClaseCalendar();
+      stepVisto(false);
+    };
+    wrap.appendChild(saveBtn);
+    addBackBtn(wrap, '← Atrás', stepMateria);
+    body.appendChild(wrap);
+    inp.focus();
   }
 
   // Paso previo, solo si hay algo en el tablón de pendientes: preguntar si la clase vista
@@ -6678,6 +6720,44 @@ function renderClaseDayEdit(entry, d, jsDow){
 
   body.appendChild(buildNamedListRow('Clase de ortografía', 'orto', 'Nombre de la clase (opcional)', 'Ortografía', 'orto'));
   body.appendChild(buildNamedListRow('Clase de gramática', 'gram', 'Nombre de la clase (opcional)', 'Gramática', 'gram'));
+
+  // Seminarios: pueden ser de cualquier cosa, así que cada uno lleva su título y sus notas.
+  {
+    const row = document.createElement('div'); row.className='clase-multi-row';
+    const lbl = document.createElement('label'); lbl.textContent = 'Seminario'; row.appendChild(lbl);
+    const list = document.createElement('div'); list.className='clase-named-list';
+    const addWrap = document.createElement('div'); addWrap.className='clase-multi-add';
+    const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.textContent='+ Añadir seminario';
+    const repaintSem = ()=>{
+      if(!Array.isArray(entry.seminarios)) entry.seminarios = [];
+      list.innerHTML = '';
+      if(!entry.seminarios.length){
+        const empty = document.createElement('span'); empty.className='clase-multi-empty'; empty.textContent='Ninguno todavía.';
+        list.appendChild(empty); return;
+      }
+      entry.seminarios.forEach((sm,i)=>{
+        const item = document.createElement('div'); item.className='clase-sem-item';
+        const top = document.createElement('div'); top.className='clase-named-item';
+        const inp = document.createElement('input'); inp.type='text'; inp.placeholder='¿De qué trata el seminario?'; inp.value = sm.titulo||'';
+        inp.setAttribute('aria-label','Título del seminario #'+(i+1));
+        inp.oninput = ()=>{ sm.titulo = inp.value; scheduleSave(); };
+        inp.onblur = ()=> renderClaseCalendar();
+        const rm = document.createElement('button'); rm.type='button'; rm.textContent='×'; rm.setAttribute('aria-label','Quitar este seminario');
+        rm.onclick = ()=>{ entry.seminarios.splice(i,1); scheduleSave(); repaintSem(); renderClaseCalendar(); };
+        top.appendChild(inp); top.appendChild(rm);
+        const ta = document.createElement('textarea'); ta.className='note-inline'; ta.placeholder='Notas del seminario…'; ta.value = sm.notas||'';
+        ta.setAttribute('aria-label','Notas del seminario #'+(i+1));
+        ta.oninput = ()=>{ sm.notas = ta.value; scheduleSave(); };
+        item.appendChild(top); item.appendChild(ta);
+        list.appendChild(item);
+      });
+    };
+    addBtn.onclick = ()=>{ if(!Array.isArray(entry.seminarios)) entry.seminarios=[]; entry.seminarios.push({titulo:'', notas:''}); scheduleSave(); repaintSem(); renderClaseCalendar(); };
+    addWrap.appendChild(addBtn);
+    repaintSem();
+    row.appendChild(list); row.appendChild(addWrap);
+    body.appendChild(row);
+  }
 
   const notaRow = document.createElement('div'); notaRow.className='clase-note-row';
   notaRow.innerHTML = '<label for="claseNotaTa">Notas del día</label>';
@@ -7528,7 +7608,7 @@ function buildTodoDayContent(d, info, compact){
   }
 
   const claseEntry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
-  const tieneClase = ['conocimientos','ingles','psico','psicoExtra','orto','gram'].some(k=> Array.isArray(claseEntry[k]) && claseEntry[k].length) || !!claseEntry.nota;
+  const tieneClase = ['conocimientos','ingles','psico','psicoExtra','orto','gram','seminarios'].some(k=> Array.isArray(claseEntry[k]) && claseEntry[k].length) || !!claseEntry.nota;
   if(tieneClase){
     const pills = document.createElement('div'); pills.className='cclase-pills';
     pills.innerHTML = buildClasePillsHTML(claseEntry, compact ? 24 : 120);
@@ -10710,7 +10790,7 @@ function contarClasesRegistradas(){
     const mes = state.claseCal[mk] || {};
     Object.keys(mes).forEach(d=>{
       const e = mes[d]; if(!e) return;
-      ['conocimientos','ingles','psico','psicoExtra','orto','gram'].forEach(k=>{
+      ['conocimientos','ingles','psico','psicoExtra','orto','gram','seminarios'].forEach(k=>{
         if(Array.isArray(e[k])) n += e[k].length;
       });
     });

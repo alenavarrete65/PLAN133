@@ -1309,3 +1309,7 @@
 .horas-val{height:14px;line-height:14px;color:var(--ink,inherit);}
 .horas-num{line-height:12px;}
 .horas-semanas{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 14px;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:6px;}
+
+/* Seminarios */
+.cclase-pill.p-sem{background:#4f8a8b;color:#fff;}
+.clase-sem-item{display:flex;flex-direction:column;gap:6px;margin-bottom:10px;}
