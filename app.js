@@ -4912,7 +4912,6 @@ function renderArrastre(){
   {
     const pendRec = collectRecuperar().filter(x=> !x.s.recuperado);
     const det = document.createElement('details'); det.className = 'arr-rec';
-    if(pendRec.length) det.open = true;
     const sm = document.createElement('summary');
     sm.textContent = '🔁 Pendiente de recuperar ('+pendRec.length+')';
     det.appendChild(sm);
@@ -7649,7 +7648,7 @@ document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.targe
 
 /* ===================== RENDER: RECUPERAR ===================== */
 const _recForm = {materia:'bloques', bloque:1, key:'', test:'general'};
-const _recAbiertos = new Set(['p:bloques','p:leves','p:ingles','p:psico']); // pendientes abiertos; recuperados cerrados
+const _recAbiertos = new Set(); // todos los grupos empiezan cerrados
 const REC_MATERIAS = [['bloques','Bloques'],['leves','Leves'],['ingles','Inglés'],['psico','Psicotécnicos']];
 function buildRecuperarForm(host){
   host.innerHTML = '';
@@ -8869,7 +8868,7 @@ function renderProgreso(){
           deltaMes = '<span title="Media respecto al mes anterior">'+deltaHtml(diffMes)+'</span>';
         }
 
-        let abierto = arrastreMesesOpen[k] !== undefined ? arrastreMesesOpen[k] : (posDesc===0);
+        let abierto = arrastreMesesOpen[k] !== undefined ? arrastreMesesOpen[k] : false;
 
         const mesEl = document.createElement('div');
         mesEl.style.cssText = 'border:1px solid var(--line);border-radius:8px;overflow:hidden;';
@@ -8922,7 +8921,7 @@ function renderProgreso(){
   }
 }
 const detalleSeccionesOpen = {graves:false, menosGraves:false, leves:false, ingles:false, psico:false};
-const progresoOpen = {detalleTema:false, tendenciaArrastre:true, comparativaSimulacros:true, testArrastre:true};
+const progresoOpen = {detalleTema:false, tendenciaArrastre:false, comparativaSimulacros:false, testArrastre:false};
 // Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
 // aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
 const arrastreMesesOpen = {};
@@ -9762,7 +9761,7 @@ function claveAEntradaTema(key){
   if(key.indexOf('ingles-') === 0) return {tab:'temario', accordion:'ingles', elId:'temarow-'+key};
   return {tab:'temario', accordion:'psico', elId:'temarow-'+key};
 }
-const flojosOpen = {flojos:true};
+const flojosOpen = {flojos:false};
 let _flojosVerTodo = false;
 function renderFlojos(){
   const host = document.getElementById('flojosHost');
@@ -9841,7 +9840,7 @@ function renderFlojos(){
   });
 }
 
-const ritmoOpen = {ritmo:true};
+const ritmoOpen = {ritmo:false};
 function renderRitmo(){
   const host = document.getElementById('ritmoHost');
   if(!host) return;
