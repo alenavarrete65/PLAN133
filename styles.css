@@ -1286,3 +1286,26 @@
 .cal-cell.status-RECUPERACION,.cal-list-item.status-RECUPERACION,.cclase-cell.status-RECUPERACION{background:rgba(184,144,31,.14);border-color:var(--amber);}
 .rec-dia-resumen{margin-top:4px;font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);line-height:1.4;}
 .rec-dia-resumen-it.hecho{color:var(--green-ink);}
+
+
+/* ===== Tiempos (horas de estudio + descanso) ===== */
+.tiempo-row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px;}
+.tiempo-row span{flex:1;min-width:0;}
+.tiempo-row em{font-style:normal;font-family:var(--font-mono);font-size:12px;color:var(--muted);}
+.tiempo-inp{width:80px;padding:6px 8px;text-align:right;font-family:var(--font-mono);}
+.tiempo-sub{font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:6px 0 2px;}
+.tiempo-sum{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg-panel-2);font-size:14px;}
+.tiempo-total{margin-left:auto;}
+.todo-tiempo{display:flex;flex-wrap:wrap;gap:2px 10px;font-family:var(--font-mono);font-size:12px;}
+.tiempo-mes{flex-basis:100%;font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-top:6px;}
+
+/* Gráfica de horas de estudio por día */
+.horas-chart{flex-basis:100%;display:flex;align-items:flex-end;gap:3px;height:150px;margin-top:10px;overflow-x:auto;padding-bottom:2px;}
+.horas-col{flex:1 0 22px;min-width:22px;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;font-family:var(--font-mono);font-size:10px;color:var(--muted);}
+.horas-barwrap{flex:1;width:100%;display:flex;align-items:flex-end;}
+.horas-bar{width:100%;background:var(--amber);border-radius:2px 2px 0 0;min-height:0;}
+.horas-col.finde .horas-bar{opacity:.7;}
+.horas-col.hoy .horas-num{font-weight:700;color:var(--amber);}
+.horas-val{height:14px;line-height:14px;color:var(--ink,inherit);}
+.horas-num{line-height:12px;}
+.horas-semanas{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 14px;font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-top:6px;}

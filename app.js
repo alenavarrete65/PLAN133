@@ -484,6 +484,10 @@ function normalizeState(){
   if(!state.clases.ingles) state.clases.ingles = {};
   if(!state.clases.psico) state.clases.psico = {};
   if(!state.clases.ortoGram) state.clases.ortoGram = [];
+  // Tiempos: duración predeterminada por tema (minutos) y datos de tiempo por día.
+  if(!state.tiempos || typeof state.tiempos!=='object' || Array.isArray(state.tiempos)) state.tiempos = {temas:{}, dias:{}};
+  if(!state.tiempos.temas) state.tiempos.temas = {};
+  if(!state.tiempos.dias) state.tiempos.dias = {};
   if(!state.claseCal) state.claseCal = {};
   // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
   // de "disponible a partir de") y que aún no has colocado en ningún día del calendario.
@@ -2742,6 +2746,8 @@ function openDayModal(d, info){
   document.getElementById('dayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)] + ' · ' + statusTxt + (esHoy ? ' · HOY' : '');
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
+
+  try{ buildTiempoSection(body, info, fechaISO); }catch(e){ console.error('Tiempo del día', e); }
 
   /* ---------- 1. Tareas del día (solo días de estudio) ---------- */
   if(status === 'ESTUDIO'){
@@ -7316,6 +7322,81 @@ function renderSimCalendarList(){
   }
   host.appendChild(list);
 }
+/* ===================== TIEMPOS (horas de estudio + descanso) =====================
+   Todo lo rellena el usuario. state.tiempos.temas[keyTema] = minutos predeterminados de cada
+   tema de bloque; state.tiempos.dias[fechaISO] = {clase, estudioClase, otras, descanso} en minutos.
+   El descanso vale DESCANSO_DEFECTO_MIN (2 h) cada día si no se cambia. */
+const DESCANSO_DEFECTO_MIN = 120;
+function fmtMin(n){
+  n = Math.max(0, Math.round(Number(n)||0));
+  const h = Math.floor(n/60), m = n%60;
+  return h ? (h+' h'+(m ? ' '+m+' min' : '')) : (m+' min');
+}
+function computeTiempoDia(fechaISO, info){
+  const t = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+  const tt = (state.tiempos && state.tiempos.temas) || {};
+  let temas = 0;
+  if(info && info.status==='ESTUDIO' && Array.isArray(info.temasDelDia) && !(info.ticks && info.ticks.bloque)){
+    info.temasDelDia.forEach(x=>{ temas += Number(tt[x.key])||0; });
+  }
+  const clase = Number(t.clase)||0, estudioClase = Number(t.estudioClase)||0, otras = Number(t.otras)||0;
+  const descanso = (t.descanso===undefined || t.descanso===null || t.descanso==='') ? DESCANSO_DEFECTO_MIN : (Number(t.descanso)||0);
+  const estudio = temas+clase+estudioClase+otras;
+  return {temas, clase, estudioClase, otras, estudio, descanso, total: estudio+descanso};
+}
+function setTiempoDia(fechaISO, campo, valor){
+  normalizeState();
+  const v = String(valor).trim();
+  if(!state.tiempos.dias[fechaISO]) state.tiempos.dias[fechaISO] = {};
+  if(v==='' ) delete state.tiempos.dias[fechaISO][campo];
+  else state.tiempos.dias[fechaISO][campo] = Math.max(0, Math.round(Number(v)||0));
+  if(!Object.keys(state.tiempos.dias[fechaISO]).length) delete state.tiempos.dias[fechaISO];
+  scheduleSave();
+}
+function setTiempoTema(key, valor){
+  normalizeState();
+  const v = String(valor).trim();
+  if(v==='' || !(Number(v)>0)) delete state.tiempos.temas[key];
+  else state.tiempos.temas[key] = Math.round(Number(v));
+  scheduleSave();
+}
+function tiempoResumenHTML(tm){
+  return '<div class="tiempo-sum"><span>📚 Estudio <strong>'+fmtMin(tm.estudio)+'</strong></span>'+
+    '<span>😴 Descanso <strong>'+fmtMin(tm.descanso)+'</strong></span>'+
+    '<span class="tiempo-total">Total del día <strong>'+fmtMin(tm.total)+'</strong></span></div>';
+}
+/* Sección «Tiempo del día» de la ficha: campos en minutos + resumen que se actualiza al teclear. */
+function buildTiempoSection(body, info, fechaISO){
+  const {body:tb} = daySection(body, '⏱ Tiempo del día');
+  const resumen = document.createElement('div');
+  const pintarResumen = ()=>{ resumen.innerHTML = tiempoResumenHTML(computeTiempoDia(fechaISO, info)); };
+  const campo = (label, valor, placeholder, onSet)=>{
+    const row = document.createElement('label'); row.className='tiempo-row';
+    const sp = document.createElement('span'); sp.textContent = label; row.appendChild(sp);
+    const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.step='5'; inp.inputMode='numeric';
+    inp.className='tiempo-inp'; inp.placeholder = placeholder||'0';
+    if(valor!==undefined && valor!==null && valor!=='') inp.value = valor;
+    inp.oninput = ()=>{ onSet(inp.value); pintarResumen(); };
+    row.appendChild(inp);
+    const u = document.createElement('em'); u.textContent='min'; row.appendChild(u);
+    tb.appendChild(row);
+  };
+  const dia = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+  if(info && info.status==='ESTUDIO' && Array.isArray(info.temasDelDia) && info.temasDelDia.length){
+    const h = document.createElement('div'); h.className='tiempo-sub';
+    h.textContent = 'Duración predeterminada de cada tema del bloque (se recuerda para todos los días):';
+    tb.appendChild(h);
+    info.temasDelDia.forEach(t=>{
+      campo(t.clase ? t.clase+' · '+t.nombre : t.nombre, (state.tiempos.temas||{})[t.key], '0', v=>setTiempoTema(t.key, v));
+    });
+  }
+  campo('Duración de la clase', dia.clase, '0', v=>setTiempoDia(fechaISO,'clase',v));
+  campo('Estudio dedicado a la clase', dia.estudioClase, '0', v=>setTiempoDia(fechaISO,'estudioClase',v));
+  campo('Otras tareas (leve, inglés, entreno…)', dia.otras, '0', v=>setTiempoDia(fechaISO,'otras',v));
+  campo('Descanso (2 h por defecto)', dia.descanso, String(DESCANSO_DEFECTO_MIN), v=>setTiempoDia(fechaISO,'descanso',v));
+  tb.appendChild(resumen);
+  pintarResumen();
+}
 /* ===================== CALENDARIO "TODO INCLUIDO" =====================
    Cuarta vista de la pestaña Calendario: junta en la misma rejilla lo que hay repartido
    en los otros tres calendarios (tareas de estudio del día + clases + simulacro + notas).
@@ -7368,6 +7449,47 @@ function renderTodoCalMonthBar(){
   info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
   info.textContent = 'Estudio + clases + simulacros';
   bar.appendChild(info);
+  {
+    const [yy,mm] = currentMonthKey.split('-').map(Number);
+    const mp = computePlan()[currentMonthKey] || {};
+    let est=0, des=0;
+    for(let dd=1; dd<=daysInMonth(yy,mm); dd++){
+      const tm = computeTiempoDia(currentMonthKey+'-'+pad2(dd), mp[dd]);
+      est += tm.estudio; des += tm.descanso;
+    }
+    const tot = document.createElement('div'); tot.className='tiempo-mes';
+    tot.innerHTML = '⏱ Total del mes: 📚 Estudio <strong>'+fmtMin(est)+'</strong> · 😴 Descanso <strong>'+fmtMin(des)+'</strong> · Total <strong>'+fmtMin(est+des)+'</strong>';
+    bar.appendChild(tot);
+    // Gráfica de horas de estudio por día (barras) + total de cada semana (lunes a domingo).
+    const hoyISO = hoyLocalISO();
+    const dias = [];
+    for(let dd=1; dd<=daysInMonth(yy,mm); dd++){
+      const iso = currentMonthKey+'-'+pad2(dd);
+      dias.push({dd, iso, dow:new Date(yy,mm-1,dd).getDay(), est:computeTiempoDia(iso, mp[dd]).estudio});
+    }
+    const maxMin = Math.max(600, ...dias.map(x=>x.est)); // escala mínima de 10 h
+    const chart = document.createElement('div'); chart.className='horas-chart';
+    chart.setAttribute('aria-label','Horas de estudio por día');
+    dias.forEach(x=>{
+      const col = document.createElement('div');
+      col.className = 'horas-col'+(x.iso===hoyISO?' hoy':'')+(x.dow===0||x.dow===6?' finde':'');
+      const h = Math.round((x.est/60)*10)/10;
+      col.title = x.dd+' de '+MESES[mm-1]+': '+fmtMin(x.est)+' de estudio';
+      col.innerHTML = '<span class="horas-val">'+(x.est? (h%1===0?h:h.toString().replace('.',',')):'')+'</span>'+
+        '<div class="horas-barwrap"><div class="horas-bar" style="height:'+(x.est? Math.max(3, Math.round(x.est/maxMin*100)) : 0)+'%"></div></div>'+
+        '<span class="horas-dia">'+'DLMXJVS'[x.dow]+'</span><span class="horas-num">'+x.dd+'</span>';
+      chart.appendChild(col);
+    });
+    bar.appendChild(chart);
+    const semanas = []; let cur = null;
+    dias.forEach(x=>{
+      if(!cur || x.dow===1){ cur = {ini:x.dd, fin:x.dd, est:0}; semanas.push(cur); }
+      cur.fin = x.dd; cur.est += x.est;
+    });
+    const wk = document.createElement('div'); wk.className='horas-semanas';
+    wk.innerHTML = semanas.map(w=>'<span>'+(w.ini===w.fin? w.ini : w.ini+'–'+w.fin)+': <strong>'+fmtMin(w.est)+'</strong></span>').join('');
+    bar.appendChild(wk);
+  }
 }
 /* Bloque de contenido de un día en la vista "todo incluido": las tres capas, cada una con
    su etiqueta, y solo las que tengan algo (las clases y el simulacro solo salen si existen,
@@ -7396,6 +7518,13 @@ function buildTodoDayContent(d, info, compact){
       noteRow.innerHTML = '<span class="tag tag-nota">NOTA</span><span class="task-txt">'+preview.replace(/</g,'&lt;')+'</span>';
       addSub('Notas', noteRow);
     }
+  }
+
+  {
+    const tm = computeTiempoDia(currentMonthKey+'-'+pad2(d), info);
+    const tl = document.createElement('div'); tl.className='todo-tiempo';
+    tl.innerHTML = '<span title="Horas de estudio">📚 '+fmtMin(tm.estudio)+'</span><span title="Descanso">😴 '+fmtMin(tm.descanso)+'</span>';
+    addSub('Tiempo', tl);
   }
 
   const claseEntry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
