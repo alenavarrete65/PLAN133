@@ -3618,8 +3618,8 @@ document.getElementById('resetExamDate').onclick = ()=>{
   document.getElementById('examDateModal').classList.remove('open');
   showToast('Vuelve la fecha estimada (10 de julio)');
 };
-document.getElementById('closeDayModal').onclick = ()=> document.getElementById('dayModal').classList.remove('open');
-document.getElementById('dayModal').addEventListener('click', e=>{ if(e.target.id==='dayModal') e.currentTarget.classList.remove('open'); });
+document.getElementById('closeDayModal').onclick = ()=>{ document.getElementById('dayModal').classList.remove('open'); refrescarVistasTiempo(); };
+document.getElementById('dayModal').addEventListener('click', e=>{ if(e.target.id==='dayModal'){ e.currentTarget.classList.remove('open'); refrescarVistasTiempo(); } });
 
 /* ===================== MODO FOCO (ficha del día) ===================== */
 /* Colapsa todas las secciones de la ficha del día salvo la primera (Tareas del día, donde
@@ -7556,6 +7556,130 @@ function buildTiempoSection(body, info, fechaISO){
   tb.appendChild(resumen);
   pintarResumen();
 }
+/* ===================== CALENDARIO DE TIEMPOS =====================
+   Vista solo de horas: estudio y descanso de cada día, gráfica, totales por semana y por mes.
+   No guarda nada propio: lee state.tiempos (que se rellena en la ficha del día). */
+function tiempoMesDatos(){
+  const [yy,mm] = currentMonthKey.split('-').map(Number);
+  const mp = computePlan()[currentMonthKey] || {};
+  const dias = [];
+  for(let dd=1; dd<=daysInMonth(yy,mm); dd++){
+    const iso = currentMonthKey+'-'+pad2(dd);
+    const info = mp[dd] || {status:'ESTUDIO'};
+    dias.push({dd, iso, info, dow:new Date(yy,mm-1,dd).getDay(), tm:computeTiempoDia(iso, info)});
+  }
+  return {yy, mm, dias};
+}
+function renderTiempoCalMonthBar(){
+  const bar = document.getElementById('tiempoCalMonthBar');
+  if(!bar) return;
+  bar.innerHTML = '';
+  const keys = sortedMonthKeys();
+  if(!keys.length){
+    bar.innerHTML = '<span style="font-family:var(--font-mono);font-size:12px;color:var(--muted);">Añade un mes desde el Calendario de estudio para empezar.</span>';
+    return;
+  }
+  if(!currentMonthKey || !keys.includes(currentMonthKey)) currentMonthKey = keys[keys.length-1];
+  const controls = document.createElement('div'); controls.className='month-controls';
+  const prevBtn = document.createElement('button'); prevBtn.className='icon-btn'; prevBtn.textContent='‹'; prevBtn.setAttribute('aria-label','Anterior'); prevBtn.title='Anterior';
+  prevBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i>0){ currentMonthKey=keys[i-1]; renderAll(); } };
+  controls.appendChild(prevBtn);
+  const sel = document.createElement('select'); sel.setAttribute('aria-label','Cambiar de mes');
+  keys.forEach(k=>{
+    const [y,m] = k.split('-').map(Number);
+    const opt = document.createElement('option'); opt.value=k; opt.textContent = MESES[m-1]+' '+y;
+    if(k===currentMonthKey) opt.selected = true;
+    sel.appendChild(opt);
+  });
+  sel.onchange = ()=>{ currentMonthKey = sel.value; renderAll(); };
+  controls.appendChild(sel);
+  const nextBtn = document.createElement('button'); nextBtn.className='icon-btn'; nextBtn.textContent='›'; nextBtn.setAttribute('aria-label','Siguiente'); nextBtn.title='Siguiente';
+  nextBtn.onclick = ()=>{ const i=keys.indexOf(currentMonthKey); if(i<keys.length-1){ currentMonthKey=keys[i+1]; renderAll(); } };
+  controls.appendChild(nextBtn);
+  bar.appendChild(controls);
+
+  const {dias} = tiempoMesDatos();
+  let est=0, des=0, conEstudio=0;
+  dias.forEach(x=>{ est+=x.tm.estudio; des+=x.tm.descanso; if(x.tm.estudio>0) conEstudio++; });
+  const media = conEstudio ? est/conEstudio : 0;
+  const tot = document.createElement('div'); tot.className='tiempo-mes';
+  tot.innerHTML = '⏱ Total del mes: 📚 Estudio <strong>'+fmtMin(est)+'</strong> · 😴 Descanso <strong>'+fmtMin(des)+'</strong> · Total <strong>'+fmtMin(est+des)+'</strong>'+
+    (conEstudio ? ' · Media por día de estudio <strong>'+fmtMin(media)+'</strong> ('+conEstudio+' días)' : '');
+  bar.appendChild(tot);
+}
+function renderTiempoCalendar(){
+  const host = document.getElementById('tiempoCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  if(!currentMonthKey){
+    host.innerHTML = '<div class="empty-state">Todavía no has añadido ningún mes.<br>Añádelo desde el Calendario de estudio.</div>';
+    return;
+  }
+  const {yy, mm, dias} = tiempoMesDatos();
+  const hoyISO = hoyLocalISO();
+  const maxMin = Math.max(600, ...dias.map(x=>x.tm.estudio)); // escala mínima de 10 h
+
+  // Gráfica de barras: horas de estudio por día.
+  const chart = document.createElement('div'); chart.className='horas-chart';
+  chart.setAttribute('aria-label','Horas de estudio por día');
+  dias.forEach(x=>{
+    const est = x.tm.estudio;
+    const col = document.createElement('div');
+    col.className = 'horas-col'+(x.iso===hoyISO?' hoy':'')+(x.dow===0||x.dow===6?' finde':'');
+    const hh = Math.round((est/60)*10)/10;
+    col.title = x.dd+' de '+MESES[mm-1]+': '+fmtMin(est)+' de estudio';
+    col.innerHTML = '<span class="horas-val">'+(est ? (hh%1===0?hh:String(hh).replace('.',',')) : '')+'</span>'+
+      '<div class="horas-barwrap"><div class="horas-bar" style="height:'+(est ? Math.max(3, Math.round(est/maxMin*100)) : 0)+'%"></div></div>'+
+      '<span class="horas-dia">'+'DLMXJVS'[x.dow]+'</span><span class="horas-num">'+x.dd+'</span>';
+    chart.appendChild(col);
+  });
+  host.appendChild(chart);
+
+  // Totales por semana (lunes a domingo).
+  const semanas = []; let cur = null;
+  dias.forEach(x=>{
+    if(!cur || x.dow===1){ cur = {ini:x.dd, fin:x.dd, est:0}; semanas.push(cur); }
+    cur.fin = x.dd; cur.est += x.tm.estudio;
+  });
+  const wk = document.createElement('div'); wk.className='horas-semanas';
+  wk.innerHTML = semanas.map(w=>'<span>Sem. '+(w.ini===w.fin ? w.ini : w.ini+'–'+w.fin)+': <strong>'+fmtMin(w.est)+'</strong></span>').join('');
+  host.appendChild(wk);
+
+  // Rejilla del mes con las horas de cada día bien visibles.
+  const grid = document.createElement('div'); grid.className='cal-grid tiempo-grid';
+  DOW.forEach(dname=>{
+    const dow = document.createElement('div'); dow.className='cal-dow'; dow.textContent = dname.slice(0,3);
+    grid.appendChild(dow);
+  });
+  const firstDow = new Date(yy, mm-1, 1).getDay();
+  const leadingBlanks = (firstDow === 0) ? 6 : firstDow - 1;
+  for(let i=0;i<leadingBlanks;i++){
+    const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b);
+  }
+  dias.forEach(x=>{
+    const cell = document.createElement('div');
+    cell.className = 'cal-cell tiempo-cell status-'+x.info.status+(x.iso===hoyISO?' today':'');
+    const numRow = document.createElement('div'); numRow.className='cal-daynum';
+    const dn = document.createElement('span'); dn.textContent = x.dd; numRow.appendChild(dn);
+    cell.appendChild(numRow);
+    const big = document.createElement('div'); big.className='tiempo-big'+(x.tm.estudio? '':' vacio');
+    big.textContent = x.tm.estudio ? fmtMin(x.tm.estudio) : '—';
+    cell.appendChild(big);
+    const sm = document.createElement('div'); sm.className='tiempo-small';
+    sm.textContent = '😴 '+fmtMin(x.tm.descanso);
+    cell.appendChild(sm);
+    cell.style.cursor = 'pointer';
+    hacerCeldaAccesible(cell, ()=> openDayModal(x.dd, x.info));
+    grid.appendChild(cell);
+  });
+  host.appendChild(grid);
+}
+// Al cerrar la ficha del día se repintan las vistas que muestran horas (los campos de tiempo
+// se guardan al teclear, pero las vistas no se repintaban hasta la siguiente acción).
+function refrescarVistasTiempo(){
+  try{ renderTodoCalMonthBar(); renderTodoCalendar(); renderTiempoCalMonthBar(); renderTiempoCalendar(); }catch(e){ console.error(e); }
+}
+
 /* ===================== CALENDARIO "TODO INCLUIDO" =====================
    Cuarta vista de la pestaña Calendario: junta en la misma rejilla lo que hay repartido
    en los otros tres calendarios (tareas de estudio del día + clases + simulacro + notas).
@@ -7608,47 +7732,7 @@ function renderTodoCalMonthBar(){
   info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
   info.textContent = 'Estudio + clases + simulacros';
   bar.appendChild(info);
-  {
-    const [yy,mm] = currentMonthKey.split('-').map(Number);
-    const mp = computePlan()[currentMonthKey] || {};
-    let est=0, des=0;
-    for(let dd=1; dd<=daysInMonth(yy,mm); dd++){
-      const tm = computeTiempoDia(currentMonthKey+'-'+pad2(dd), mp[dd]);
-      est += tm.estudio; des += tm.descanso;
-    }
-    const tot = document.createElement('div'); tot.className='tiempo-mes';
-    tot.innerHTML = '⏱ Total del mes: 📚 Estudio <strong>'+fmtMin(est)+'</strong> · 😴 Descanso <strong>'+fmtMin(des)+'</strong> · Total <strong>'+fmtMin(est+des)+'</strong>';
-    bar.appendChild(tot);
-    // Gráfica de horas de estudio por día (barras) + total de cada semana (lunes a domingo).
-    const hoyISO = hoyLocalISO();
-    const dias = [];
-    for(let dd=1; dd<=daysInMonth(yy,mm); dd++){
-      const iso = currentMonthKey+'-'+pad2(dd);
-      dias.push({dd, iso, dow:new Date(yy,mm-1,dd).getDay(), est:computeTiempoDia(iso, mp[dd]).estudio});
-    }
-    const maxMin = Math.max(600, ...dias.map(x=>x.est)); // escala mínima de 10 h
-    const chart = document.createElement('div'); chart.className='horas-chart';
-    chart.setAttribute('aria-label','Horas de estudio por día');
-    dias.forEach(x=>{
-      const col = document.createElement('div');
-      col.className = 'horas-col'+(x.iso===hoyISO?' hoy':'')+(x.dow===0||x.dow===6?' finde':'');
-      const h = Math.round((x.est/60)*10)/10;
-      col.title = x.dd+' de '+MESES[mm-1]+': '+fmtMin(x.est)+' de estudio';
-      col.innerHTML = '<span class="horas-val">'+(x.est? (h%1===0?h:h.toString().replace('.',',')):'')+'</span>'+
-        '<div class="horas-barwrap"><div class="horas-bar" style="height:'+(x.est? Math.max(3, Math.round(x.est/maxMin*100)) : 0)+'%"></div></div>'+
-        '<span class="horas-dia">'+'DLMXJVS'[x.dow]+'</span><span class="horas-num">'+x.dd+'</span>';
-      chart.appendChild(col);
-    });
-    bar.appendChild(chart);
-    const semanas = []; let cur = null;
-    dias.forEach(x=>{
-      if(!cur || x.dow===1){ cur = {ini:x.dd, fin:x.dd, est:0}; semanas.push(cur); }
-      cur.fin = x.dd; cur.est += x.est;
-    });
-    const wk = document.createElement('div'); wk.className='horas-semanas';
-    wk.innerHTML = semanas.map(w=>'<span>'+(w.ini===w.fin? w.ini : w.ini+'–'+w.fin)+': <strong>'+fmtMin(w.est)+'</strong></span>').join('');
-    bar.appendChild(wk);
-  }
+
 }
 /* Bloque de contenido de un día en la vista "todo incluido": las tres capas, cada una con
    su etiqueta, y solo las que tengan algo (las clases y el simulacro solo salen si existen,
@@ -7682,8 +7766,8 @@ function buildTodoDayContent(d, info, compact){
   {
     const tm = computeTiempoDia(currentMonthKey+'-'+pad2(d), info);
     const tl = document.createElement('div'); tl.className='todo-tiempo';
-    tl.innerHTML = '<span title="Horas de estudio">📚 '+fmtMin(tm.estudio)+'</span><span title="Descanso">😴 '+fmtMin(tm.descanso)+'</span>';
-    addSub('Tiempo', tl);
+    tl.innerHTML = '<span title="Horas de estudio">📚 '+fmtMin(tm.estudio)+'</span>';
+    if(tm.estudio>0) addSub('Tiempo', tl);
   }
 
   const claseEntry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
@@ -10661,6 +10745,8 @@ function syncCalSelectorToggle(){
   if(mainPanel) mainPanel.style.display = calSelectorMode==='principal' ? '' : 'none';
   if(clasesPanel) clasesPanel.style.display = calSelectorMode==='clases' ? '' : 'none';
   if(simPanel) simPanel.style.display = calSelectorMode==='simulacros' ? '' : 'none';
+  const tiempoPanel = document.getElementById('calTiempoPanel');
+  if(tiempoPanel) tiempoPanel.style.display = calSelectorMode==='tiempos' ? '' : 'none';
   const todoPanel = document.getElementById('calTodoPanel');
   if(todoPanel) todoPanel.style.display = calSelectorMode==='todo' ? '' : 'none';
 }
@@ -10944,6 +11030,8 @@ function renderAll(){
   renderTodoCalMonthBar();
   renderTodoCalLegend();
   renderTodoCalendar();
+  renderTiempoCalMonthBar();
+  renderTiempoCalendar();
   renderCiclo();
   renderRitmo();
   renderFlojos();

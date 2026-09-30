@@ -118,6 +118,7 @@
       <button type="button" class="view-toggle-btn" data-cal="principal">📅 Calendario de estudio</button>
       <button type="button" class="view-toggle-btn" data-cal="clases">🏫 Calendario de clases</button>
       <button type="button" class="view-toggle-btn" data-cal="simulacros">🎯 Calendario de simulacros</button>
+      <button type="button" class="view-toggle-btn" data-cal="tiempos">⏱️ Calendario de tiempos</button>
     </div>
 
     <div id="calMainPanel">
@@ -180,6 +181,16 @@
     <!-- CALENDARIO "TODO INCLUIDO": estudio + clases + simulacros en la misma rejilla.
          No sustituye a ninguno de los otros tres: es una vista más, de solo lectura,
          desde la que al pulsar un día se abre la ficha completa de ese día. -->
+    <!-- CALENDARIO DE TIEMPOS: horas de estudio y descanso de cada día (lee los mismos datos que
+         se rellenan en la ficha del día; al pulsar un día se abre esa ficha). -->
+    <div id="calTiempoPanel" style="display:none;">
+      <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
+        Las horas de estudio y el descanso de cada día. Los tiempos se rellenan en la ficha del día (pulsa cualquier día para abrirla).
+      </div>
+      <div class="month-bar" id="tiempoCalMonthBar"></div>
+      <div id="tiempoCalHost"></div>
+    </div>
+
     <div id="calTodoPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Todo incluido</h3>
       <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
