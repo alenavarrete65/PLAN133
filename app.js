@@ -556,8 +556,21 @@ function normalizeState(){
       } else {
         entry.psicoExtra = entry.psicoExtra.map(v=> typeof v==='string' ? v : '');
       }
+      // Ortografía y gramática son ahora una sola materia de clases: las sesiones que ya estaban
+      // como «gramática» pasan a la misma lista que las de ortografía (mismos nombres y fechas).
+      // Los tests (Apto/No apto) siguen separados y no se tocan.
+      if(entry.gram.length){
+        const sy = Array.isArray(entry.orto_synced) ? entry.orto_synced : [];
+        const gy = Array.isArray(entry.gram_synced) ? entry.gram_synced : [];
+        entry.orto_synced = entry.orto.map((_,i)=> !!sy[i]).concat(entry.gram.map((_,i)=> !!gy[i]));
+        entry.orto = entry.orto.concat(entry.gram);
+        entry.gram = [];
+        delete entry.gram_synced;
+      }
     });
   });
+  // Lo mismo para las clases pendientes del tablón apuntadas como «gramática».
+  if(Array.isArray(state.clasesPendientes)) state.clasesPendientes.forEach(p=>{ if(p && p.materiaKey==='gram') p.materiaKey = 'orto'; });
   if(!state.simulacros) state.simulacros = [];
   if(!Array.isArray(state.simulacrosPendientes)) state.simulacrosPendientes = [];
   if(!Array.isArray(state.clasesSyncPendiente)) state.clasesSyncPendiente = [];
@@ -1289,7 +1302,7 @@ function claseResumenTextoPlano(entry){
   if(entry.ingles && entry.ingles.length) partes.push('Inglés: lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', '));
   if(entry.psico && entry.psico.length) partes.push('Psicotécnico: '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).filter(Boolean).join(', '));
   if(entry.psicoExtra && entry.psicoExtra.filter(x=>x&&x.trim()).length) partes.push('Psicotécnico: '+entry.psicoExtra.filter(x=>x&&x.trim()).join(', '));
-  if(entry.orto && entry.orto.length) partes.push('Ortografía'+(entry.orto.some(x=>x&&x.trim())?': '+entry.orto.filter(x=>x&&x.trim()).join(', '):(entry.orto.length>1?' ×'+entry.orto.length:'')));
+  if(entry.orto && entry.orto.length) partes.push('Ortografía y gramática'+(entry.orto.some(x=>x&&x.trim())?': '+entry.orto.filter(x=>x&&x.trim()).join(', '):(entry.orto.length>1?' ×'+entry.orto.length:'')));
   if(entry.gram && entry.gram.length) partes.push('Gramática'+(entry.gram.some(x=>x&&x.trim())?': '+entry.gram.filter(x=>x&&x.trim()).join(', '):(entry.gram.length>1?' ×'+entry.gram.length:'')));
   if(Array.isArray(entry.seminarios)) entry.seminarios.forEach(sm=>{
     if(sm) partes.push('Seminario'+(sm.titulo&&sm.titulo.trim()?': '+sm.titulo.trim():'')+(sm.notas&&sm.notas.trim()?' ('+sm.notas.trim()+')':''));
@@ -3137,7 +3150,7 @@ function renderDayClasesEditor(host, d, jsDow){
       devolverClaseAPendientes('psico', null, n, true);
     }, false);
   });
-  [['orto','ORT','Ortografía'], ['gram','GRAM','Gramática']].forEach(([arrKey, tag, label])=>{
+  [['orto','ORT/GRAM','Ortografía y gramática']].forEach(([arrKey, tag, label])=>{
     (entry[arrKey]||[]).forEach((n,i)=>{
       const visible = (n && n.trim()) ? n : 'Clase '+(i+1);
       addPill(arrKey, tag+' · '+visible, ()=>{
@@ -5280,8 +5293,7 @@ function getClaseMateriasDef(){
     {key:'conocimientos', label:'Conocimientos', kind:'select',        options:conOptions, arrKey:'conocimientos'},
     {key:'ingles',        label:'Inglés',        kind:'select',        options:ingOptions, arrKey:'ingles'},
     {key:'psico',         label:'Psicotécnicos', kind:'select-or-text', options:psiOptions, arrKey:'psico', extraArrKey:'psicoExtra'},
-    {key:'orto',          label:'Ortografía',    kind:'text', arrKey:'orto'},
-    {key:'gram',          label:'Gramática',     kind:'text', arrKey:'gram'}
+    {key:'orto',          label:'Ortografía y gramática', kind:'text', arrKey:'orto'}
   ];
 }
 /* ============================================================================
@@ -5325,12 +5337,12 @@ function computeClasesDesdeCalendario(){
         if(!res.psicoExtra[key]) res.psicoExtra[key] = {nombre, fechas:[]};
         res.psicoExtra[key].fechas.push(fecha);
       });
-      [['orto','Ortografía'], ['gram','Gramática']].forEach(([arrKey, tipoLabel])=>{
+      [['orto','Ortografía y gramática'], ['gram','Ortografía y gramática']].forEach(([arrKey, tipoLabel])=>{
         (Array.isArray(e[arrKey]) ? e[arrKey] : []).forEach(n=>{
           const nombre = (n||'').trim();
-          const visible = nombre || ('Clase de '+tipoLabel.toLowerCase()+' sin nombre');
-          const key = arrKey+'|'+visible.toLowerCase();
-          if(!res.ortoGram[key]) res.ortoGram[key] = {tipo:arrKey, tipoLabel, nombre:visible, fechas:[]};
+          const visible = nombre || 'Clase de ortografía y gramática sin nombre';
+          const key = 'orto|'+visible.toLowerCase();
+          if(!res.ortoGram[key]) res.ortoGram[key] = {tipo:'orto', tipoLabel, nombre:visible, fechas:[]};
           res.ortoGram[key].fechas.push(fecha);
         });
       });
@@ -5915,8 +5927,8 @@ function buildClasePillsHTML(entry, notePreviewLen){
   if(entry.psico && entry.psico.length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
   if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
   if(entry.orto && entry.orto.length){
-    const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
-    html += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+    const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA Y GRAMÁTICA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
+    html += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT/GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
   }
   if(Array.isArray(entry.seminarios) && entry.seminarios.length){
     entry.seminarios.forEach(sm=>{
@@ -6063,11 +6075,13 @@ function openClaseDayModal(d, jsDow){
 // "[Materia — Tema] comentario..."). Si esa clase no tenía comentario, no hace nada.
 function removeClaseNotaTag(entry, materiaLabel, temaLabel){
   if(!entry.nota) return;
-  const tag = '['+materiaLabel + (temaLabel ? (' — '+temaLabel) : '') + ']';
+  // Los comentarios antiguos de ortografía/gramática llevan la etiqueta con el nombre anterior.
+  const etiquetas = (materiaLabel==='Ortografía y gramática') ? [materiaLabel, 'Ortografía', 'Gramática'] : [materiaLabel];
+  const tags = etiquetas.map(l=> '['+l + (temaLabel ? (' — '+temaLabel) : '') + ']');
   const lines = entry.nota.split('\n');
   let removed = false;
   const kept = lines.filter(line=>{
-    if(!removed && line.indexOf(tag)===0){ removed = true; return false; }
+    if(!removed && tags.some(tag=> line.indexOf(tag)===0)){ removed = true; return false; }
     return true;
   });
   entry.nota = kept.join('\n');
@@ -6190,13 +6204,9 @@ function renderClaseDayPreview(entry, d, jsDow){
     ];
     fillRow(val, psicoItems);
   });
-  addRow('Ortografía', (val)=> fillRow(val, (entry.orto||[]).map((n,i)=>({
+  addRow('Ortografía y gramática', (val)=> fillRow(val, (entry.orto||[]).map((n,i)=>({
     cls:'orto', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía', tag); cancelarSincronizacionClasePendiente('orto', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('orto', n || '', n || '', false); }
-  }))));
-  addRow('Gramática', (val)=> fillRow(val, (entry.gram||[]).map((n,i)=>({
-    cls:'gram', text: n && n.trim() ? n : 'Clase '+(i+1),
-    onRemove: ()=>{ const tag = n; entry.gram.splice(i,1); removeClaseNotaTag(entry, 'Gramática', tag); cancelarSincronizacionClasePendiente('gram', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('gram', n || '', n || '', false); }
+    onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía y gramática', tag); cancelarSincronizacionClasePendiente('orto', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('orto', n || '', n || '', false); }
   }))));
   addRow('Seminario', (val)=>{
     const sems = Array.isArray(entry.seminarios) ? entry.seminarios : [];
@@ -6801,8 +6811,7 @@ function renderClaseDayEdit(entry, d, jsDow){
   body.appendChild(buildMultiRow('Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
   body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)', 'Psicotécnicos', 'psico'));
 
-  body.appendChild(buildNamedListRow('Clase de ortografía', 'orto', 'Nombre de la clase (opcional)', 'Ortografía', 'orto'));
-  body.appendChild(buildNamedListRow('Clase de gramática', 'gram', 'Nombre de la clase (opcional)', 'Gramática', 'gram'));
+  body.appendChild(buildNamedListRow('Clase de ortografía y gramática', 'orto', 'Nombre de la clase (opcional)', 'Ortografía y gramática', 'orto'));
 
   // Seminarios: pueden ser de cualquier cosa, así que cada uno lleva su título y sus notas.
   {
