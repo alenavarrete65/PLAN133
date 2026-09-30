@@ -2327,6 +2327,21 @@ function renderHomeDash(){
       arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Abrir Arrastre →</button>');
 
+  // Temas pendientes de recuperar.
+  let recuperarHomeHtml;
+  {
+    const rr = recuperarResumen();
+    if(!rr.pend){
+      recuperarHomeHtml = '<div class="home-today-status">Nada pendiente de recuperar ✓</div>';
+    } else {
+      recuperarHomeHtml = '<div class="home-card-value" style="font-size:22px;">'+rr.pend+' tema'+(rr.pend!==1?'s':'')+'</div>'+
+        '<div class="home-card-sub">por recuperar'+(rr.masAntiguo!==null ? ' · el más antiguo lleva '+rr.masAntiguo+(rr.masAntiguo===1?' día':' días') : '')+'</div>'+
+        (rr.hoyN ? '<div class="home-card-note">Hoy tienes '+rr.hoyN+' programado'+(rr.hoyN!==1?'s':'')+' para recuperar.</div>' : '')+
+        (rr.sinDia ? '<div class="home-card-note">'+rr.sinDia+' sin día asignado.</div>' : '');
+    }
+    recuperarHomeHtml += '<button class="btn small ghost" id="homeRecuperarBtn" style="margin-top:8px;">Ir a Recuperar →</button>';
+  }
+
   // Clases (academia) que tocan hoy, según el Calendario de clases.
   const todayMonthKey = now.getFullYear()+'-'+pad2(now.getMonth()+1);
   const todayDay = now.getDate();
@@ -2364,6 +2379,7 @@ function renderHomeDash(){
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>';
 
   const examEditBtn = document.getElementById('homeExamEditBtn');
@@ -2372,6 +2388,12 @@ function renderHomeDash(){
   const arrastreBtn = document.getElementById('homeArrastreBtn');
   if(arrastreBtn) arrastreBtn.onclick = ()=>{
     const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
+    if(tabBtn) tabBtn.click();
+  };
+
+  const recBtn = document.getElementById('homeRecuperarBtn');
+  if(recBtn) recBtn.onclick = ()=>{
+    const tabBtn = document.querySelector('.tab-btn[data-tab="recuperar"]');
     if(tabBtn) tabBtn.click();
   };
 
@@ -2417,8 +2439,8 @@ function dayCompletionBadge(info){
 /* Firma corta y barata de calcular que identifica el contenido visible de un día.
    Se usa para saber si hace falta reconstruir su nodo DOM o si podemos dejarlo tal
    cual estaba (evita repintar los ~28-31 días del mes por cada tick que se marca). */
-function dayRenderSig(info, dayStatusRaw, isToday, noteTxt){
-  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20);
+function dayRenderSig(info, dayStatusRaw, isToday, noteTxt, fechaISO){
+  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20) + '|r' + (fechaISO ? dayRecMarca(fechaISO) : '');
 }
 // Hace que una celda/fila de calendario (una <div> clicable con el ratón) también se pueda
 // abrir con teclado (Enter o Espacio) y la anuncia como activable a un lector de pantalla.
@@ -2450,6 +2472,8 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   leftWrap.appendChild(dnSpan);
   const badge = dayCompletionBadge(info);
   if(badge) leftWrap.appendChild(badge);
+  const recB = recBadgeDia(y+'-'+pad2(m)+'-'+pad2(d));
+  if(recB) leftWrap.appendChild(recB);
   numRow.appendChild(leftWrap);
   const wdSpan = document.createElement('span'); wdSpan.className='wd'; wdSpan.textContent = wdName;
   numRow.appendChild(wdSpan);
@@ -2533,7 +2557,7 @@ function renderCalendarGrid(){
   for(let d=1; d<=nDays; d++){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const isToday = isCurrentMonth && d===now.getDate();
-    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)]);
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)], currentMonthKey+'-'+pad2(d));
     if(reuse && _calGridCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
     const cell = buildCalGridCell(y, m, d, info, daysData, isToday);
     const prevEl = _calGridCache.cellEls[d];
@@ -2557,6 +2581,8 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   const headRight = document.createElement('div'); headRight.className='cal-list-head-right';
   const badge = dayCompletionBadge(info);
   if(badge) headRight.appendChild(badge);
+  const recB = recBadgeDia(y+'-'+pad2(m)+'-'+pad2(d));
+  if(recB) headRight.appendChild(recB);
 
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select cal-list-status-select';
@@ -2630,7 +2656,7 @@ function renderCalendarList(){
   for(let d=1; d<=nDays; d++){
     const info = monthPlan[d] || {status:'ESTUDIO'};
     const isToday = isCurrentMonth && d===now.getDate();
-    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)]);
+    const sig = dayRenderSig(info, daysData[d]||'ESTUDIO', isToday, state.notes[dayNoteKey(currentMonthKey,d)], currentMonthKey+'-'+pad2(d));
     if(reuse && _calListCache.sigs[d]===sig) continue; // sin cambios visibles: no tocamos su nodo DOM
     const item = buildCalListItem(y, m, d, info, daysData, isToday);
     const prevEl = _calListCache.itemEls[d];
@@ -2754,6 +2780,13 @@ function openDayModal(d, info){
       body.appendChild(warn);
       try{ console.error('Error pintando las tareas del día', err); }catch(e){}
     }
+  }
+
+  /* ---------- 1b. Día de recuperación (cualquier tipo de día) ---------- */
+  try{
+    buildDiaRecuperacion(body, fechaISO, ()=>{ renderCalendar(); renderArrastre(); });
+  }catch(err){
+    try{ console.error('Error pintando el día de recuperación', err); }catch(e){}
   }
 
   /* ---------- 2. Clases de este día ---------- */
@@ -3712,7 +3745,10 @@ function migrateTickEntry(v){
      También se pueden añadir a mano ahí (desplegable por materia).
    · Al pulsar «Recuperado» se pone la fecha y se elige el resultado (Nota test / No test / …); ese
      resultado se guarda en la propia vuelta, así que Progreso lo recoge como cualquier otra nota.
-   Se guarda dentro de la vuelta: recDesde (día que lo marcaste) y recuperado (día que lo recuperaste). */
+   · En el calendario, cada día tiene una sección «Día de recuperación»: ahí eliges de lo que hay en Recuperar
+     (recDia = ese día), marcas «Recuperado» (la fecha se pone sola = ese día) y pones el resultado/nota.
+   Se guarda dentro de la vuelta: recDesde (día que lo marcaste), recDia (día del calendario al que lo asignas)
+   y recuperado (día que lo recuperaste). */
 let _catRecCache = null;
 function catalogoRecuperar(){
   if(_catRecCache) return _catRecCache;
@@ -3748,7 +3784,7 @@ function catalogoRecuperar(){
     items.push({key:'psico-'+idx, grupo:'Psicotécnicos', materia:'psico', label:name, detalle:'', arrKey:'psico-'+idx});
   });
   const porKey = {};
-  items.forEach(it=>{ porKey[it.key] = it; });
+  items.forEach((it,i)=>{ it.orden = i; porKey[it.key] = it; });
   _catRecCache = {items, porKey};
   return _catRecCache;
 }
@@ -3770,7 +3806,7 @@ function collectRecuperar(){
         // Por si quedó de la versión anterior: recuperado pero todavía en «Recuperar» → pasa a «elige resultado».
         if(s.mode === 'recuperar' && s.recuperado) s.mode = 'pendiente';
         if(s.mode === 'recuperar' || s.recuperado){
-          out.push({key, grupo:meta.grupo, label:meta.label, detalle:meta.detalle, vuelta:idx+1, slot:id, s});
+          out.push({key, grupo:meta.grupo, materia:meta.materia, bloque:meta.bloque, orden:meta.orden, label:meta.label, detalle:meta.detalle, vuelta:idx+1, slot:id, s});
         }
       });
     });
@@ -3817,6 +3853,116 @@ function anadirRecuperarManual(key, testId){
   scheduleSave();
   renderRecuperar();
   showToast('Añadido a Recuperar (vuelta '+(idx+1)+')');
+}
+// Lo que toca (o se ha hecho) en un día concreto: asignado a ese día o recuperado ese día.
+function recuperarDelDia(fechaISO){
+  return collectRecuperar().filter(x=> x.s.recDia === fechaISO || x.s.recuperado === fechaISO);
+}
+function dayRecMarca(fechaISO){
+  const l = recuperarDelDia(fechaISO);
+  return l.length ? (l.filter(x=> !x.s.recuperado).length+'/'+l.length) : '';
+}
+function recBadgeDia(fechaISO){
+  const l = recuperarDelDia(fechaISO);
+  if(!l.length) return null;
+  const pend = l.filter(x=> !x.s.recuperado).length;
+  const b = document.createElement('span');
+  b.className = 'day-rec-badge'+(pend ? '' : ' hecho');
+  b.textContent = pend ? '🔁'+pend : '🔁✓';
+  b.title = pend ? pend+' tema'+(pend>1?'s':'')+' por recuperar este día' : 'Recuperación de este día hecha';
+  b.setAttribute('aria-label', b.title);
+  return b;
+}
+function marcarRecuperado(it, fechaISO){
+  it.s.recuperado = fechaISO;
+  if(it.s.mode === 'recuperar') it.s.mode = 'pendiente'; // ahora toca elegir el resultado (Nota test / No test…)
+}
+function deshacerRecuperado(it){
+  delete it.s.recuperado; it.s.mode = 'recuperar'; it.s.nota = null; it.s.notasExtra = [];
+}
+// Resultado del test recuperado: Nota test / No test / No tiempo / Solo lectura (+ la nota). Se usa en la
+// pestaña Recuperar y en el «Día de recuperación» del calendario; escribe en la propia vuelta.
+function buildRecResultado(it, onRefresh){
+  const res = document.createElement('div'); res.className = 'rec-resultado';
+  const sel = document.createElement('select'); sel.className = 'vuelta-select';
+  sel.setAttribute('aria-label', 'Resultado del test de '+it.label);
+  VUELTA_MODES.filter(m=> m[0] !== 'recuperar').forEach(([val,txt])=>{
+    const o = document.createElement('option'); o.value = val;
+    o.textContent = val === 'pendiente' ? 'Resultado del test…' : txt;
+    if(it.s.mode === val) o.selected = true;
+    sel.appendChild(o);
+  });
+  sel.onchange = ()=>{
+    it.s.mode = sel.value;
+    if(it.s.mode !== 'nota'){ it.s.nota = null; it.s.notasExtra = []; }
+    scheduleSave();
+    if(onRefresh) onRefresh();
+  };
+  res.appendChild(sel);
+  if(it.s.mode === 'nota'){
+    res.appendChild(buildTestsVuelta(it.s, GROUP_MAX_NOTA[it.grupo] || 10, 'Nota del test recuperado de '+it.label));
+  }
+  return res;
+}
+// Sección «Día de recuperación» de la ficha de un día del calendario: solo trabaja con lo que hay en Recuperar.
+function buildDiaRecuperacion(body, fechaISO, onCambio){
+  const {body:sb} = daySection(body, 'Día de recuperación');
+  const host = document.createElement('div'); sb.appendChild(host);
+  const fechaCorta = (iso)=>{ const [yy,mm,dd] = iso.split('-').map(Number); return dd+' '+MESES[mm-1].slice(0,3).toLowerCase(); };
+  const nombreDe = (x)=> x.label+(x.detalle && x.label.indexOf(x.detalle)===-1 ? ' — '+x.detalle : '')+(x.slot ? ' · '+slotEtiqueta(x.slot) : '');
+  const pintar = ()=>{
+    host.innerHTML = '';
+    const hoy = recuperarDelDia(fechaISO).sort((p,q)=> (p.s.recuperado?1:0)-(q.s.recuperado?1:0));
+    hoy.forEach(it=>{
+      const row = document.createElement('div'); row.className = 'rec-dia-item'+(it.s.recuperado?' hecho':'');
+      const top = document.createElement('div'); top.className = 'rec-dia-top';
+      const info = document.createElement('div'); info.className = 'rec-info';
+      const nm = document.createElement('div'); nm.className = 'rec-nombre'; nm.textContent = nombreDe(it);
+      const mt = document.createElement('div'); mt.className = 'rec-meta'; mt.textContent = it.grupo+' · Vuelta '+it.vuelta;
+      info.appendChild(nm); info.appendChild(mt); top.appendChild(info);
+      const lab = document.createElement('label'); lab.className = 'rec-dia-check';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!it.s.recuperado;
+      cb.setAttribute('aria-label', 'Recuperado: '+it.label);
+      cb.onchange = ()=>{
+        if(cb.checked){ marcarRecuperado(it, fechaISO); it.s.recDia = fechaISO; }
+        else deshacerRecuperado(it);
+        scheduleSave(); pintar(); if(onCambio) onCambio();
+      };
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' Recuperado'));
+      top.appendChild(lab);
+      if(!it.s.recuperado){
+        const q = document.createElement('button'); q.type = 'button'; q.className = 'btn small ghost'; q.textContent = '✕';
+        q.title = 'Quitar de este día (sigue pendiente en Recuperar)';
+        q.setAttribute('aria-label', 'Quitar de este día: '+it.label);
+        q.onclick = ()=>{ delete it.s.recDia; scheduleSave(); pintar(); if(onCambio) onCambio(); };
+        top.appendChild(q);
+      }
+      row.appendChild(top);
+      if(it.s.recuperado) row.appendChild(buildRecResultado(it, pintar));
+      host.appendChild(row);
+    });
+    // Desplegable con todo lo pendiente en Recuperar que aún no está en este día.
+    const disp = collectRecuperar().filter(x=> !x.s.recuperado && x.s.recDia !== fechaISO);
+    if(disp.length){
+      const sel = document.createElement('select'); sel.className = 'rec-sel rec-dia-add';
+      sel.setAttribute('aria-label', 'Añadir un tema de Recuperar a este día');
+      sel.appendChild(new Option('➕ Añadir desde Recuperar…', ''));
+      disp.forEach((x,i)=>{
+        sel.appendChild(new Option(nombreDe(x)+' · '+x.grupo+(x.s.recDia ? ' (programado el '+fechaCorta(x.s.recDia)+')' : ''), String(i)));
+      });
+      sel.onchange = ()=>{
+        const it = disp[Number(sel.value)]; if(!it) return;
+        it.s.recDia = fechaISO;
+        scheduleSave(); pintar(); if(onCambio) onCambio();
+      };
+      host.appendChild(sel);
+    } else if(!hoy.length){
+      const v = document.createElement('div'); v.className = 'rec-meta';
+      v.textContent = 'No hay nada pendiente en Recuperar.';
+      host.appendChild(v);
+    }
+  };
+  pintar();
 }
 /* ---- Inglés: cada tema (lección) tiene 4 tests ----
    Dentro de cada vuelta se puede elegir sobre qué se apunta el resultado: «Test general» (lo de
@@ -7461,6 +7607,7 @@ document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.targe
 
 /* ===================== RENDER: RECUPERAR ===================== */
 const _recForm = {materia:'bloques', bloque:1, key:'', test:'general'};
+const _recAbiertos = new Set(['p:bloques','p:leves','p:ingles','p:psico']); // pendientes abiertos; recuperados cerrados
 const REC_MATERIAS = [['bloques','Bloques'],['leves','Leves'],['ingles','Inglés'],['psico','Psicotécnicos']];
 function buildRecuperarForm(host){
   host.innerHTML = '';
@@ -7521,26 +7668,194 @@ function buildRecuperarForm(host){
   box.appendChild(fila);
   host.appendChild(box);
 }
+const _recFiltro = {q:'', orden:'temario', prog:'todos'};
+const _recSel = new Set();      // temas seleccionados en la pestaña (para acciones en bloque)
+let _recFechaBulk = '';         // fecha elegida para «Recuperados» en bloque
+const REC_MAX_POR_DIA = 3;      // al sugerir día, no se apilan más de estos temas en un mismo descanso
+const REC_DIAS_AVISO = 7, REC_DIAS_ALTO = 14;
+function recId(it){ return it.key+'|'+it.vuelta+'|'+(it.slot||''); }
+function diasEntre(isoA, isoB){
+  const [a1,a2,a3] = isoA.split('-').map(Number), [b1,b2,b3] = isoB.split('-').map(Number);
+  return Math.round((Date.UTC(b1,b2-1,b3) - Date.UTC(a1,a2-1,a3)) / 86400000);
+}
+function siguienteDiaISO(iso){
+  const [y,m,d] = iso.split('-').map(Number); const dt = new Date(y, m-1, d+1);
+  return dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate());
+}
+function fechaCortaRec(iso){ if(!iso) return ''; const [y,m,d] = iso.split('-').map(Number); return d+' '+MESES[m-1].slice(0,3).toLowerCase()+' '+y; }
+// Primer día de DESCANSO (desde esa fecha) sin simulacro y con sitio (máx. REC_MAX_POR_DIA temas ese día).
+function proximoDiaDescanso(desdeISO){
+  const claves = sortedMonthKeys();
+  for(let i=0;i<claves.length;i++){
+    const mk = claves[i];
+    const [y,m] = mk.split('-').map(Number);
+    const n = daysInMonth(y,m);
+    const days = (state.months[mk] && state.months[mk].days) || {};
+    for(let d=1; d<=n; d++){
+      const f = mk+'-'+pad2(d);
+      if(f < desdeISO) continue;
+      if(days[d] !== 'DESCANSO') continue;
+      if(buscarSimulacroPorFecha(f)) continue;
+      if(recuperarDelDia(f).length >= REC_MAX_POR_DIA) continue;
+      return f;
+    }
+  }
+  return null;
+}
+// Asigna (o reasigna) el tema al próximo descanso libre. Devuelve la fecha o null si no hay.
+function programarRecuperar(it){
+  const hoy = todayISO();
+  const desde = (it.s.recDia && it.s.recDia >= hoy) ? siguienteDiaISO(it.s.recDia) : hoy;
+  const f = proximoDiaDescanso(desde);
+  if(!f) return null;
+  it.s.recDia = f;
+  return f;
+}
+// Quita el tema de Recuperar: vuelve a su estado normal (pendiente) en Temario.
+function quitarDeRecuperar(it){
+  it.s.mode = 'pendiente';
+  delete it.s.recDesde; delete it.s.recDia; delete it.s.recuperado;
+}
+// Datos resumidos para el panel de Inicio y las estadísticas.
+function recuperarResumen(){
+  const todos = collectRecuperar();
+  const pend = todos.filter(x=> !x.s.recuperado);
+  const hoy = todayISO();
+  let masAntiguo = null;
+  pend.forEach(x=>{ if(x.s.recDesde){ const d = diasEntre(x.s.recDesde, hoy); if(masAntiguo===null || d>masAntiguo) masAntiguo = d; } });
+  const hechos = todos.filter(x=> x.s.recuperado);
+  const esteMes = hechos.filter(x=> x.s.recuperado.slice(0,7) === hoy.slice(0,7)).length;
+  const esperas = hechos.filter(x=> x.s.recDesde).map(x=> Math.max(0, diasEntre(x.s.recDesde, x.s.recuperado)));
+  const media = esperas.length ? esperas.reduce((p,q)=>p+q,0)/esperas.length : null;
+  return {
+    pend: pend.length, hechos: hechos.length, esteMes, masAntiguo, media,
+    sinDia: pend.filter(x=> !x.s.recDia).length,
+    conDia: pend.filter(x=> x.s.recDia).length,
+    hoyN: pend.filter(x=> x.s.recDia === hoy).length
+  };
+}
+function buildRecuperarTools(host){
+  host.innerHTML = '';
+  const box = document.createElement('div'); box.className = 'rec-tools';
+  const q = document.createElement('input'); q.type = 'search'; q.className = 'rec-buscar';
+  q.placeholder = '🔎 Buscar tema…'; q.value = _recFiltro.q; q.setAttribute('aria-label', 'Buscar entre los temas de Recuperar');
+  q.oninput = ()=>{ _recFiltro.q = q.value; renderRecuperar(); };
+  box.appendChild(q);
+  const ord = document.createElement('select'); ord.className = 'rec-sel'; ord.setAttribute('aria-label', 'Ordenar');
+  [['temario','Orden del temario'],['antiguos','Más antiguos primero'],['recientes','Más recientes primero']].forEach(([v,t])=>{
+    const o = document.createElement('option'); o.value = v; o.textContent = t; if(v===_recFiltro.orden) o.selected = true; ord.appendChild(o);
+  });
+  ord.onchange = ()=>{ _recFiltro.orden = ord.value; renderRecuperar(); };
+  box.appendChild(ord);
+  const pr = document.createElement('select'); pr.className = 'rec-sel'; pr.setAttribute('aria-label', 'Filtrar por día asignado');
+  [['todos','Todos'],['sin','Sin día asignado'],['con','Con día asignado']].forEach(([v,t])=>{
+    const o = document.createElement('option'); o.value = v; o.textContent = t; if(v===_recFiltro.prog) o.selected = true; pr.appendChild(o);
+  });
+  pr.onchange = ()=>{ _recFiltro.prog = pr.value; renderRecuperar(); };
+  box.appendChild(pr);
+  host.appendChild(box);
+}
 function renderRecuperar(){
   const host = document.getElementById('recuperarHost');
   const items = collectRecuperar();
   const pend = items.filter(x=> !x.s.recuperado);
+  const hechos = items.filter(x=> x.s.recuperado);
   const badge = document.getElementById('recuperarBadge');
   if(badge){ badge.textContent = pend.length; badge.style.display = pend.length ? '' : 'none'; }
   if(!host) return;
   const formHost = document.getElementById('recuperarFormHost');
   if(formHost && !formHost.firstChild) buildRecuperarForm(formHost);
+  const toolsHost = document.getElementById('recuperarToolsHost');
+  if(toolsHost && !toolsHost.firstChild) buildRecuperarTools(toolsHost);
   host.innerHTML = '';
 
-  const fechaCorta = (iso)=>{ if(!iso) return ''; const [y,m,d] = iso.split('-').map(Number); return d+' '+MESES[m-1].slice(0,3).toLowerCase()+' '+y; };
+  // La selección solo puede contener temas que siguen pendientes.
+  const idsPend = new Set(pend.map(recId));
+  Array.from(_recSel).forEach(id=>{ if(!idsPend.has(id)) _recSel.delete(id); });
+
+  // ----- filtros -----
+  const q = _recFiltro.q.trim().toLowerCase();
+  const pasa = (x)=> !q || (x.label+' '+(x.detalle||'')+' '+x.grupo+' '+(x.slot ? slotEtiqueta(x.slot) : '')).toLowerCase().indexOf(q) !== -1;
+  let pendVis = pend.filter(pasa);
+  if(_recFiltro.prog === 'sin') pendVis = pendVis.filter(x=> !x.s.recDia);
+  if(_recFiltro.prog === 'con') pendVis = pendVis.filter(x=> !!x.s.recDia);
+  const hechosVis = hechos.filter(pasa);
+
+  // ----- estadísticas -----
+  const rs = recuperarResumen();
+  const stats = document.createElement('div'); stats.className = 'rec-stats';
+  const stat = (valor, etiqueta, clase)=>{
+    const b = document.createElement('div'); b.className = 'rec-stat'+(clase ? ' '+clase : '');
+    const v = document.createElement('div'); v.className = 'rec-stat-v'; v.textContent = valor;
+    const l = document.createElement('div'); l.className = 'rec-stat-l'; l.textContent = etiqueta;
+    b.appendChild(v); b.appendChild(l); stats.appendChild(b);
+  };
+  stat(String(rs.pend), 'pendientes'+(rs.pend ? ' ('+rs.sinDia+' sin día)' : ''), rs.pend ? 'warn' : '');
+  stat(rs.masAntiguo===null ? '—' : rs.masAntiguo+(rs.masAntiguo===1?' día':' días'), 'el más antiguo esperando', rs.masAntiguo!==null && rs.masAntiguo>=REC_DIAS_ALTO ? 'alto' : '');
+  stat(String(rs.esteMes), 'recuperados este mes');
+  stat(rs.media===null ? '—' : (Math.round(rs.media*10)/10).toString().replace('.',',')+' d', 'espera media hasta recuperar');
+  host.appendChild(stats);
+
   const resumen = document.createElement('div'); resumen.className = 'rec-resumen';
   resumen.textContent = pend.length
-    ? pend.length+' tema'+(pend.length!==1?'s':'')+' por recuperar'
+    ? pend.length+' tema'+(pend.length!==1?'s':'')+' por recuperar · '+REC_MATERIAS.map(([mat,nom])=>({nom, n:pend.filter(x=>x.materia===mat).length})).filter(x=>x.n).map(x=>x.nom+' '+x.n).join(' · ')
     : 'No tienes nada pendiente de recuperar';
   host.appendChild(resumen);
 
+  // ----- barra de acciones en bloque -----
+  const barra = document.createElement('div'); barra.className = 'rec-bulk';
+  host.appendChild(barra);
+  const limpiarYPintar = ()=>{ _recSel.clear(); renderRecuperar(); };
+  const pintarBarra = ()=>{
+    barra.innerHTML = '';
+    if(!pendVis.length){ barra.style.display = 'none'; return; }
+    barra.style.display = '';
+    const sel = pend.filter(x=> _recSel.has(recId(x)));
+    const mkBtn = (txt, cls, fn)=>{ const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small '+cls; b.textContent = txt; b.onclick = fn; barra.appendChild(b); return b; };
+    if(!sel.length){
+      mkBtn('☐ Seleccionar todo lo visible ('+pendVis.length+')', 'ghost', ()=>{ pendVis.forEach(x=> _recSel.add(recId(x))); renderRecuperar(); });
+      return;
+    }
+    const lbl = document.createElement('span'); lbl.className = 'rec-bulk-n'; lbl.textContent = sel.length+' seleccionado'+(sel.length!==1?'s':'');
+    barra.appendChild(lbl);
+    const inp = document.createElement('input'); inp.type = 'date'; inp.className = 'rec-fecha';
+    inp.value = _recFechaBulk || todayISO(); inp.setAttribute('aria-label', 'Fecha de recuperación para los seleccionados');
+    inp.onchange = ()=>{ _recFechaBulk = inp.value; };
+    barra.appendChild(inp);
+    mkBtn('✓ Recuperados', '', ()=>{
+      if(!inp.value) return;
+      sel.forEach(x=> marcarRecuperado(x, inp.value));
+      scheduleSave(); showToast(sel.length+' recuperado'+(sel.length!==1?'s':'')+' el '+fechaCortaRec(inp.value));
+      limpiarYPintar();
+    });
+    mkBtn('📅 Programar', 'ghost', ()=>{
+      let ok = 0, ultima = null;
+      sel.sort((x,y)=> x.orden-y.orden).forEach(x=>{ const f = programarRecuperar(x); if(f){ ok++; ultima = f; } });
+      scheduleSave();
+      showToast(ok ? ok+' programado'+(ok!==1?'s':'')+' en días de descanso (hasta el '+fechaCortaRec(ultima)+')'+(ok<sel.length ? ' · no quedan más descansos libres' : '') : 'No hay días de descanso libres en los meses creados');
+      limpiarYPintar();
+    });
+    mkBtn('Sin día', 'ghost', ()=>{ sel.forEach(x=>{ delete x.s.recDia; }); scheduleSave(); limpiarYPintar(); });
+    mkBtn('Quitar de Recuperar', 'ghost', ()=>{
+      if(!confirm('¿Quitar '+sel.length+' tema'+(sel.length!==1?'s':'')+' de Recuperar? Vuelven a su estado normal (pendiente) en Temario.')) return;
+      sel.forEach(quitarDeRecuperar); scheduleSave(); limpiarYPintar();
+    });
+    mkBtn('Limpiar selección', 'ghost', limpiarYPintar);
+  };
+  pintarBarra();
+
   function buildRow(it, hecho){
-    const row = document.createElement('div'); row.className = 'rec-item'+(hecho?' hecho':'');
+    const hoy = todayISO();
+    const dias = (!hecho && it.s.recDesde) ? Math.max(0, diasEntre(it.s.recDesde, hoy)) : null;
+    const claseEdad = dias===null ? '' : dias >= REC_DIAS_ALTO ? ' edad-alta' : dias >= REC_DIAS_AVISO ? ' edad-warn' : '';
+    const row = document.createElement('div'); row.className = 'rec-item'+(hecho?' hecho':'')+claseEdad;
+    if(!hecho){
+      const lab = document.createElement('label'); lab.className = 'rec-chk-wrap';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'rec-chk'; cb.checked = _recSel.has(recId(it));
+      cb.setAttribute('aria-label', 'Seleccionar '+it.label);
+      cb.onchange = ()=>{ if(cb.checked) _recSel.add(recId(it)); else _recSel.delete(recId(it)); pintarBarra(); };
+      lab.appendChild(cb); row.appendChild(lab);
+    }
     const info = document.createElement('div'); info.className = 'rec-info';
     const nombre = document.createElement('div'); nombre.className = 'rec-nombre';
     nombre.textContent = it.label+(it.detalle && it.label.indexOf(it.detalle)===-1 ? ' — '+it.detalle : '');
@@ -7548,8 +7863,15 @@ function renderRecuperar(){
     const meta = document.createElement('div'); meta.className = 'rec-meta';
     const partes = [it.grupo, 'Vuelta '+it.vuelta];
     if(it.slot) partes.push(slotEtiqueta(it.slot));
-    if(it.s.recDesde) partes.push('marcado el '+fechaCorta(it.s.recDesde));
+    if(it.s.recDesde) partes.push('marcado el '+fechaCortaRec(it.s.recDesde));
+    if(it.s.recDia && !hecho) partes.push('📅 programado el '+fechaCortaRec(it.s.recDia));
     meta.textContent = partes.join(' · ');
+    if(dias !== null){
+      const e = document.createElement('span'); e.className = 'rec-edad'+(claseEdad ? ' '+claseEdad.trim() : '');
+      e.textContent = dias===0 ? 'desde hoy' : 'lleva '+dias+(dias===1?' día':' días');
+      meta.appendChild(document.createTextNode(' '));
+      meta.appendChild(e);
+    }
     info.appendChild(meta);
     row.appendChild(info);
 
@@ -7563,68 +7885,97 @@ function renderRecuperar(){
       btn.textContent = '✓ Recuperado';
       btn.onclick = ()=>{
         if(!inp.value) return;
-        it.s.recuperado = inp.value;
-        it.s.mode = 'pendiente'; // ahora toca elegir el resultado del test (Nota test / No test…)
+        marcarRecuperado(it, inp.value);
         scheduleSave(); renderRecuperar();
-        showToast('Recuperado el '+fechaCorta(inp.value));
+        showToast('Recuperado el '+fechaCortaRec(inp.value));
       };
       acc.appendChild(btn);
+      const prog = document.createElement('button'); prog.type = 'button'; prog.className = 'btn small ghost';
+      prog.textContent = it.s.recDia ? '📅 Reprogramar' : '📅 Programar';
+      prog.title = 'Lo asigna al próximo día de descanso libre del calendario';
+      prog.onclick = ()=>{
+        const f = programarRecuperar(it);
+        if(!f){ showToast('No hay días de descanso libres en los meses creados'); return; }
+        scheduleSave(); renderRecuperar(); showToast('Programado para el '+fechaCortaRec(f));
+      };
+      acc.appendChild(prog);
+      const quitar = document.createElement('button'); quitar.type = 'button'; quitar.className = 'btn small ghost';
+      quitar.textContent = 'Quitar';
+      quitar.title = 'Quitar de Recuperar (vuelve a su estado normal)';
+      quitar.onclick = ()=>{
+        if(!confirm('¿Quitar «'+it.label+'» de Recuperar? Vuelve a su estado normal (pendiente) en Temario.')) return;
+        quitarDeRecuperar(it); _recSel.delete(recId(it)); scheduleSave(); renderRecuperar();
+      };
+      acc.appendChild(quitar);
     } else {
       inp.onchange = ()=>{ if(inp.value){ it.s.recuperado = inp.value; scheduleSave(); } };
       const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn small ghost';
       undo.textContent = 'Deshacer';
       undo.title = 'Vuelve a dejarlo pendiente de recuperar (se borra el resultado)';
-      undo.onclick = ()=>{
-        delete it.s.recuperado; it.s.mode = 'recuperar'; it.s.nota = null; it.s.notasExtra = [];
-        scheduleSave(); renderRecuperar();
-      };
+      undo.onclick = ()=>{ deshacerRecuperado(it); scheduleSave(); renderRecuperar(); };
       acc.appendChild(undo);
     }
     row.appendChild(acc);
-
-    if(hecho){
-      // Resultado del test, igual que en el resto de la app: Nota test / No test / No tiempo / Solo lectura.
-      const res = document.createElement('div'); res.className = 'rec-resultado';
-      const sel = document.createElement('select'); sel.className = 'vuelta-select';
-      sel.setAttribute('aria-label', 'Resultado del test de '+it.label);
-      VUELTA_MODES.filter(m=> m[0] !== 'recuperar').forEach(([val,txt])=>{
-        const o = document.createElement('option'); o.value = val;
-        o.textContent = val === 'pendiente' ? 'Resultado del test…' : txt;
-        if(it.s.mode === val) o.selected = true;
-        sel.appendChild(o);
-      });
-      sel.onchange = ()=>{
-        it.s.mode = sel.value;
-        if(it.s.mode !== 'nota'){ it.s.nota = null; it.s.notasExtra = []; }
-        scheduleSave(); renderRecuperar();
-      };
-      res.appendChild(sel);
-      if(it.s.mode === 'nota'){
-        res.appendChild(buildTestsVuelta(it.s, GROUP_MAX_NOTA[it.grupo] || 10, 'Nota del test recuperado de '+it.label));
-      }
-      row.appendChild(res);
-    }
+    if(hecho) row.appendChild(buildRecResultado(it, renderRecuperar));
     return row;
   }
 
-  if(pend.length){
+  // Cada bloque (pendientes / recuperados) se divide por materia y, en Bloques, por número de bloque.
+  function pintarGrupos(contenedor, lista, hecho){
+    const fechaDe = (x)=> String(hecho ? x.s.recuperado : (x.s.recDesde || ''));
+    let ordenar;
+    if(_recFiltro.orden === 'antiguos') ordenar = (x,y)=> fechaDe(x).localeCompare(fechaDe(y)) || x.orden-y.orden;
+    else if(_recFiltro.orden === 'recientes') ordenar = (x,y)=> fechaDe(y).localeCompare(fechaDe(x)) || x.orden-y.orden;
+    else ordenar = hecho
+      ? (x,y)=> fechaDe(y).localeCompare(fechaDe(x)) || x.orden-y.orden
+      : (x,y)=> x.orden-y.orden || x.vuelta-y.vuelta;
+    REC_MATERIAS.forEach(([mat, nombreMat])=>{
+      const g = lista.filter(x=> x.materia === mat).sort(ordenar);
+      if(!g.length) return;
+      const id = (hecho ? 'h:' : 'p:')+mat;
+      const det = document.createElement('details'); det.className = 'rec-grupo';
+      det.open = _recAbiertos.has(id) || !!q;
+      det.ontoggle = ()=>{ if(det.open) _recAbiertos.add(id); else _recAbiertos.delete(id); };
+      const sm = document.createElement('summary');
+      sm.textContent = nombreMat+' ('+g.length+')';
+      det.appendChild(sm);
+      if(mat === 'bloques'){
+        const nums = Array.from(new Set(g.map(x=>x.bloque))).sort((x,y)=>x-y);
+        nums.forEach(n=>{
+          const sub = g.filter(x=> x.bloque === n);
+          const h4 = document.createElement('div'); h4.className = 'rec-subgrupo';
+          h4.textContent = 'Bloque '+n+(BLOCKS[n] && BLOCKS[n].graves ? ' · grave' : ' · menos grave')+' ('+sub.length+')';
+          det.appendChild(h4);
+          sub.forEach(it=> det.appendChild(buildRow(it, hecho)));
+        });
+      } else {
+        g.forEach(it=> det.appendChild(buildRow(it, hecho)));
+      }
+      contenedor.appendChild(det);
+    });
+  }
+  const filtrando = !!q || _recFiltro.prog !== 'todos';
+  if(pendVis.length){
     const sec = document.createElement('section'); sec.className = 'temario-group';
-    const h = document.createElement('h3'); h.textContent = 'Por recuperar'; sec.appendChild(h);
-    pend.sort((x,y)=> String(x.s.recDesde||'9999').localeCompare(String(y.s.recDesde||'9999'))); // los más antiguos primero
-    pend.forEach(it=> sec.appendChild(buildRow(it, false)));
+    const h = document.createElement('h3');
+    h.textContent = 'Por recuperar ('+(filtrando ? pendVis.length+' de '+pend.length : pend.length)+')'; sec.appendChild(h);
+    pintarGrupos(sec, pendVis, false);
     host.appendChild(sec);
   }
-  const hechos = items.filter(x=> x.s.recuperado);
-  if(hechos.length){
+  if(hechosVis.length){
     const sec = document.createElement('section'); sec.className = 'temario-group';
-    const h = document.createElement('h3'); h.textContent = 'Recuperados'; sec.appendChild(h);
-    hechos.sort((x,y)=> String(y.s.recuperado).localeCompare(String(x.s.recuperado)));
-    hechos.forEach(it=> sec.appendChild(buildRow(it, true)));
+    const h = document.createElement('h3');
+    h.textContent = 'Recuperados ('+(q ? hechosVis.length+' de '+hechos.length : hechos.length)+')'; sec.appendChild(h);
+    pintarGrupos(sec, hechosVis, true);
     host.appendChild(sec);
   }
   if(!items.length){
     const empty = document.createElement('div'); empty.className = 'empty-state';
     empty.textContent = 'Todavía no hay nada aquí. Añade un tema a mano arriba, o pon el estado «Recuperar» a un tema desde el día del calendario o desde Temario y notas.';
+    host.appendChild(empty);
+  } else if(!pendVis.length && !hechosVis.length){
+    const empty = document.createElement('div'); empty.className = 'empty-state';
+    empty.textContent = 'Ningún tema coincide con la búsqueda o el filtro.';
     host.appendChild(empty);
   }
 }
