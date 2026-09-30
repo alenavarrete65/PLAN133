@@ -5229,6 +5229,9 @@ function formatFechaEs(iso){
 }
 // Definición compartida de las 5 materias de clase (usada tanto por el modo quiz del
 // calendario de clases como por el tablón de clases pendientes), para no repetirla dos veces.
+// «Seminario» es una materia aparte: no tiene temas numerados ni vueltas en la pestaña Clases.
+// Solo se usa en el tablón de pendientes y en la elección de pendientes del calendario.
+const SEMINARIO_DEF = {key:'seminario', label:'Seminario', kind:'text', arrKey:'seminarios'};
 function getClaseMateriasDef(){
   const conOptions = []; for(let i=1;i<=23;i++) conOptions.push({value:i, label:'Tema '+i});
   const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
@@ -5546,7 +5549,7 @@ function renderClasesPendientes(){
   const host = document.getElementById('clasesPendientesHost');
   if(!host) return;
   if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
-  const MATERIAS = getClaseMateriasDef();
+  const MATERIAS = getClaseMateriasDef().concat([SEMINARIO_DEF]);
   renderAccordionSection(host, 'clasesPendientes', 'Clases pendientes (tablón)', (body)=>{
     const intro = document.createElement('div'); intro.className='sub'; intro.style.marginBottom='12px';
     intro.textContent = 'Apunta aquí por adelantado las clases que ya sabes que tienes por delante (por ejemplo, todo el temario de conocimientos del mes) sin saber todavía qué día caerá cada una. Cuando la des de verdad, en el "Calendario de clases" podrás elegirla de esta lista en vez de escribirla de nuevo, y desaparecerá de aquí.';
@@ -5648,12 +5651,13 @@ function renderClasePendienteForm(container, MATERIAS, onSaved){
     const wrap = document.createElement('div'); wrap.className='clase-quiz-wrap';
     const eyebrow = document.createElement('div'); eyebrow.className='clase-quiz-eyebrow'; eyebrow.textContent=mat.label;
     wrap.appendChild(eyebrow);
-    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent='¿De qué tema?';
+    const esSem = (mat.key==='seminario');
+    const q = document.createElement('div'); q.className='clase-quiz-question'; q.textContent = esSem ? '¿De qué trata el seminario?' : '¿De qué tema?';
     wrap.appendChild(q);
 
     if(mat.kind==='text'){
       const inp = document.createElement('input'); inp.type='text'; inp.className='clase-quiz-text-input';
-      inp.placeholder = 'Escribe el tema (opcional)';
+      inp.placeholder = esSem ? 'Tema del seminario (opcional)' : 'Escribe el tema (opcional)';
       wrap.appendChild(inp);
       const nextBtn = document.createElement('button'); nextBtn.type='button'; nextBtn.className='btn'; nextBtn.style.marginTop='4px';
       nextBtn.textContent='Continuar';
@@ -6324,6 +6328,22 @@ function renderClaseDayQuiz(entry, d, jsDow){
     body.appendChild(wrap);
   }
 
+  // Un seminario pendiente se coloca directamente en este día (con su título y sus notas).
+  function guardarSeminarioPendiente(p){
+    if(!Array.isArray(entry.seminarios)) entry.seminarios = [];
+    const sm = {titulo:p.temaLabel||'', notas:p.nota||''};
+    const notaBefore = entry.nota;
+    entry.seminarios.push(sm);
+    let removedPendiente = null;
+    const pi = state.clasesPendientes.findIndex(x=>x.id===p.id);
+    if(pi>-1){ removedPendiente = state.clasesPendientes.splice(pi,1)[0]; }
+    sel.materia = SEMINARIO_DEF; sel.temaLabel = sm.titulo; sel.temaValue = null; sel.useExtra = false;
+    addedCount++;
+    lastAdd = {arrKey:'seminarios', value:sm, notaBefore, materiaLabel:'Seminario', temaLabel:sm.titulo, removedPendiente, syncInfo:null};
+    scheduleSave(); renderClaseCalendar(); renderClasesPendientes();
+    stepConfirm();
+  }
+
   // Lista las clases del tablón de pendientes para elegir una. Las que tengan una fecha de
   // "disponible a partir de" posterior a este día del calendario salen deshabilitadas, con
   // la fecha a partir de la cual se podrán usar.
@@ -6350,7 +6370,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
         if(!porMateria.has(p.materiaKey)) porMateria.set(p.materiaKey, []);
         porMateria.get(p.materiaKey).push(p);
       });
-      MATERIAS.filter(mat=> porMateria.has(mat.key)).forEach(mat=>{
+      MATERIAS.concat([SEMINARIO_DEF]).filter(mat=> porMateria.has(mat.key)).forEach(mat=>{
         const group = porMateria.get(mat.key).sort((a,b)=> (a.disponibleDesde||'').localeCompare(b.disponibleDesde||''));
         const groupTitle = document.createElement('div'); groupTitle.className='sub';
         groupTitle.style.color = 'var(--amber)'; groupTitle.style.margin = '10px 0 4px';
@@ -6366,6 +6386,7 @@ function renderClaseDayQuiz(entry, d, jsDow){
             b.title = 'Esta clase estará disponible a partir del '+formatFechaEs(p.disponibleDesde);
           } else {
             b.onclick = ()=>{
+              if(mat.key==='seminario'){ guardarSeminarioPendiente(p); return; }
               sel.materia = mat;
               sel.temaValue = p.temaValue;
               sel.temaLabel = p.temaLabel;
