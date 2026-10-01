@@ -2560,7 +2560,7 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   // Se abre el día entero, sea del tipo que sea: también en descanso, trabajo o sin
   // horario, para poder ponerles notas, clases o simulacro como a cualquier otro día.
   cell.style.cursor = 'pointer';
-  hacerCeldaAccesible(cell, ()=> openDayModal(d, info));
+  hacerCeldaAccesible(cell, ()=> openDayModal(d, info, 'estudio'));
   return cell;
 }
 /* Caché del último render de la vista rejilla, para poder diferenciar día a día
@@ -2668,7 +2668,7 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   }
   // Igual que en la rejilla: cualquier día se abre, sea de estudio o no.
   item.style.cursor = 'pointer';
-  hacerCeldaAccesible(item, ()=> openDayModal(d, info));
+  hacerCeldaAccesible(item, ()=> openDayModal(d, info, 'estudio'));
   return item;
 }
 /* Vista alternativa tipo lista/agenda: una fila por día, apilada verticalmente,
@@ -2753,7 +2753,18 @@ function daySection(body, titulo){
   body.appendChild(sec);
   return {sec, title:t, body:inner};
 }
-function openDayModal(d, info){
+// La ficha del día muestra solo lo que corresponde al calendario desde el que se abre:
+//  'estudio' → tareas del día (con el test de arrastre), recuperación y notas
+//  'tiempos' → solo el tiempo del día
+//  'todo'    → todo (tiempo, estudio, clases, simulacro y notas)
+// Cuando la ficha se repinta a sí misma (sin indicar calendario) mantiene el último modo.
+var diaModalModo = 'todo';
+function openDayModal(d, info, modo){
+  if(modo) diaModalModo = modo;
+  const verTiempo = (diaModalModo==='todo' || diaModalModo==='tiempos');
+  const verEstudio = (diaModalModo==='todo' || diaModalModo==='estudio');
+  const verClases = (diaModalModo==='todo');
+  const verSim = (diaModalModo==='todo');
   const [y,m] = currentMonthKey.split('-').map(Number);
   info = info || {};
   const jsDow = (info.dow===undefined || info.dow===null) ? new Date(y, m-1, d).getDay() : info.dow;
@@ -2767,10 +2778,10 @@ function openDayModal(d, info){
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
 
-  try{ buildTiempoSection(body, info, fechaISO); }catch(e){ console.error('Tiempo del día', e); }
+  if(verTiempo){ try{ buildTiempoSection(body, info, fechaISO); }catch(e){ console.error('Tiempo del día', e); } }
 
   /* ---------- 1. Tareas del día (solo días de estudio) ---------- */
-  if(status === 'ESTUDIO'){
+  if(verEstudio && status === 'ESTUDIO'){
     try{
       const {body:sb} = daySection(body, 'Tareas del día');
       const dticks = info.ticks || {};
@@ -2835,14 +2846,14 @@ function openDayModal(d, info){
   }
 
   /* ---------- 1b. Día de recuperación (cualquier tipo de día) ---------- */
-  try{
+  if(verEstudio) try{
     buildDiaRecuperacion(body, fechaISO, ()=>{ renderCalendar(); renderArrastre(); });
   }catch(err){
     try{ console.error('Error pintando el día de recuperación', err); }catch(e){}
   }
 
   /* ---------- 2. Clases de este día ---------- */
-  {
+  if(verClases){
     const {body:sb} = daySection(body, 'Clases de este día');
     const host = document.createElement('div');
     sb.appendChild(host);
@@ -2850,7 +2861,7 @@ function openDayModal(d, info){
   }
 
   /* ---------- 3. Simulacro ---------- */
-  {
+  if(verSim){
     const {body:sb} = daySection(body, 'Simulacro');
     const refreshSimEverything = ()=>{
       renderSimCalendar();
@@ -2960,7 +2971,7 @@ function openDayModal(d, info){
   }
 
   /* ---------- 4. Notas del día ---------- */
-  {
+  if(verEstudio){
     const {body:sb, title} = daySection(body, 'Notas del día');
     const flash = document.createElement('span'); flash.className='day-saved-flash'; flash.textContent='guardado';
     title.appendChild(flash);
@@ -6220,6 +6231,8 @@ function procesarSincronizacionesClaseVencidas(){
 function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
   body.innerHTML = '';
+  // El test de arrastre también va aquí, lo primero del día (mismo bloque que en la ficha del calendario de estudio).
+  try{ addArrastreTestRow(body, currentMonthKey+'-'+pad2(d)); }catch(e){ console.error('Arrastre en clases', e); }
   const wrap = document.createElement('div'); wrap.className = 'clase-preview';
 
   const addRow = (label, buildFn)=>{
@@ -7589,9 +7602,10 @@ function computeTiempoDia(fechaISO, info){
     info.temasDelDia.forEach(x=>{ temas += Number(tt[x.key])||0; });
   }
   const clase = Number(t.clase)||0, estudioClase = Number(t.estudioClase)||0, otras = Number(t.otras)||0;
+  const test = Number(t.test)||0, arrastre = Number(t.arrastre)||0;
   const descanso = (t.descanso===undefined || t.descanso===null || t.descanso==='') ? DESCANSO_DEFECTO_MIN : (Number(t.descanso)||0);
-  const estudio = temas+clase+estudioClase+otras;
-  return {temas, clase, estudioClase, otras, estudio, descanso, total: estudio+descanso};
+  const estudio = temas+clase+estudioClase+otras+test+arrastre;
+  return {temas, clase, estudioClase, otras, test, arrastre, estudio, descanso, total: estudio+descanso};
 }
 function setTiempoDia(fechaISO, campo, valor){
   normalizeState();
@@ -7641,6 +7655,8 @@ function buildTiempoSection(body, info, fechaISO){
   }
   campo('Duración de la clase', dia.clase, '0', v=>setTiempoDia(fechaISO,'clase',v));
   campo('Estudio dedicado a la clase', dia.estudioClase, '0', v=>setTiempoDia(fechaISO,'estudioClase',v));
+  campo('Test', dia.test, '0', v=>setTiempoDia(fechaISO,'test',v));
+  campo('Test de arrastre', dia.arrastre, '0', v=>setTiempoDia(fechaISO,'arrastre',v));
   campo('Otras tareas (leve, inglés, entreno…)', dia.otras, '0', v=>setTiempoDia(fechaISO,'otras',v));
   campo('Descanso (2 h por defecto)', dia.descanso, String(DESCANSO_DEFECTO_MIN), v=>setTiempoDia(fechaISO,'descanso',v));
   tb.appendChild(resumen);
@@ -7823,13 +7839,15 @@ function renderTiempoCalendar(){
       if(x.tm.temas) partes.push('Bloque: '+fmtMin(x.tm.temas));
       if(x.tm.clase) partes.push('Clase: '+fmtMin(x.tm.clase));
       if(x.tm.estudioClase) partes.push('Estudio de la clase: '+fmtMin(x.tm.estudioClase));
+      if(x.tm.test) partes.push('Test: '+fmtMin(x.tm.test));
+      if(x.tm.arrastre) partes.push('Test de arrastre: '+fmtMin(x.tm.arrastre));
       if(x.tm.otras) partes.push('Otras: '+fmtMin(x.tm.otras));
       if(partes.length){
         const det = document.createElement('div'); det.className='tiempo-list-det'; det.textContent = partes.join(' · ');
         item.appendChild(det);
       }
       item.style.cursor = 'pointer';
-      hacerCeldaAccesible(item, ()=> openDayModal(x.dd, x.info));
+      hacerCeldaAccesible(item, ()=> openDayModal(x.dd, x.info, 'tiempos'));
       list.appendChild(item);
     });
     host.appendChild(list);
@@ -7860,7 +7878,7 @@ function renderTiempoCalendar(){
     sm.textContent = '😴 '+fmtMin(x.tm.descanso);
     cell.appendChild(sm);
     cell.style.cursor = 'pointer';
-    hacerCeldaAccesible(cell, ()=> openDayModal(x.dd, x.info));
+    hacerCeldaAccesible(cell, ()=> openDayModal(x.dd, x.info, 'tiempos'));
     grid.appendChild(cell);
   });
   host.appendChild(grid);
@@ -8219,7 +8237,7 @@ function renderTodoCalendarGrid(){
     cell.appendChild(buildTodoDayContent(d, info, true));
 
     cell.style.cursor = 'pointer';
-    hacerCeldaAccesible(cell, ()=> openDayModal(d, info));
+    hacerCeldaAccesible(cell, ()=> openDayModal(d, info, 'todo'));
     grid.appendChild(cell);
   }
   host.appendChild(grid);
@@ -8265,7 +8283,7 @@ function renderTodoCalendarList(){
     item.appendChild(buildTodoDayContent(d, info, false));
 
     item.style.cursor = 'pointer';
-    hacerCeldaAccesible(item, ()=> openDayModal(d, info));
+    hacerCeldaAccesible(item, ()=> openDayModal(d, info, 'todo'));
     list.appendChild(item);
   }
   host.appendChild(list);
