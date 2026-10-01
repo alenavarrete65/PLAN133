@@ -1377,3 +1377,12 @@
   @keyframes fondoIn{from{opacity:0;}to{opacity:1;}}
   @keyframes modalIn{from{opacity:0;transform:translateY(14px) scale(.98);}to{opacity:1;transform:none;}}
 }
+
+/* Calendario de tiempos: lista */
+.tiempo-list-item.meta-ok{box-shadow:inset 0 -4px 0 var(--green);}
+.tiempo-list-item.meta-med{box-shadow:inset 0 -4px 0 var(--amber);}
+.tiempo-list-main{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px;margin-top:6px;}
+.tiempo-list-main .tiempo-big{margin-top:0;}
+.tiempo-list-main .tiempo-small{margin-top:0;}
+.tiempo-list-det{font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:4px;}
+#tiempoCalViewToggle{margin:10px 0 12px;}

@@ -7637,6 +7637,13 @@ function renderTiempoCalMonthBar(){
   bar.appendChild(metaBox);
 }
 var _animarBarras = true;
+// Vista del calendario de tiempos: rejilla / lista (en el móvil arranca en lista, como los demás).
+var tiempoCalViewMode = 'grid';
+try{
+  tiempoCalViewMode = localStorage.getItem('tiempoCalViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  tiempoCalViewMode = (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 'list' : 'grid';
+}
 function objetivoMin(){ return (state.settings && state.settings.objetivoMin > 0) ? state.settings.objetivoMin : 360; }
 function lunesDe(d){ const x = new Date(d.getFullYear(), d.getMonth(), d.getDate()); x.setDate(x.getDate() - ((x.getDay()+6)%7)); return x; }
 function estudioDeFecha(dt, plan){
@@ -7711,6 +7718,45 @@ function renderTiempoCalendar(){
   }
   host.appendChild(wk);
 
+  if(tiempoCalViewMode==='list'){
+    // Lista: un bloque por día, con el desglose de lo que suma (pensada para el móvil).
+    const list = document.createElement('div'); list.className='cal-list tiempo-list';
+    dias.forEach(x=>{
+      const est = x.tm.estudio;
+      const item = document.createElement('div');
+      item.className = 'cal-list-item tiempo-list-item status-'+x.info.status+(x.iso===hoyISO?' today':'')+(est>=obj ? ' meta-ok' : est>=obj/2 ? ' meta-med' : '');
+      const head = document.createElement('div'); head.className='cal-list-head';
+      const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+      dateWrap.innerHTML = '<span class="cal-list-daynum">'+x.dd+'</span><span class="cal-list-wd">'+DOW[(x.dow===0?6:x.dow-1)]+'</span>';
+      head.appendChild(dateWrap);
+      const right = document.createElement('div'); right.className='cal-list-head-right';
+      if(est>=obj){ const ck = document.createElement('span'); ck.className='tiempo-check'; ck.textContent='🎯 Objetivo'; right.appendChild(ck); }
+      if(x.info.status !== 'ESTUDIO'){
+        const lbl = document.createElement('span'); lbl.className='off-label';
+        lbl.textContent = x.info.status==='DESCANSO' ? 'Descanso' : x.info.status==='TRABAJO' ? 'Trabajo' : x.info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+        right.appendChild(lbl);
+      }
+      head.appendChild(right);
+      item.appendChild(head);
+      const fila = document.createElement('div'); fila.className='tiempo-list-main';
+      fila.innerHTML = '<span class="tiempo-big'+(est?'':' vacio')+'">'+(est ? fmtMin(est) : '—')+'</span>'+
+        '<span class="tiempo-small">📚 estudio · 😴 '+fmtMin(x.tm.descanso)+' descanso</span>';
+      item.appendChild(fila);
+      const partes = [];
+      if(x.tm.temas) partes.push('Bloque: '+fmtMin(x.tm.temas));
+      if(x.tm.clase) partes.push('Clase: '+fmtMin(x.tm.clase));
+      if(x.tm.estudioClase) partes.push('Estudio de la clase: '+fmtMin(x.tm.estudioClase));
+      if(x.tm.otras) partes.push('Otras: '+fmtMin(x.tm.otras));
+      if(partes.length){
+        const det = document.createElement('div'); det.className='tiempo-list-det'; det.textContent = partes.join(' · ');
+        item.appendChild(det);
+      }
+      item.style.cursor = 'pointer';
+      hacerCeldaAccesible(item, ()=> openDayModal(x.dd, x.info));
+      list.appendChild(item);
+    });
+    host.appendChild(list);
+  } else {
   // Rejilla del mes con las horas de cada día bien visibles.
   const grid = document.createElement('div'); grid.className='cal-grid tiempo-grid';
   DOW.forEach(dname=>{
@@ -7741,6 +7787,7 @@ function renderTiempoCalendar(){
     grid.appendChild(cell);
   });
   host.appendChild(grid);
+  }
 
   // Mapa de calor: todo el camino hasta el examen, una casilla por día (más oscuro = más horas).
   const claves = sortedMonthKeys();
@@ -11019,6 +11066,21 @@ document.querySelectorAll('#todoCalViewToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setTodoCalViewMode(btn.dataset.view);
 });
 syncTodoCalViewToggleButtons();
+
+/* ===================== VISTA CALENDARIO DE TIEMPOS: rejilla / lista ===================== */
+function syncTiempoCalViewToggleButtons(){
+  document.querySelectorAll('#tiempoCalViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view===tiempoCalViewMode));
+}
+function setTiempoCalViewMode(mode){
+  tiempoCalViewMode = mode;
+  try{ localStorage.setItem('tiempoCalViewMode', mode); }catch(e){}
+  syncTiempoCalViewToggleButtons();
+  renderTiempoCalendar();
+}
+document.querySelectorAll('#tiempoCalViewToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setTiempoCalViewMode(btn.dataset.view);
+});
+syncTiempoCalViewToggleButtons();
 
 /* ===================== EXPORTAR CALENDARIO (imagen / PDF) =====================
    Genérico: sirve tanto para el Calendario principal (host "calendarHost") como
