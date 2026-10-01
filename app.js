@@ -9248,7 +9248,14 @@ function renderProgreso(){
   if(!host) return;
   host.innerHTML = '';
 
-  renderResumenMesBox(host);
+  // «Resumen» (resumen del mes + resumen general): desplegable arriba del todo, cerrado por defecto.
+  let resumenBody = null;
+  const sResumen = document.createElement('div');
+  appendAccordionSection(sResumen, 'resumen', progresoOpen, 'Resumen', (body)=>{
+    resumenBody = body;
+    renderResumenMesBox(body);
+  });
+  host.appendChild(sResumen);
 
   // Se calcula aquí arriba (antes de las demás secciones) porque el resumen general lo
   // necesita ya, y así "Detalle por tema" más abajo reutiliza el mismo cálculo sin repetirlo.
@@ -9284,14 +9291,46 @@ function renderProgreso(){
     const mejor = ordenado[0], peor = ordenado[ordenado.length-1];
     const mediaGlobal = (sumaNormGlobal/totalNotas)*10;
     let txt = '📊 Media global (todos los grupos, sobre 10 para poder compararlos): <strong>'+mediaGlobal.toFixed(1)+'/10</strong> ('+totalNotas+' nota'+(totalNotas!==1?'s':'')+' en total).';
-    if(ordenado.length>1){
-      txt += '<br>🥇 Grupo más fuerte ahora mismo: <strong>'+mejor.grupo+'</strong> ('+mejor.avgReal.toFixed(1)+'/'+mejor.max+', '+mejor.count+' nota'+(mejor.count!==1?'s':'')+').';
-      txt += '<br>🎯 Grupo que más floja: <strong>'+peor.grupo+'</strong> ('+peor.avgReal.toFixed(1)+'/'+peor.max+', '+peor.count+' nota'+(peor.count!==1?'s':'')+') — el que más te conviene reforzar.';
-    } else {
-      txt += '<br>Todavía solo tienes notas en <strong>'+ordenado[0].grupo+'</strong>. En cuanto tengas notas en más grupos, aquí verás cuál flojea más.';
+    // Mejor y peor TEMA de todo el temario (no grupo): en Bloques y Leves se agrupa por número de
+    // tema (Tema 4 = 4.1 + 4.2 + ...), en Inglés cada tema y en Psicotécnicos cada apartado.
+    // Se compara con la nota normalizada sobre 10 para que /10 y /20 sean comparables.
+    const numTema = (label)=>{
+      const limpio = String(label||'').replace(/^B\d+\s*·\s*/, '').replace(/^\d+\.\s+/, '');
+      const m = /^(\d+)/.exec(limpio);
+      return m ? Number(m[1]) : null;
+    };
+    const temasMap = {};
+    grupos.forEach(grupo=>{
+      data.porGrupo[grupo].forEach(item=>{
+        if(!item.notas.length) return;
+        let k, nombre;
+        if(grupo==='Bloques' || grupo==='Leves'){
+          const n = numTema(item.label);
+          if(n!==null){ k = grupo+'|'+n; nombre = 'Tema '+n+' ('+(grupo==='Bloques' ? 'bloques' : 'leves')+')'; }
+          else { k = grupo+'|'+item.key; nombre = item.label+' ('+(grupo==='Bloques' ? 'bloques' : 'leves')+')'; }
+        } else if(grupo==='Inglés'){
+          k = grupo+'|'+item.key; nombre = item.label+' de inglés';
+        } else {
+          k = grupo+'|'+item.key; nombre = item.label+' (psicotécnicos)';
+        }
+        const t = temasMap[k] || (temasMap[k] = {nombre, max:item.max, notas:[]});
+        t.notas = t.notas.concat(item.notas);
+      });
+    });
+    const temasArr = Object.keys(temasMap).map(k=>{
+      const t = temasMap[k];
+      const avgReal = t.notas.reduce((a,b)=>a+b,0)/t.notas.length;
+      return {nombre:t.nombre, max:t.max, count:t.notas.length, avgReal, avgNorm: avgReal/t.max};
+    }).sort((a,b)=> b.avgNorm - a.avgNorm);
+    const fmtTema = (t)=> '<strong>'+t.nombre+'</strong> ('+t.avgReal.toFixed(1)+'/'+t.max+', '+t.count+' nota'+(t.count!==1?'s':'')+')';
+    if(temasArr.length>1){
+      txt += '<br>🥇 Tema que mejor llevas: '+fmtTema(temasArr[0])+'.';
+      txt += '<br>🎯 Tema más flojo: '+fmtTema(temasArr[temasArr.length-1])+' — el que más te conviene reforzar.';
+    } else if(temasArr.length===1){
+      txt += '<br>Todavía solo tienes notas en <strong>'+temasArr[0].nombre+'</strong>. En cuanto tengas notas en más temas, aquí verás cuál flojea más.';
     }
     box.innerHTML = txt;
-    host.appendChild(box);
+    resumenBody.appendChild(box);
   }
 
   // Recuperados frente al resto: ¿sacas peor nota en lo que haces tarde? Solo aparece si hay notas de tests recuperados.
@@ -9827,7 +9866,7 @@ function renderProgreso(){
   }
 }
 const detalleSeccionesOpen = {graves:false, menosGraves:false, leves:false, ingles:false, psico:false};
-const progresoOpen = {detalleTema:false, tendenciaArrastre:false, comparativaSimulacros:false, testArrastre:false};
+const progresoOpen = {resumen:false, detalleTema:false, tendenciaArrastre:false, comparativaSimulacros:false, testArrastre:false};
 // Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
 // aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
 const arrastreMesesOpen = {};
