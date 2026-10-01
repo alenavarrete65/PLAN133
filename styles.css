@@ -1478,3 +1478,41 @@ html[data-simple="1"] .horas-leyenda,
 html[data-simple="1"] .tiempo-list-det,
 html[data-simple="1"] .tiempo-small,
 html[data-simple="1"] .motivation-strip{display:none;}
+
+/* ===== Navegación de escritorio: sección actual grande y centrada + desplegable ===== */
+@media (min-width:641px){
+  nav.tabs{position:relative;margin-bottom:22px;}
+  .tabs-mobile-trigger{display:none !important;}
+  .tabs-bar{display:grid;grid-template-columns:56px 1fr 56px;align-items:center;border-bottom:1px solid var(--line);padding-bottom:10px;}
+  nav.tabs .tabs-menu-btn{position:relative;width:48px;height:48px;display:flex;align-items:center;justify-content:center;
+    background:var(--bg-panel);border:1px solid var(--line-strong);border-radius:6px;cursor:pointer;padding:0;}
+  nav.tabs .tabs-menu-btn:hover{border-color:var(--amber);}
+  .burger{display:flex;flex-direction:column;gap:5px;}
+  .burger i{display:block;width:22px;height:2px;background:var(--cream);border-radius:2px;transition:transform .22s ease,opacity .18s ease;}
+  nav.tabs.open .burger i:nth-child(1){transform:translateY(7px) rotate(45deg);}
+  nav.tabs.open .burger i:nth-child(2){opacity:0;}
+  nav.tabs.open .burger i:nth-child(3){transform:translateY(-7px) rotate(-45deg);}
+  .tabs-menu-dot{position:absolute;top:6px;right:6px;width:9px;height:9px;border-radius:50%;background:var(--amber);}
+  .tabs-current{margin:0;text-align:center;font-family:var(--font-display);font-size:34px;line-height:1.1;color:var(--cream);letter-spacing:.01em;}
+  .tabs-current-ico{margin-right:12px;font-size:30px;}
+  .tabs-menu-panel{display:none;position:absolute;left:0;top:calc(100% - 4px);z-index:60;min-width:270px;max-height:75vh;overflow-y:auto;
+    flex-direction:column;gap:0;background:var(--bg-panel);border:1px solid var(--line-strong);border-radius:8px;padding:6px;
+    box-shadow:0 14px 30px rgba(0,0,0,.42);transform-origin:top left;}
+  nav.tabs.open .tabs-menu-panel{display:flex;}
+  .tabs-menu-panel .tabs-group{flex-direction:column;gap:0;}
+  .tabs-menu-panel .tabs-group + .tabs-group{border-left:none;padding-left:0;margin-left:0;border-top:1px solid var(--line);margin-top:4px;padding-top:4px;}
+  .tabs-menu-panel .tabs-group-label{display:block;font-family:var(--font-mono);font-size:11px;color:var(--muted);padding:6px 12px 2px;}
+  nav.tabs .tabs-menu-panel button.tab-btn{text-align:left;width:100%;border-bottom:none;border-left:3px solid transparent;
+    padding:11px 14px;border-radius:4px;font-size:16px;}
+  nav.tabs .tabs-menu-panel button.tab-btn:hover{background:var(--bg-panel-2);}
+  nav.tabs .tabs-menu-panel button.tab-btn.active{border-left-color:var(--amber);background:var(--bg-panel-2);color:var(--amber-ink);}
+}
+@media (min-width:641px) and (prefers-reduced-motion:no-preference){
+  nav.tabs.open .tabs-menu-panel{animation:menuAbre .2s cubic-bezier(.2,.8,.2,1);}
+  nav.tabs.open .tabs-menu-panel button.tab-btn{animation:opcionEntra .26s ease-out both;animation-delay:calc(var(--i,0) * 28ms + 40ms);}
+  @keyframes menuAbre{from{opacity:0;transform:translateY(-8px) scale(.97);}to{opacity:1;transform:none;}}
+  @keyframes opcionEntra{from{opacity:0;transform:translateX(-10px);}to{opacity:1;transform:none;}}
+  .tabs-current.cambia{animation:tituloCambia .3s ease-out;}
+  @keyframes tituloCambia{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+}
+@media (max-width:640px){ .tabs-bar{display:none;} }

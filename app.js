@@ -8107,34 +8107,46 @@ function celebrarObjetivoSiToca(){
   document.addEventListener('click', (e)=>{ if(!menu.hidden && !menu.contains(e.target) && e.target!==btn) cerrar(); });
   document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !menu.hidden){ cerrar(); btn.focus(); } });
 })();
-// Pestañas en el ordenador: las principales a la vista y el resto bajo «Más ▾».
-(function iniciarMenuMasPestanas(){
+// Pestañas en el ordenador: solo se ve la sección actual, grande y centrada, y un botón ☰ al lado
+// abre un desplegable con todas para elegir. Reutiliza los botones de siempre (activateTab).
+const ETIQUETAS_PESTANA = {calendario:['📅','Calendario'], clases:['🏫','Clases'], temario:['📖','Temario y notas'], simulacros:['📝','Simulacros'],
+  entrenos:['💪','Entrenos'], arrastre:['📋','Arrastre'], recuperar:['🔁','Recuperar'], progreso:['📊','Progreso'], ajustes:['⚙️','Ajustes']};
+function actualizarTituloPestana(tabName){
+  const t = document.getElementById('tabsCurrent'); if(!t) return;
+  const e = ETIQUETAS_PESTANA[tabName] || ['', tabName];
+  t.innerHTML = '<span class="tabs-current-ico" aria-hidden="true">'+e[0]+'</span>'+e[1];
+  t.classList.remove('cambia'); void t.offsetWidth; t.classList.add('cambia');
+}
+(function iniciarMenuPestanas(){
+  const nav = document.getElementById('tabsNav');
   const grupos = document.getElementById('tabsGroups');
-  if(!grupos || document.getElementById('tabsMore')) return;
-  const wrap = document.createElement('div'); wrap.className='tabs-more'; wrap.id='tabsMore';
-  const btn = document.createElement('button'); btn.type='button'; btn.className='tabs-more-btn'; btn.id='tabsMoreBtn';
-  btn.setAttribute('aria-haspopup','true'); btn.setAttribute('aria-expanded','false');
-  btn.innerHTML = 'Más <span class="chev">▾</span><span class="tabs-more-dot" id="tabsMoreDot" style="display:none;"></span>';
-  const panel = document.createElement('div'); panel.className='tabs-more-panel'; panel.id='tabsMorePanel'; panel.hidden = true;
-  ['entrenos','arrastre','recuperar','progreso','ajustes'].forEach(t=>{
-    const b = document.querySelector('.tab-btn[data-tab="'+t+'"]'); if(b) panel.appendChild(b);
-  });
-  wrap.appendChild(btn); wrap.appendChild(panel);
-  grupos.appendChild(wrap);
-  grupos.querySelectorAll('.tabs-group').forEach(g=>{ if(!g.querySelector('.tab-btn')) g.remove(); });
-  const cerrar = ()=>{ panel.hidden = true; btn.setAttribute('aria-expanded','false'); };
-  btn.onclick = (e)=>{ e.stopPropagation(); const abrir = panel.hidden; panel.hidden = !abrir; btn.setAttribute('aria-expanded', abrir ? 'true' : 'false'); };
-  panel.addEventListener('click', cerrar);
-  document.addEventListener('click', (e)=>{ if(!panel.hidden && !wrap.contains(e.target)) cerrar(); });
-  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !panel.hidden){ cerrar(); btn.focus(); } });
-  // Punto de aviso en «Más» si alguna pestaña escondida tiene un contador visible.
+  if(!nav || !grupos || document.getElementById('tabsBar')) return;
+  const bar = document.createElement('div'); bar.className='tabs-bar'; bar.id='tabsBar';
+  const btn = document.createElement('button'); btn.type='button'; btn.id='tabsMenuBtn'; btn.className='tabs-menu-btn';
+  btn.setAttribute('aria-haspopup','true'); btn.setAttribute('aria-expanded','false'); btn.setAttribute('aria-controls','tabsGroups');
+  btn.setAttribute('aria-label','Elegir sección'); btn.title='Elegir sección';
+  btn.innerHTML = '<span class="burger" aria-hidden="true"><i></i><i></i><i></i></span><span class="tabs-menu-dot" id="tabsMenuDot" style="display:none;"></span>';
+  const actual = document.createElement('h2'); actual.className='tabs-current'; actual.id='tabsCurrent'; actual.setAttribute('aria-live','polite');
+  const relleno = document.createElement('span'); relleno.className='tabs-bar-relleno'; relleno.setAttribute('aria-hidden','true');
+  bar.appendChild(btn); bar.appendChild(actual); bar.appendChild(relleno);
+  nav.insertBefore(bar, nav.firstChild);
+  grupos.classList.add('tabs-menu-panel');
+  const cerrar = ()=>{ nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); };
+  btn.onclick = (e)=>{ e.stopPropagation(); const abre = !nav.classList.contains('open'); nav.classList.toggle('open', abre); btn.setAttribute('aria-expanded', abre ? 'true' : 'false'); };
+  grupos.addEventListener('click', ()=> setTimeout(cerrar, 0));
+  document.addEventListener('click', (e)=>{ if(nav.classList.contains('open') && !grupos.contains(e.target) && !btn.contains(e.target)) cerrar(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && nav.classList.contains('open')){ cerrar(); btn.focus(); } });
+  // Escalonado de la animación de entrada de cada opción.
+  grupos.querySelectorAll('.tab-btn').forEach((b,i)=>{ b.style.setProperty('--i', String(i)); });
+  // Punto de aviso en el botón si alguna sección tiene un contador visible.
   const actualizarPunto = ()=>{
-    const dot = document.getElementById('tabsMoreDot'); if(!dot) return;
-    const hay = Array.from(panel.querySelectorAll('span[id$="Badge"]')).some(sp=> sp.style.display!=='none' && sp.textContent.trim());
+    const dot = document.getElementById('tabsMenuDot'); if(!dot) return;
+    const hay = Array.from(grupos.querySelectorAll('span[id$="Badge"]')).some(sp=> sp.style.display!=='none' && sp.textContent.trim());
     dot.style.display = hay ? '' : 'none';
   };
-  new MutationObserver(actualizarPunto).observe(panel, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['style']});
+  new MutationObserver(actualizarPunto).observe(grupos, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['style']});
   actualizarPunto();
+  const act = document.querySelector('.tab-btn.active'); actualizarTituloPestana(act ? act.dataset.tab : 'calendario');
 })();
 // «Más» se marca cuando la pestaña activa es una de las escondidas.
 function marcarMasActivo(tabName){
@@ -11058,7 +11070,7 @@ function activateTab(tabName){
   btn.classList.add('active');
   { const vv = document.getElementById('view-'+tabName); vv.classList.add('active'); vv.classList.remove('view-enter'); void vv.offsetWidth; vv.classList.add('view-enter'); setTimeout(()=> vv.classList.remove('view-enter'), 320); }
   if(typeof actualizarBarraInferior==='function') actualizarBarraInferior(tabName);
-  if(typeof marcarMasActivo==='function') marcarMasActivo(tabName);
+  if(typeof actualizarTituloPestana==='function') actualizarTituloPestana(tabName);
   if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
   if(tabsNavEl) tabsNavEl.classList.remove('open');
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
