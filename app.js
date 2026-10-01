@@ -5479,6 +5479,82 @@ function renderClasesPsico(){
    su propio nombre. Aquí se listan, agrupadas por nombre, todas las que haya registradas
    en el calendario de clases, con las fechas en las que las diste. Igual que el resto de
    la pestaña, es solo información: se añade y se quita desde el calendario. */
+/* ===================== SEMINARIOS (vista en la pestaña Clases) =====================
+   Lista de todos los seminarios del calendario de clases: fecha, de qué trataron y sus notas.
+   Solo lee state.claseCal; para editar uno se abre el día con el botón «Abrir el día». */
+var _seminarioFiltro = '';
+function listarSeminarios(){
+  const out = [];
+  Object.keys(state.claseCal||{}).forEach(mk=>{
+    const mes = state.claseCal[mk] || {};
+    Object.keys(mes).forEach(ds=>{
+      const e = mes[ds];
+      if(!e || !Array.isArray(e.seminarios)) return;
+      e.seminarios.forEach(sm=>{
+        if(!sm) return;
+        out.push({mk, d:Number(ds), fecha: mk+'-'+pad2(Number(ds)), titulo:String(sm.titulo||'').trim(), notas:String(sm.notas||'').trim()});
+      });
+    });
+  });
+  out.sort((a,b)=> b.fecha.localeCompare(a.fecha)); // el más reciente primero
+  return out;
+}
+function renderClasesSeminarios(){
+  const host = document.getElementById('clasesSeminariosHost');
+  if(!host) return;
+  renderAccordionSection(host, 'clasesSeminarios', 'Seminarios', (body)=>{
+    const todos = listarSeminarios();
+    const intro = document.createElement('div'); intro.className='sub';
+    intro.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;';
+    intro.textContent = 'Todos los seminarios que has registrado en el calendario de clases, con sus notas. Los añades desde el calendario (Seminario).';
+    body.appendChild(intro);
+    if(!todos.length){
+      const empty = document.createElement('div'); empty.className='empty-state';
+      empty.textContent = 'Todavía no hay ningún seminario en el calendario de clases.';
+      body.appendChild(empty);
+      return;
+    }
+    const buscador = document.createElement('input'); buscador.type='search'; buscador.className='seminarios-buscar';
+    buscador.placeholder='Buscar en seminarios (título o notas)…'; buscador.value = _seminarioFiltro;
+    buscador.setAttribute('aria-label','Buscar en seminarios');
+    body.appendChild(buscador);
+    const lista = document.createElement('div'); lista.className='seminarios-lista';
+    body.appendChild(lista);
+    const pintar = ()=>{
+      lista.innerHTML = '';
+      const q = _seminarioFiltro.trim().toLowerCase();
+      const vis = todos.filter(x=> !q || (x.titulo+' '+x.notas).toLowerCase().indexOf(q)>=0);
+      if(!vis.length){
+        const nada = document.createElement('div'); nada.className='empty-state'; nada.textContent='Ningún seminario coincide con la búsqueda.';
+        lista.appendChild(nada); return;
+      }
+      vis.forEach(x=>{
+        const card = document.createElement('div'); card.className='flat-item seminario-item';
+        const head = document.createElement('div'); head.className='fi-head';
+        const nombre = document.createElement('span'); nombre.className='fi-name'; nombre.textContent = x.titulo || 'Seminario sin título';
+        const fecha = document.createElement('span'); fecha.className='fi-clase'; fecha.textContent = formatFechaEs(x.fecha);
+        head.appendChild(nombre); head.appendChild(fecha); card.appendChild(head);
+        if(x.notas){
+          const n = document.createElement('div'); n.className='seminario-notas'; n.textContent = x.notas; card.appendChild(n);
+        } else {
+          const n = document.createElement('div'); n.className='seminario-notas vacio'; n.textContent = 'Sin notas.'; card.appendChild(n);
+        }
+        const abrir = document.createElement('button'); abrir.type='button'; abrir.className='cal-export-btn'; abrir.textContent='Abrir el día';
+        abrir.onclick = ()=>{
+          currentMonthKey = x.mk;
+          activateTab('calendario'); setCalSelectorMode('clases'); renderAll();
+          const [yy,mm] = x.mk.split('-').map(Number);
+          openClaseDayModal(x.d, new Date(yy, mm-1, x.d).getDay());
+        };
+        card.appendChild(abrir);
+        lista.appendChild(card);
+      });
+    };
+    buscador.oninput = ()=>{ _seminarioFiltro = buscador.value; pintar(); };
+    pintar();
+  });
+}
+
 function renderClasesOrtoGram(){
   const host = document.getElementById('clasesOrtoGramHost');
   if(!host) return;
@@ -6122,6 +6198,7 @@ function refrescarPestanaClases(){
   renderClasesIngles();
   renderClasesPsico();
   renderClasesOrtoGram();
+  renderClasesSeminarios();
 }
 function ensureClasesSyncPendiente(){ if(!Array.isArray(state.clasesSyncPendiente)) state.clasesSyncPendiente = []; return state.clasesSyncPendiente; }
 function marcarSiguienteVueltaClase(){ return -1; }        // (obsoleta: ya no se marca nada a mano)
@@ -7838,7 +7915,7 @@ function renderTiempoCalendar(){
 // Al cerrar la ficha del día se repintan las vistas que muestran horas (los campos de tiempo
 // se guardan al teclear, pero las vistas no se repintaban hasta la siguiente acción).
 function refrescarVistasTiempo(){
-  try{ renderTodoCalMonthBar(); renderTodoCalendar(); renderTiempoCalMonthBar(); renderTiempoCalendar(); aplicarContadores(document); }catch(e){ console.error(e); }
+  try{ renderTodoCalMonthBar(); renderTodoCalendar(); renderTiempoCalMonthBar(); renderTiempoCalendar(); aplicarContadores(document); celebrarObjetivoSiToca(); }catch(e){ console.error(e); }
 }
 
 /* ===================== MICROANIMACIONES Y AVISO DE COPIA ===================== */
@@ -7899,6 +7976,83 @@ function renderBackupReminder(){
   const later = document.createElement('button'); later.type='button'; later.className='backup-banner-btn ghost'; later.textContent='Más tarde';
   later.onclick = ()=>{ try{ localStorage.setItem('backupSnoozeHasta', hoyLocalISO()); }catch(e){} banner.style.display='none'; };
   banner.appendChild(txt); banner.appendChild(ok); banner.appendChild(later);
+}
+
+/* ===================== BARRA INFERIOR EN EL MÓVIL ===================== */
+// En pantallas estrechas el menú de arriba se sustituye por una barra fija abajo con iconos
+// (las secciones principales + «Más»). Los selectores de calendario también van fijos abajo
+// (los gestiona el CSS). Todo reutiliza activateTab, así que no cambia ningún comportamiento.
+const BARRA_PRINCIPAL = [['calendario','📅','Calendario'], ['clases','🏫','Clases'], ['temario','📖','Temario'], ['simulacros','📝','Simulacros']];
+const BARRA_MAS = [['entrenos','💪','Entrenos'], ['arrastre','📋','Arrastre'], ['recuperar','🔁','Recuperar'], ['progreso','📊','Progreso'], ['ajustes','⚙️','Ajustes']];
+function crearBarraInferior(){
+  if(document.getElementById('bottomNav')) return;
+  const bar = document.createElement('nav'); bar.id='bottomNav'; bar.className='bottom-nav'; bar.setAttribute('aria-label','Navegación principal');
+  BARRA_PRINCIPAL.forEach(([tab,ico,txt])=>{
+    const b = document.createElement('button'); b.type='button'; b.dataset.tab=tab;
+    b.innerHTML = '<span class="bn-ico">'+ico+'</span><span class="bn-txt">'+txt+'</span>';
+    b.onclick = ()=>{ cerrarMasSheet(); activateTab(tab); window.scrollTo({top:0}); };
+    bar.appendChild(b);
+  });
+  const mas = document.createElement('button'); mas.type='button'; mas.id='bottomNavMas'; mas.setAttribute('aria-haspopup','true'); mas.setAttribute('aria-expanded','false');
+  mas.innerHTML = '<span class="bn-ico">☰</span><span class="bn-txt">Más</span>';
+  mas.onclick = ()=>{ const abierta = document.getElementById('bottomMasSheet'); if(abierta) cerrarMasSheet(); else abrirMasSheet(); };
+  bar.appendChild(mas);
+  document.body.appendChild(bar);
+}
+function abrirMasSheet(){
+  const mas = document.getElementById('bottomNavMas'); if(mas) mas.setAttribute('aria-expanded','true');
+  const sheet = document.createElement('div'); sheet.id='bottomMasSheet'; sheet.className='bottom-sheet'; sheet.setAttribute('role','menu');
+  BARRA_MAS.forEach(([tab,ico,txt])=>{
+    const b = document.createElement('button'); b.type='button'; b.setAttribute('role','menuitem');
+    const orig = document.querySelector('.tab-btn[data-tab="'+tab+'"] span[id$="Badge"]');
+    const badge = (orig && orig.style.display!=='none' && orig.textContent.trim()) ? ' <em class="bn-badge">'+orig.textContent.trim()+'</em>' : '';
+    b.innerHTML = '<span class="bn-ico">'+ico+'</span><span>'+txt+badge+'</span>';
+    if(document.querySelector('.tab-btn.active') && document.querySelector('.tab-btn.active').dataset.tab===tab) b.classList.add('active');
+    b.onclick = ()=>{ cerrarMasSheet(); activateTab(tab); window.scrollTo({top:0}); };
+    sheet.appendChild(b);
+  });
+  const fondo = document.createElement('div'); fondo.id='bottomMasFondo'; fondo.className='bottom-sheet-fondo'; fondo.onclick = cerrarMasSheet;
+  document.body.appendChild(fondo); document.body.appendChild(sheet);
+}
+function cerrarMasSheet(){
+  ['bottomMasSheet','bottomMasFondo'].forEach(id=>{ const el = document.getElementById(id); if(el) el.remove(); });
+  const mas = document.getElementById('bottomNavMas'); if(mas) mas.setAttribute('aria-expanded','false');
+}
+function actualizarBarraInferior(tabName){
+  const bar = document.getElementById('bottomNav'); if(!bar) return;
+  const enPrincipal = BARRA_PRINCIPAL.some(x=> x[0]===tabName);
+  bar.querySelectorAll('button[data-tab]').forEach(b=> b.classList.toggle('active', b.dataset.tab===tabName));
+  const mas = document.getElementById('bottomNavMas'); if(mas) mas.classList.toggle('active', !enPrincipal);
+}
+crearBarraInferior();
+(function(){ const act = document.querySelector('.tab-btn.active'); if(act) actualizarBarraInferior(act.dataset.tab); })();
+
+/* ===================== PEQUEÑA CELEBRACIÓN AL CUMPLIR EL OBJETIVO DIARIO ===================== */
+function celebrarObjetivoSiToca(){
+  try{
+    const hoy = hoyLocalISO();
+    const mk = hoy.slice(0,7), dd = Number(hoy.slice(8));
+    const info = ((computePlan()[mk]||{})[dd]) || {status:'ESTUDIO'};
+    const est = computeTiempoDia(hoy, info).estudio;
+    const obj = objetivoMin();
+    let ya = null; try{ ya = localStorage.getItem('objetivoCelebrado'); }catch(e){}
+    if(est < obj){ if(ya===hoy){ try{ localStorage.removeItem('objetivoCelebrado'); }catch(e){} } return; }
+    if(ya===hoy) return;
+    try{ localStorage.setItem('objetivoCelebrado', hoy); }catch(e){}
+    showToast('🎯 ¡Objetivo diario cumplido! '+fmtMin(est)+' de estudio');
+    const t = document.getElementById('toast'); if(t){ clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2600); }
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const base = t ? t.getBoundingClientRect() : {left:window.innerWidth/2-60, top:window.innerHeight-80, width:120};
+    ['🎯','✨','⭐','✨','🌟'].forEach((emo,i)=>{
+      const sp = document.createElement('span'); sp.className='ob-spark ob-spark-meta'; sp.textContent = emo;
+      sp.style.left = (base.left + base.width*(0.1+0.2*i) + window.scrollX)+'px';
+      sp.style.top = (base.top + window.scrollY - 6)+'px';
+      sp.style.animationDelay = (i*70)+'ms';
+      document.body.appendChild(sp);
+      setTimeout(()=> sp.remove(), 1300);
+    });
+    if(navigator.vibrate) navigator.vibrate(30);
+  }catch(e){ /* un fallo visual nunca debe romper nada */ }
 }
 
 /* ===================== CALENDARIO "TODO INCLUIDO" =====================
@@ -10796,7 +10950,8 @@ function activateTab(tabName){
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('view-'+tabName).classList.add('active');
+  { const vv = document.getElementById('view-'+tabName); vv.classList.add('active'); vv.classList.remove('view-enter'); void vv.offsetWidth; vv.classList.add('view-enter'); setTimeout(()=> vv.classList.remove('view-enter'), 320); }
+  if(typeof actualizarBarraInferior==='function') actualizarBarraInferior(tabName);
   if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
   if(tabsNavEl) tabsNavEl.classList.remove('open');
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
@@ -11258,6 +11413,7 @@ function renderAll(){
   renderClasesIngles();
   renderClasesPsico();
   renderClasesOrtoGram();
+  renderClasesSeminarios();
   renderClasesPendientes();
   renderClasesCalMonthBar();
   renderClaseCalendar();
@@ -11298,7 +11454,7 @@ const RENDER_PESTANA = {
     renderSimCalMonthBar(); renderSimCalendar(); renderSimulacrosPendientes();
     renderTodoCalMonthBar(); renderTodoCalLegend(); renderTodoCalendar();
   },
-  clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); },
+  clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); renderClasesSeminarios(); },
   temario(){ renderBlocks(); renderLeves(); renderIngles(); renderPsico(); renderOrto(); },
   simulacros(){ renderSimulacrosList(); },
   entrenos(){ renderMarcas(); renderEntrenos(); },
