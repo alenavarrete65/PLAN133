@@ -2224,7 +2224,7 @@ function buildTasksBlock(d, info, compact){
   const temasTxt = compact
     ? info.temasDelDia.map(t=> t.clase || t.nombre).join('; ')
     : info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
-  tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}));
+  tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}, 'bc-'+info.color));
   tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
   tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
   if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
@@ -2717,8 +2717,8 @@ function renderCalendarList(){
     _calListCache.sigs[d] = sig;
   }
 }
-function taskRow(tag, txt, tagClass, tickInfo){
-  const row = document.createElement('div'); row.className='task-row';
+function taskRow(tag, txt, tagClass, tickInfo, extraClass){
+  const row = document.createElement('div'); row.className='task-row'+(extraClass?' '+extraClass:'');
   row.innerHTML = '<span class="tag '+tagClass+'">'+tag+'</span><span class="task-txt">'+txt+'</span>';
   if(tickInfo){
     const cb = document.createElement('input');
@@ -2744,23 +2744,38 @@ function taskRow(tag, txt, tagClass, tickInfo){
    marcar las tareas y sus vueltas. Se abre en CUALQUIER día, también en los de descanso,
    trabajo o sin horario (antes solo se abría en los de estudio, y por eso no había manera
    de ponerles una nota). */
-// Secciones plegables: cada una se abre y se cierra pulsando su título. El estado se recuerda
-// (por nombre de sección) y, si no hay nada guardado, solo la primera de la ficha empieza abierta.
+// Secciones plegables: cada una se abre y se cierra pulsando su título. TODAS empiezan cerradas
+// cada vez que abres un día; si las abres, se mantienen abiertas mientras la ficha se repinta
+// (al marcar una casilla, etc.), pero al volver a abrir un día vuelven a estar cerradas.
 var _secAbiertas = {};
-try{ _secAbiertas = JSON.parse(localStorage.getItem('diaSecAbiertas') || '{}') || {}; }catch(e){ _secAbiertas = {}; }
+try{ localStorage.removeItem('diaSecAbiertas'); }catch(e){} // se borra el estado guardado de versiones anteriores
+// Color e icono de cada sección de la ficha del día (igual en todos los calendarios).
+function _tonoSeccion(titulo){
+  if(/tiempo/i.test(titulo)) return {k:'tiempo', ico:''};
+  if(/tareas/i.test(titulo)) return {k:'tareas', ico:'📚'};
+  if(/clases?/i.test(titulo)) return {k:'clases', ico:'🎓'};
+  if(/simulacro/i.test(titulo)) return {k:'sim', ico:'📝'};
+  if(/notas?/i.test(titulo)) return {k:'notas', ico:'🗒️'};
+  if(/recuperaci/i.test(titulo)) return {k:'recu', ico:'🔁'};
+  return {k:'', ico:''};
+}
 function daySection(body, titulo){
   const sec = document.createElement('div'); sec.className='day-section';
   const t = document.createElement('div'); t.className='day-section-title';
   t.setAttribute('role','button'); t.tabIndex = 0;
   const chev = document.createElement('span'); chev.className='ds-chev'; chev.setAttribute('aria-hidden','true'); chev.textContent='▸';
   t.appendChild(chev);
+  if(body.classList && body.classList.contains('dia-color')){
+    const tono = _tonoSeccion(titulo);
+    if(tono.k) sec.classList.add('ds-tono-'+tono.k);
+    if(tono.ico){ const ic = document.createElement('span'); ic.className='ds-icono'; ic.setAttribute('aria-hidden','true'); ic.textContent = tono.ico; t.appendChild(ic); }
+  }
   t.appendChild(document.createTextNode(titulo));
   const resumen = document.createElement('span'); resumen.className='ds-resumen'; t.appendChild(resumen);
   sec.appendChild(t);
   const inner = document.createElement('div'); inner.className='ds-body';
   sec.appendChild(inner);
-  const esPrimera = body.children.length === 0;
-  let abierta = (titulo in _secAbiertas) ? !!_secAbiertas[titulo] : esPrimera;
+  let abierta = !!_secAbiertas[titulo];
   const aplicar = ()=>{
     sec.classList.toggle('ds-cerrada', !abierta);
     t.setAttribute('aria-expanded', abierta ? 'true' : 'false');
@@ -2768,7 +2783,13 @@ function daySection(body, titulo){
   const alternar = (e)=>{
     if(e && e.target && e.target.closest && e.target.closest('input,textarea,select,button,a')) return;
     abierta = !abierta; _secAbiertas[titulo] = abierta;
-    try{ localStorage.setItem('diaSecAbiertas', JSON.stringify(_secAbiertas)); }catch(err){}
+    // Modo foco: al abrir una sección se cierran las demás.
+    if(abierta && typeof modoFocoDia !== 'undefined' && modoFocoDia){
+      Object.keys(_secAbiertas).forEach(k=>{ if(k!==titulo) _secAbiertas[k] = false; });
+      document.querySelectorAll('#dayModalBody .day-section').forEach(o=>{
+        if(o!==sec){ o.classList.add('ds-cerrada'); const ot = o.querySelector('.day-section-title'); if(ot) ot.setAttribute('aria-expanded','false'); }
+      });
+    }
     aplicar();
   };
   t.onclick = alternar;
@@ -2784,7 +2805,7 @@ function daySection(body, titulo){
 // Cuando la ficha se repinta a sí misma (sin indicar calendario) mantiene el último modo.
 var diaModalModo = 'todo';
 function openDayModal(d, info, modo){
-  if(modo) diaModalModo = modo;
+  if(modo){ diaModalModo = modo; _secAbiertas = {}; } // abrir un día desde el calendario: todo cerrado
   const verTiempo = (diaModalModo==='todo' || diaModalModo==='tiempos');
   const verEstudio = (diaModalModo==='todo' || diaModalModo==='estudio');
   const verClases = (diaModalModo==='todo');
@@ -2801,6 +2822,7 @@ function openDayModal(d, info, modo){
   document.getElementById('dayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)] + ' · ' + statusTxt + (esHoy ? ' · HOY' : '');
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
+  body.classList.add('dia-color'); // mismos colores en todos los calendarios
 
   if(verTiempo){ try{ buildTiempoSection(body, info, fechaISO); }catch(e){ console.error('Tiempo del día', e); } }
 
@@ -2818,7 +2840,7 @@ function openDayModal(d, info, modo){
       sb.appendChild(helpNote);
 
       if(Array.isArray(info.temasDelDia)){
-        const bRow = document.createElement('div'); bRow.className='modal-row'; bRow.style.flexWrap='wrap';
+        const bRow = document.createElement('div'); bRow.className='modal-row '+(info.bloqueTipo==='grave'?'mr-grave':'mr-mgrave')+' bc-'+info.color; bRow.style.flexWrap='wrap';
         const bLeft = document.createElement('div'); bLeft.style.cssText='flex:1;min-width:0;';
         const bHead = document.createElement('div');
         bHead.innerHTML = '<span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
@@ -2828,7 +2850,7 @@ function openDayModal(d, info, modo){
         // No test / No tiempo / Solo lectura), igual que en «Temario y notas» — escribe en el mismo
         // sitio (state.ticks) así que se ve automáticamente en Progreso sin nada más que hacer aquí.
         info.temasDelDia.forEach(t=>{
-          const line = document.createElement('div'); line.className='modal-tema-line';
+          const line = document.createElement('div'); line.className='modal-tema-line tc-'+(t.color||info.color);
           const txt = document.createElement('span'); txt.className='tema-line-txt';
           txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
@@ -3379,6 +3401,7 @@ function renderDayClasesEditor(host, d, jsDow){
 }
 function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
   const row = document.createElement('div'); row.className='modal-row';
+  { const mt = /tag-(\w+)/.exec(tagClass||''); if(mt) row.classList.add('mr-'+mt[1]); } // color por tipo (grave, mgrave, leve, ing, psico…)
   if(vueltaInfo) row.style.flexWrap = 'wrap';
   const headWrap = document.createElement('div');
   headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
@@ -3690,18 +3713,20 @@ function aplicarModoFocoDia(){
     btn.setAttribute('aria-pressed', modoFocoDia ? 'true' : 'false');
     btn.textContent = modoFocoDia ? '🎯 Modo foco (activo)' : '🎯 Modo foco';
   }
-  // Las secciones ya son desplegables (ver daySection): el modo foco solo deja abierta la primera
-  // y cierra el resto; al desactivarlo no toca nada y cada sección conserva lo que tuviera.
+  // Las secciones ya son desplegables (ver daySection): con el modo foco solo puede haber una abierta
+  // a la vez (si hubiera varias, se queda la primera). Nunca abre nada por su cuenta.
   const secciones = document.querySelectorAll('#dayModalBody .day-section');
-  secciones.forEach((sec, i)=>{
+  let yaHayUna = false;
+  secciones.forEach((sec)=>{
     sec.classList.remove('foco-colapsada');
     const existente = sec.querySelector('.day-section-foco-btn');
     if(existente) existente.remove();
-    if(modoFocoDia){
-      const cerrada = (i!==0);
-      sec.classList.toggle('ds-cerrada', cerrada);
-      const t = sec.querySelector('.day-section-title');
-      if(t) t.setAttribute('aria-expanded', cerrada ? 'false' : 'true');
+    if(modoFocoDia && !sec.classList.contains('ds-cerrada')){
+      if(yaHayUna){
+        sec.classList.add('ds-cerrada');
+        const t = sec.querySelector('.day-section-title');
+        if(t) t.setAttribute('aria-expanded','false');
+      } else yaHayUna = true;
     }
   });
 }
@@ -6260,6 +6285,7 @@ function renderClaseDayPreview(entry, d, jsDow){
 
   const addRow = (label, buildFn)=>{
     const row = document.createElement('div'); row.className = 'clase-preview-row';
+    { const cp = {'Conocimientos':'con','Inglés':'ing','Psicotécnicos':'psi','Ortografía y gramática':'orto','Seminario':'sem','Notas':'nota'}[label]; if(cp) row.classList.add('cp-'+cp); }
     const lbl = document.createElement('div'); lbl.className='clase-preview-label'; lbl.textContent = label;
     row.appendChild(lbl);
     const val = document.createElement('div'); val.className='clase-preview-value';
@@ -8395,6 +8421,7 @@ function openSimDayModal(d, jsDow){
   const fecha = simFechaDia(currentMonthKey, d);
   const body = document.getElementById('simDayModalBody');
   body.innerHTML = '';
+  body.classList.add('dia-card','ds-tono-sim');
 
   const refreshEverything = ()=>{
     renderSimCalendar();

@@ -397,9 +397,9 @@
     font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.04em;
     padding:1px 5px;border-radius:8px;margin-left:6px;text-transform:uppercase;
   }
-  .colorpill.azul{background:#D0E0E3;color:#1c3a42;}
-  .colorpill.morado{background:#EAD1DC;color:#5a2340;}
-  .colorpill.unificado{background:var(--amber);color:#1b2b1f;}
+  .colorpill.azul{background:var(--bc-azul,#3a78d4);color:#fff;}
+  .colorpill.morado{background:var(--bc-morado,#8f4fd0);color:#fff;}
+  .colorpill.unificado{background:linear-gradient(90deg,var(--bc-azul,#3a78d4),var(--bc-morado,#8f4fd0));color:#fff;}
   .task-txt{color:var(--cream);overflow:visible;text-overflow:initial;white-space:normal;line-height:1.3;}
   .off-label{
     font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-align:center;
@@ -1516,3 +1516,82 @@ html[data-simple="1"] .motivation-strip{display:none;}
   @keyframes tituloCambia{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
 }
 @media (max-width:640px){ .tabs-bar{display:none;} }
+
+/* ====== Fichas del día: misma estructura y colores en TODOS los calendarios ======
+   Colores fijos por tipo de tarea (los mismos que las etiquetas del calendario):
+   bloque grave = rojo · bloque menos grave = ámbar · leve = verde · inglés = azul · psicotécnico = morado.
+   Las secciones usan otros colores distintos para no confundirse con esos. */
+:root{
+  --tc-grave:var(--red); --tc-mgrave:var(--amber); --tc-leve:var(--green); --tc-ing:var(--blue); --tc-psico:#9b7fc0;
+  --tc-orto:#8d968a; --tc-sem:#4f8a8b; --tc-entreno:#c9692b;
+  --sec-tiempo:#4fb3a6; --sec-tareas:#c3bda3; --sec-clases:#e0883e; --sec-sim:#d86a96; --sec-notas:#a39b8b; --sec-recu:#7c8cde;
+}
+html[data-theme="light"]{
+  --tc-psico:#7a5c9c; --tc-orto:#6b7368; --tc-entreno:#a9531d;
+  --sec-tiempo:#2a8579; --sec-tareas:#7d7660; --sec-clases:#b8601a; --sec-sim:#b03f6e; --sec-notas:#7a7261; --sec-recu:#4f5fb8;
+}
+/* Tarjeta de sección (Tiempo, Tareas, Clases, Simulacro, Notas, Recuperación) */
+.dia-color .day-section,.dia-card{
+  --tono:var(--amber);
+  margin-top:10px;padding:2px 12px;
+  border:1px solid var(--line);border-left:4px solid var(--tono);border-radius:8px;
+  background:var(--bg-panel-2);
+}
+.dia-card{padding:10px 12px 12px;}
+@supports (background:color-mix(in srgb, red 10%, blue)){
+  .dia-color .day-section,.dia-card{
+    background:color-mix(in srgb, var(--tono) 11%, var(--bg-panel));
+    border-color:color-mix(in srgb, var(--tono) 32%, transparent);
+    border-left-color:var(--tono);
+  }
+}
+.dia-color .day-section:first-of-type{margin-top:0;padding-top:2px;}
+.dia-color .day-section-title{font-weight:700;font-size:14px;color:var(--cream);padding:10px 2px;}
+.dia-color .day-section-title .ds-chev{color:var(--tono);}
+.dia-color .ds-icono{margin-right:2px;font-size:15px;line-height:1;}
+.dia-color .day-section:not(.ds-cerrada) > .day-section-title{border-bottom:1px dashed var(--line);}
+.ds-tono-tiempo{--tono:var(--sec-tiempo);}
+.ds-tono-tareas{--tono:var(--sec-tareas);}
+.ds-tono-clases{--tono:var(--sec-clases);}
+.ds-tono-sim{--tono:var(--sec-sim);}
+.ds-tono-notas{--tono:var(--sec-notas);}
+.ds-tono-recu{--tono:var(--sec-recu);}
+.dia-color .tiempo-sum{border-color:var(--sec-tiempo);}
+/* Filas de tarea dentro de la ficha: franja y fondo suave del color de su tipo */
+.modal-row[class*="mr-"]{
+  --tc:var(--amber);
+  border-left:4px solid var(--tc);border-radius:6px;padding:8px 8px 8px 10px;margin:6px 0;
+  border-bottom:none;background:var(--bg-panel-2);
+}
+@supports (background:color-mix(in srgb, red 10%, blue)){
+  .modal-row[class*="mr-"]{background:color-mix(in srgb, var(--tc) 13%, transparent);}
+}
+.mr-grave{--tc:var(--tc-grave);} .mr-mgrave{--tc:var(--tc-mgrave);} .mr-leve{--tc:var(--tc-leve);}
+.mr-ing{--tc:var(--tc-ing);} .mr-psico{--tc:var(--tc-psico);} .mr-orto{--tc:var(--tc-orto);}
+.mr-entreno{--tc:var(--tc-entreno);} .mr-manual{--tc:var(--amber-dim);} .mr-nota{--tc:var(--line-strong);}
+/* Calendario de clases: cada materia con la franja de su color */
+.clase-preview-row{
+  --tc:var(--line-strong);
+  border-left:4px solid var(--tc);border-radius:6px;padding:8px 10px;background:var(--bg-panel-2);
+}
+@supports (background:color-mix(in srgb, red 10%, blue)){
+  .clase-preview-row{background:color-mix(in srgb, var(--tc) 11%, transparent);}
+}
+.clase-preview-row.cp-con{--tc:var(--tc-mgrave);} .clase-preview-row.cp-ing{--tc:var(--tc-ing);}
+.clase-preview-row.cp-psi{--tc:var(--tc-psico);} .clase-preview-row.cp-orto{--tc:var(--tc-orto);}
+.clase-preview-row.cp-sem{--tc:var(--tc-sem);} .clase-preview-row.cp-nota{--tc:var(--sec-notas);}
+
+/* ====== Color dentro de los bloques: azul / morado / unificado (azul + morado) ====== */
+:root{ --bc-azul:#3a78d4; --bc-morado:#8f4fd0; }
+html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
+.colorpill.azul,.colorpill.morado,.colorpill.unificado{font-size:12px;padding:2px 8px;}
+/* Celdas del calendario y vista de lista: barra y etiqueta del color del bloque */
+.task-row.bc-azul,.task-row.bc-morado,.task-row.bc-unificado{padding-left:6px;border-radius:4px;}
+.task-row.bc-azul{box-shadow:inset 4px 0 0 var(--bc-azul);background:rgba(58,120,212,.16);}
+.task-row.bc-morado{box-shadow:inset 4px 0 0 var(--bc-morado);background:rgba(143,79,208,.18);}
+.task-row.bc-unificado{border-left:4px solid transparent;border-image:linear-gradient(180deg,var(--bc-azul),var(--bc-morado)) 1;background:linear-gradient(90deg,rgba(58,120,212,.16),rgba(143,79,208,.18));}
+.task-row.bc-azul.tick-pending,.task-row.bc-morado.tick-pending{background:rgba(182,84,63,.16);}
+/* Ficha del día: cada tema del bloque con la barra de su color */
+.modal-tema-line.tc-azul,.modal-tema-line.tc-morado,.modal-tema-line.tc-unificado{padding:4px 6px 4px 8px;border-radius:4px;}
+.modal-tema-line.tc-azul{border-left:4px solid var(--bc-azul);background:rgba(58,120,212,.14);}
+.modal-tema-line.tc-morado{border-left:4px solid var(--bc-morado);background:rgba(143,79,208,.16);}
