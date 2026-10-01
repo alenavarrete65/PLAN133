@@ -1433,3 +1433,48 @@
 }
 
 .ob-spark-meta{z-index:60;}
+
+/* ===== Interfaz más limpia ===== */
+/* Cabecera: menú «⋯» */
+.header-more{position:relative;}
+.header-more-menu{position:absolute;right:0;top:calc(100% + 6px);z-index:60;min-width:230px;display:flex;flex-direction:column;gap:10px;align-items:flex-start;
+  background:var(--bg-panel);border:1px solid var(--line-strong);border-radius:6px;padding:12px;box-shadow:0 10px 24px rgba(0,0,0,.35);}
+.header-more-menu[hidden]{display:none;}
+/* Pestañas en el ordenador: «Más ▾» */
+.tabs-more{position:relative;margin-left:4px;}
+.tabs-more-btn{position:relative;}
+.tabs-more-btn .chev{font-size:11px;margin-left:3px;}
+.tabs-more-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--amber);margin-left:6px;vertical-align:middle;}
+.tabs-more-panel{position:absolute;left:0;top:calc(100% + 4px);z-index:60;min-width:200px;display:flex;flex-direction:column;
+  background:var(--bg-panel);border:1px solid var(--line-strong);border-radius:6px;padding:4px;box-shadow:0 10px 24px rgba(0,0,0,.35);}
+.tabs-more-panel[hidden]{display:none;}
+nav.tabs .tabs-more-panel button{text-align:left;width:100%;border-bottom:none;padding:10px 14px;border-left:3px solid transparent;}
+nav.tabs .tabs-more-panel button.active{border-left-color:var(--amber);background:var(--bg-panel-2);}
+nav.tabs .tabs-more-btn.active{color:var(--amber-ink);border-bottom-color:var(--amber);}
+/* Secciones plegables de la ficha del día */
+.day-section-title{cursor:pointer;user-select:none;margin-bottom:0;padding:8px 2px;}
+.day-section-title:hover{color:var(--cream);}
+.ds-chev{display:inline-block;width:14px;transition:transform .15s;color:var(--muted);}
+.day-section:not(.ds-cerrada) > .day-section-title .ds-chev{transform:rotate(90deg);}
+.ds-resumen{margin-left:6px;color:var(--muted);text-transform:none;letter-spacing:0;font-weight:400;}
+.ds-body{padding-top:6px;}
+.day-section.ds-cerrada > .ds-body{display:none;}
+.day-section.ds-cerrada{padding-bottom:0;}
+/* Menos ruido visual: menos mayúsculas con letra espaciada, ámbar solo para lo principal, líneas más suaves y más aire */
+.btn,.cal-export-btn,.view-toggle-btn,.backup-banner-btn{text-transform:none;letter-spacing:.01em;}
+nav.tabs button{text-transform:none;letter-spacing:.01em;font-size:16px;}
+.home-card-label,.tabs-group-label,.horas-dia,.heat-title{text-transform:none;letter-spacing:.01em;}
+.home-card-label{color:var(--cream-dim);font-size:13px;}
+.day-section-title{text-transform:none;letter-spacing:.01em;font-size:13px;color:var(--cream);}
+.day-section{border-top-color:rgba(201,162,39,.14);}
+.home-card,.flat-item,.month-bar,.cal-list-item{border-color:rgba(201,162,39,.16);}
+.home-dash{gap:14px;}
+.month-bar{margin-bottom:20px;}
+.day-section{margin-top:10px;}
+/* Vista simple (Ajustes) */
+html[data-simple="1"] .heat-wrap,
+html[data-simple="1"] .horas-semanas,
+html[data-simple="1"] .horas-leyenda,
+html[data-simple="1"] .tiempo-list-det,
+html[data-simple="1"] .tiempo-small,
+html[data-simple="1"] .motivation-strip{display:none;}

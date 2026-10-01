@@ -59,7 +59,6 @@
       </div>
     </div>
     <div style="display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;">
-      <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
       <div class="global-search" id="globalSearchWrap">
         <input type="text" id="globalSearchInput" class="global-search-input" placeholder="🔎 Buscar un tema…" autocomplete="off" />
         <div class="global-search-results" id="globalSearchResults"></div>
@@ -71,7 +70,13 @@
       <div class="save-indicator" id="saveIndicator" role="status" aria-live="polite">
         <span class="dot" aria-hidden="true"></span><span id="saveIndicatorText">Sin cambios</span>
       </div>
-      <button type="button" class="btn ghost small" id="headerLogoutBtn" title="Cerrar sesión">Cerrar sesión</button>
+      <div class="header-more" id="headerMore">
+        <button type="button" class="icon-btn" id="headerMoreBtn" aria-haspopup="true" aria-expanded="false" aria-controls="headerMoreMenu" title="Más opciones" aria-label="Más opciones" style="font-size:16px;">⋯</button>
+        <div class="header-more-menu" id="headerMoreMenu" hidden>
+          <div class="plan-id">v3 · sincronizado en la nube (Firebase)</div>
+          <button type="button" class="btn ghost small" id="headerLogoutBtn" title="Cerrar sesión">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </header>
 
@@ -287,6 +292,7 @@
     <div class="empty-state" id="adminBox" style="display:none;text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="securityBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="themeBox" style="text-align:left;margin-bottom:18px;"></div>
+    <div class="empty-state" id="vistaSimpleBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="recuperarAjBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="dataSizeBox" style="text-align:left;margin-bottom:18px;"></div>
     <div class="empty-state" id="backupBox" style="text-align:left;margin-bottom:18px;"></div>

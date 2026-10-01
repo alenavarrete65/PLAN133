@@ -473,6 +473,7 @@ function normalizeState(){
   // Repaso de flojos: umbral de nota baja (% del máximo) y días sin repasar a partir de los cuales avisa.
   // Objetivo diario de horas de estudio (en minutos) para el calendario de tiempos.
   if(!(state.settings.objetivoMin > 0)) state.settings.objetivoMin = 360;
+  if(typeof state.settings.vistaSimple !== 'boolean') state.settings.vistaSimple = false;
   if(!(state.settings.flojosUmbral > 0)) state.settings.flojosUmbral = 60;
   if(!(state.settings.flojosDias > 0)) state.settings.flojosDias = 30;
   // Recuperar: máximo de temas que «Programar» apila en un mismo día de descanso.
@@ -2743,15 +2744,38 @@ function taskRow(tag, txt, tagClass, tickInfo){
    marcar las tareas y sus vueltas. Se abre en CUALQUIER día, también en los de descanso,
    trabajo o sin horario (antes solo se abría en los de estudio, y por eso no había manera
    de ponerles una nota). */
+// Secciones plegables: cada una se abre y se cierra pulsando su título. El estado se recuerda
+// (por nombre de sección) y, si no hay nada guardado, solo la primera de la ficha empieza abierta.
+var _secAbiertas = {};
+try{ _secAbiertas = JSON.parse(localStorage.getItem('diaSecAbiertas') || '{}') || {}; }catch(e){ _secAbiertas = {}; }
 function daySection(body, titulo){
   const sec = document.createElement('div'); sec.className='day-section';
   const t = document.createElement('div'); t.className='day-section-title';
+  t.setAttribute('role','button'); t.tabIndex = 0;
+  const chev = document.createElement('span'); chev.className='ds-chev'; chev.setAttribute('aria-hidden','true'); chev.textContent='▸';
+  t.appendChild(chev);
   t.appendChild(document.createTextNode(titulo));
+  const resumen = document.createElement('span'); resumen.className='ds-resumen'; t.appendChild(resumen);
   sec.appendChild(t);
-  const inner = document.createElement('div');
+  const inner = document.createElement('div'); inner.className='ds-body';
   sec.appendChild(inner);
+  const esPrimera = body.children.length === 0;
+  let abierta = (titulo in _secAbiertas) ? !!_secAbiertas[titulo] : esPrimera;
+  const aplicar = ()=>{
+    sec.classList.toggle('ds-cerrada', !abierta);
+    t.setAttribute('aria-expanded', abierta ? 'true' : 'false');
+  };
+  const alternar = (e)=>{
+    if(e && e.target && e.target.closest && e.target.closest('input,textarea,select,button,a')) return;
+    abierta = !abierta; _secAbiertas[titulo] = abierta;
+    try{ localStorage.setItem('diaSecAbiertas', JSON.stringify(_secAbiertas)); }catch(err){}
+    aplicar();
+  };
+  t.onclick = alternar;
+  t.onkeydown = (e)=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); alternar(e); } };
+  aplicar();
   body.appendChild(sec);
-  return {sec, title:t, body:inner};
+  return {sec, title:t, body:inner, setResumen:(txt)=>{ resumen.textContent = txt ? '· '+txt : ''; }};
 }
 // La ficha del día muestra solo lo que corresponde al calendario desde el que se abre:
 //  'estudio' → tareas del día (con el test de arrastre), recuperación y notas
@@ -2854,7 +2878,10 @@ function openDayModal(d, info, modo){
 
   /* ---------- 2. Clases de este día ---------- */
   if(verClases){
-    const {body:sb} = daySection(body, 'Clases de este día');
+    const {body:sb, setResumen:resClases} = daySection(body, 'Clases de este día');
+    { const ce = (state.claseCal[currentMonthKey]||{})[d] || {}; let nCl = 0;
+      ['conocimientos','ingles','psico','psicoExtra','orto','seminarios'].forEach(k=>{ if(Array.isArray(ce[k])) nCl += ce[k].length; });
+      resClases(nCl ? String(nCl) : 'ninguna'); }
     const host = document.createElement('div');
     sb.appendChild(host);
     renderDayClasesEditor(host, d, jsDow);
@@ -2972,7 +2999,8 @@ function openDayModal(d, info, modo){
 
   /* ---------- 4. Notas del día ---------- */
   if(verEstudio){
-    const {body:sb, title} = daySection(body, 'Notas del día');
+    const {body:sb, title, setResumen:resNotas} = daySection(body, 'Notas del día');
+    resNotas((state.notes[dayNoteKey(currentMonthKey, d)] || '').trim() ? 'con notas' : 'vacías');
     const flash = document.createElement('span'); flash.className='day-saved-flash'; flash.textContent='guardado';
     title.appendChild(flash);
     let flashTimer = null;
@@ -3662,23 +3690,18 @@ function aplicarModoFocoDia(){
     btn.setAttribute('aria-pressed', modoFocoDia ? 'true' : 'false');
     btn.textContent = modoFocoDia ? '🎯 Modo foco (activo)' : '🎯 Modo foco';
   }
+  // Las secciones ya son desplegables (ver daySection): el modo foco solo deja abierta la primera
+  // y cierra el resto; al desactivarlo no toca nada y cada sección conserva lo que tuviera.
   const secciones = document.querySelectorAll('#dayModalBody .day-section');
   secciones.forEach((sec, i)=>{
-    // Quita cualquier botón "Mostrar" que hubiera quedado de una apertura anterior.
+    sec.classList.remove('foco-colapsada');
     const existente = sec.querySelector('.day-section-foco-btn');
     if(existente) existente.remove();
-    if(!modoFocoDia || i===0){
-      sec.classList.remove('foco-colapsada');
-      return;
-    }
-    sec.classList.add('foco-colapsada');
-    const titleEl = sec.querySelector('.day-section-title');
-    if(titleEl){
-      const showBtn = document.createElement('button');
-      showBtn.type='button'; showBtn.className='day-section-foco-btn';
-      showBtn.textContent = 'Mostrar';
-      showBtn.onclick = (e)=>{ e.stopPropagation(); sec.classList.remove('foco-colapsada'); showBtn.remove(); };
-      titleEl.appendChild(showBtn);
+    if(modoFocoDia){
+      const cerrada = (i!==0);
+      sec.classList.toggle('ds-cerrada', cerrada);
+      const t = sec.querySelector('.day-section-title');
+      if(t) t.setAttribute('aria-expanded', cerrada ? 'false' : 'true');
     }
   });
 }
@@ -7630,7 +7653,8 @@ function tiempoResumenHTML(tm){
 }
 /* Sección «Tiempo del día» de la ficha: campos en minutos + resumen que se actualiza al teclear. */
 function buildTiempoSection(body, info, fechaISO){
-  const {body:tb} = daySection(body, '⏱ Tiempo del día');
+  const {body:tb, setResumen:resTiempo} = daySection(body, '⏱ Tiempo del día');
+  { const tm0 = computeTiempoDia(fechaISO, info); resTiempo(tm0.estudio ? fmtMin(tm0.estudio)+' de estudio' : 'sin tiempo apuntado'); }
   const resumen = document.createElement('div');
   const pintarResumen = ()=>{ resumen.innerHTML = tiempoResumenHTML(computeTiempoDia(fechaISO, info)); };
   const campo = (label, valor, placeholder, onSet)=>{
@@ -8071,6 +8095,70 @@ function celebrarObjetivoSiToca(){
     });
     if(navigator.vibrate) navigator.vibrate(30);
   }catch(e){ /* un fallo visual nunca debe romper nada */ }
+}
+
+/* ===================== INTERFAZ MÁS LIMPIA ===================== */
+// Menú «⋯» de la cabecera: sincronización y cerrar sesión (el buscador, el tema y el indicador de guardado siguen a la vista).
+(function iniciarMenuCabecera(){
+  const btn = document.getElementById('headerMoreBtn'), menu = document.getElementById('headerMoreMenu');
+  if(!btn || !menu) return;
+  const cerrar = ()=>{ menu.hidden = true; btn.setAttribute('aria-expanded','false'); };
+  btn.onclick = (e)=>{ e.stopPropagation(); const abrir = menu.hidden; menu.hidden = !abrir; btn.setAttribute('aria-expanded', abrir ? 'true' : 'false'); };
+  document.addEventListener('click', (e)=>{ if(!menu.hidden && !menu.contains(e.target) && e.target!==btn) cerrar(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !menu.hidden){ cerrar(); btn.focus(); } });
+})();
+// Pestañas en el ordenador: las principales a la vista y el resto bajo «Más ▾».
+(function iniciarMenuMasPestanas(){
+  const grupos = document.getElementById('tabsGroups');
+  if(!grupos || document.getElementById('tabsMore')) return;
+  const wrap = document.createElement('div'); wrap.className='tabs-more'; wrap.id='tabsMore';
+  const btn = document.createElement('button'); btn.type='button'; btn.className='tabs-more-btn'; btn.id='tabsMoreBtn';
+  btn.setAttribute('aria-haspopup','true'); btn.setAttribute('aria-expanded','false');
+  btn.innerHTML = 'Más <span class="chev">▾</span><span class="tabs-more-dot" id="tabsMoreDot" style="display:none;"></span>';
+  const panel = document.createElement('div'); panel.className='tabs-more-panel'; panel.id='tabsMorePanel'; panel.hidden = true;
+  ['entrenos','arrastre','recuperar','progreso','ajustes'].forEach(t=>{
+    const b = document.querySelector('.tab-btn[data-tab="'+t+'"]'); if(b) panel.appendChild(b);
+  });
+  wrap.appendChild(btn); wrap.appendChild(panel);
+  grupos.appendChild(wrap);
+  grupos.querySelectorAll('.tabs-group').forEach(g=>{ if(!g.querySelector('.tab-btn')) g.remove(); });
+  const cerrar = ()=>{ panel.hidden = true; btn.setAttribute('aria-expanded','false'); };
+  btn.onclick = (e)=>{ e.stopPropagation(); const abrir = panel.hidden; panel.hidden = !abrir; btn.setAttribute('aria-expanded', abrir ? 'true' : 'false'); };
+  panel.addEventListener('click', cerrar);
+  document.addEventListener('click', (e)=>{ if(!panel.hidden && !wrap.contains(e.target)) cerrar(); });
+  document.addEventListener('keydown', (e)=>{ if(e.key==='Escape' && !panel.hidden){ cerrar(); btn.focus(); } });
+  // Punto de aviso en «Más» si alguna pestaña escondida tiene un contador visible.
+  const actualizarPunto = ()=>{
+    const dot = document.getElementById('tabsMoreDot'); if(!dot) return;
+    const hay = Array.from(panel.querySelectorAll('span[id$="Badge"]')).some(sp=> sp.style.display!=='none' && sp.textContent.trim());
+    dot.style.display = hay ? '' : 'none';
+  };
+  new MutationObserver(actualizarPunto).observe(panel, {subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:['style']});
+  actualizarPunto();
+})();
+// «Más» se marca cuando la pestaña activa es una de las escondidas.
+function marcarMasActivo(tabName){
+  const b = document.getElementById('tabsMoreBtn'); if(!b) return;
+  b.classList.toggle('active', ['entrenos','arrastre','recuperar','progreso','ajustes'].includes(tabName));
+}
+// Vista simple (Ajustes): oculta lo secundario (mapa de calor, comparación de semanas, desgloses…).
+function aplicarVistaSimple(){
+  const on = !!(state && state.settings && state.settings.vistaSimple);
+  document.documentElement.setAttribute('data-simple', on ? '1' : '0');
+}
+function renderVistaSimpleBox(){
+  const box = document.getElementById('vistaSimpleBox'); if(!box) return;
+  aplicarVistaSimple();
+  box.innerHTML = '';
+  const h = document.createElement('h3'); h.textContent = 'Vista simple';
+  h.style.cssText='font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);font-size:15px;margin-bottom:8px;';
+  box.appendChild(h);
+  const lab = document.createElement('label'); lab.style.cssText='display:flex;align-items:flex-start;gap:10px;cursor:pointer;';
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = !!state.settings.vistaSimple;
+  cb.onchange = ()=>{ state.settings.vistaSimple = cb.checked; scheduleSave(); aplicarVistaSimple(); };
+  const sp = document.createElement('span');
+  sp.textContent = 'Mostrar solo lo esencial: oculta el mapa de calor, la comparación de semanas, el desglose de horas, el descanso en cada día y la frase motivadora. Puedes volver a la vista completa cuando quieras.';
+  lab.appendChild(cb); lab.appendChild(sp); box.appendChild(lab);
 }
 
 /* ===================== CALENDARIO "TODO INCLUIDO" =====================
@@ -10970,6 +11058,7 @@ function activateTab(tabName){
   btn.classList.add('active');
   { const vv = document.getElementById('view-'+tabName); vv.classList.add('active'); vv.classList.remove('view-enter'); void vv.offsetWidth; vv.classList.add('view-enter'); setTimeout(()=> vv.classList.remove('view-enter'), 320); }
   if(typeof actualizarBarraInferior==='function') actualizarBarraInferior(tabName);
+  if(typeof marcarMasActivo==='function') marcarMasActivo(tabName);
   if(tabsMobileTriggerLabelEl) tabsMobileTriggerLabelEl.textContent = btn.textContent;
   if(tabsNavEl) tabsNavEl.classList.remove('open');
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
@@ -11446,6 +11535,7 @@ function renderAll(){
   renderTiempoCalendar();
   aplicarContadores(document);
   renderBackupReminder();
+  renderVistaSimpleBox();
   renderCiclo();
   renderRitmo();
   renderFlojos();
