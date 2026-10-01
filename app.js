@@ -9642,7 +9642,23 @@ function renderProgreso(){
         return m ? Number(m[1]) : 999;
       };
       const bloqueNum = (label)=>{ const m = /^B(\d+)/.exec(label); return m ? Number(m[1]) : 999; };
-      const porTema = (items, colorVar)=>{
+      // Color de cada tema (azul/morado), sacado del temario: así «Tema 4» muestra de un vistazo
+      // si pertenece al grupo azul o al morado. Solo aplica a Bloques (los Leves no tienen color).
+      const coloresPorTema = {};
+      Object.keys(BLOCKS).forEach(b=>{
+        BLOCKS[b].temas.forEach(t=>{
+          if(!t.color) return;
+          const n = temaDe(t.clase||'');
+          (coloresPorTema[n] = coloresPorTema[n] || new Set()).add(t.color);
+        });
+      });
+      const pillColorTema = (t)=>{
+        const set = coloresPorTema[t];
+        if(!set || set.size !== 1) return ''; // sin color o mezclado: no se muestra nada
+        const c = Array.from(set)[0];
+        return '<span class=\"colorpill '+c+'\" style=\"margin-left:10px;\">'+c+'</span>';
+      };
+      const porTema = (items, colorVar, conColor)=>{
         const sorted = items.slice().sort((a,b)=>
           temaDe(a.label) - temaDe(b.label) ||
           bloqueNum(a.label) - bloqueNum(b.label) ||
@@ -9650,7 +9666,7 @@ function renderProgreso(){
         let actual = null;
         sorted.forEach(it=>{
           const t = temaDe(it.label);
-          if(t !== actual){ actual = t; addTemaHeader(t===999 ? 'Sin tema' : 'Tema '+t, colorVar); }
+          if(t !== actual){ actual = t; addTemaHeader((t===999 ? 'Sin tema' : 'Tema '+t)+(conColor ? pillColorTema(t) : ''), colorVar); }
           renderItemRow(it);
         });
       };
@@ -9659,8 +9675,8 @@ function renderProgreso(){
         const items = data.porGrupo[grupo];
         const graves = items.filter(it=> bloqueNum(it.label) <= 5);
         const menosGraves = items.filter(it=> bloqueNum(it.label) >= 6);
-        if(graves.length){ startSection('graves', 'Graves (bloques 1–5)', 'var(--red)', graves.length); porTema(graves, 'var(--red)'); }
-        if(menosGraves.length){ startSection('menosGraves', 'Menos graves (bloques 6–12)', 'var(--amber)', menosGraves.length); porTema(menosGraves, 'var(--amber)'); }
+        if(graves.length){ startSection('graves', 'Graves (bloques 1–5)', 'var(--red)', graves.length); porTema(graves, 'var(--red)', true); }
+        if(menosGraves.length){ startSection('menosGraves', 'Menos graves (bloques 6–12)', 'var(--amber)', menosGraves.length); porTema(menosGraves, 'var(--amber)', true); }
       } else if(grupo === 'Leves'){
         startSection('leves', 'Leves', 'var(--green)', data.porGrupo[grupo].length);
         porTema(data.porGrupo[grupo], 'var(--green)');
