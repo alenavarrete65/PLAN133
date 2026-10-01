@@ -27,7 +27,10 @@ rules_version = '2';
 //      administrador desde la app: esos campos solo los puede cambiar quien YA es admin. La
 //      única excepción es "emailVerificado": cada cuenta puede actualizar ÚNICAMENTE ese
 //      campo suyo (para que el administrador vea si ya confirmó su correo antes de
-//      aprobarla), sin poder tocar ningún otro campo del documento.
+//      aprobarla), sin poder tocar ningún otro campo del documento, y el valor que escriba
+//      tiene que coincidir con el estado real de Firebase Auth (request.auth.token.email_
+//      verified): no vale marcarlo como verificado sin estarlo de verdad, ni al crear la
+//      cuenta ni al actualizarla.
 //   5) La subcolección plannings/{uid}/history guarda copias automáticas diarias de tus
 //      datos; tiene exactamente las mismas restricciones que el documento principal (solo tu
 //      propia cuenta, o un administrador).
@@ -50,13 +53,19 @@ service cloud.firestore {
       allow read: if request.auth != null && (request.auth.uid == uid || esAdmin());
       allow create: if request.auth != null && request.auth.uid == uid
         && request.resource.data.aprobado == false
-        && request.resource.data.esAdmin == false;
+        && request.resource.data.esAdmin == false
+        // "emailVerificado" tiene que coincidir con el estado real de verificación que
+        // Firebase Auth pone en el propio token de sesión (request.auth.token.email_verified):
+        // así nadie puede crearse el perfil ya marcado como verificado sin estarlo de verdad.
+        && request.resource.data.emailVerificado == request.auth.token.email_verified;
       allow update: if esAdmin() || (
         request.auth != null && request.auth.uid == uid &&
         // Solo se permite tocar el campo "emailVerificado", y nada más (ni aprobado, ni
         // esAdmin, ni el email): así una cuenta no puede aprobarse ni ascenderse a sí misma
-        // aunque intente colar cambios junto con este campo.
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerificado'])
+        // aunque intente colar cambios junto con este campo. Además, el valor que se guarda
+        // tiene que coincidir con el estado real del token (no vale escribir cualquier cosa).
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['emailVerificado']) &&
+        request.resource.data.emailVerificado == request.auth.token.email_verified
       );
       allow delete: if esAdmin();
     }
