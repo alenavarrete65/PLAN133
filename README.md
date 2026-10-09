@@ -415,6 +415,31 @@ la fecha del examen oficial y la cuenta atrás se recalcula al momento. **«Volv
 restaura el 10 de julio de siempre. Se guarda en `state.settings.examDate` (`"YYYY-MM-DD"`, o
 `null` para usar la estimada), así que se sincroniza y entra en las copias de seguridad.
 
+## Pestaña «Editar temario» (cambiar bloques, leves, inglés y psicotécnicos)
+
+Desde esta pestaña (menú «Más» en el móvil) puedes **renombrar, mover, añadir y quitar** bloques
+(graves y menos graves), temas dentro de cada bloque, leves, temas de inglés y pruebas de
+psicotécnicos. La lógica del calendario no cambia: solo cambia el contenido.
+
+- Se trabaja sobre un **borrador**: nada cambia en la app hasta pulsar **Guardar cambios**
+  (o **Descartar**). **Restaurar temario original** carga en el borrador el temario de serie.
+- Se guarda en `state.temario` (se sincroniza y entra en las copias). Si no existe, se usa el de
+  serie. Al cargar los datos, `aplicarTemarioGuardado()` (llamada desde `normalizeState()`) lo
+  vuelca sobre las constantes de siempre (`BLOCKS`, `GRAVES_ORDER`, `MGRAVES_ORDER`, `LEVES`,
+  `INGLES_TOTAL`, `PSICO_ITEMS`), así que el resto de la app no cambia.
+- **Renombrar / cambiar clase o color** no mueve nada. **Añadir, quitar o mover** hace que el
+  calendario recalcule qué toca cada día (también en días pasados, porque la secuencia se calcula
+  encadenando desde el primer mes) y pide confirmación.
+- Las notas, vueltas, tiempos, arrastre manual y clases de cada tema **viajan con él** al moverlo
+  (`migrarDatosTemario()`: las claves llevan la posición, p. ej. `b3-2`, `leve-4`, `psico-7`).
+  Quitar un tema con datos los borra y exige escribir `BORRAR`.
+- Un bloque nuevo recibe el siguiente número libre (el número es su identificador). Inglés solo
+  se amplía o recorta por el final. Los «temas dobles» alternan entre dos nombres cada vuelta.
+- Se validan las listas (no pueden quedar vacías ni con nombres en blanco). Los caracteres
+  `< > " \`` se eliminan de los nombres.
+- Al añadir una vista que dependa del temario, no hay nada que registrar: leen las mismas constantes.
+- No incluye el catálogo `TEMARIO_GENERAL` (el de «Conocimientos» en Clases/Arrastre), que es aparte.
+
 ## Cómo funciona el guardado offline (resumen rápido)
 
 - Cada cambio se guarda primero en el propio dispositivo (`localStorage`), así que

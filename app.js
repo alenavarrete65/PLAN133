@@ -236,10 +236,241 @@ const LEVES = [
   {type:'l39_l40', l39:'(L39) 90-FINAL', l40:'(L40) D.FINAL 3', clase:'10.0'},
   {type:'l39_l40', l39:'(L39) PLAZOS', l40:'(L40) PACO CLASE ADM. GOBIERNO', clase:'10.0'},
 ];
-const INGLES_TOTAL = 32;
+let INGLES_TOTAL = 32;
 const PSICO_ITEMS = [];
 for(let i=1;i<=23;i++) PSICO_ITEMS.push('Prueba '+i);
 PSICO_ITEMS.push('CONTROL 1'); PSICO_ITEMS.push('CONTROL 2');
+/* ===================== TEMARIO EDITABLE (núcleo) =====================
+   Hasta ahora el temario (bloques, leves, inglés, psicotécnicos) estaba escrito a mano arriba del
+   todo. Ahora se puede editar desde la pestaña «Editar temario»: el resultado se guarda en
+   state.temario (se sincroniza y entra en las copias de seguridad como todo lo demás) y, al
+   cargar los datos, se vuelca sobre las MISMAS constantes de siempre (BLOCKS, GRAVES_ORDER,
+   MGRAVES_ORDER, LEVES, INGLES_TOTAL y PSICO_ITEMS). Así el resto de la app (calendario, clases,
+   arrastre, progreso…) sigue funcionando exactamente igual, sin enterarse de que cambió el origen.
+   Si una cuenta nunca ha tocado nada, state.temario no existe y se usa el temario de serie. */
+function _clonTemario(o){ return JSON.parse(JSON.stringify(o)); }
+// Quita los caracteres que podrían romper el HTML (los nombres se pintan con innerHTML en varios sitios).
+function _limpiaTxt(v){ return String(v == null ? '' : v).replace(/[<>"`]/g, '').replace(/\s+/g, ' ').trim(); }
+function _limpiarTema(t){
+  if(t && t.type === 'armas_explosivos'){
+    return {type:'armas_explosivos', armas:_limpiaTxt(t.armas), explosivos:_limpiaTxt(t.explosivos), clase:_limpiaTxt(t.clase), color:(t.color === 'morado' ? 'morado' : 'azul')};
+  }
+  return {nombre:_limpiaTxt(t && t.nombre), clase:_limpiaTxt(t && t.clase), color:(t && t.color === 'morado' ? 'morado' : 'azul')};
+}
+function _limpiarLeve(t){
+  if(t && t.type === 'l39_l40') return {type:'l39_l40', l39:_limpiaTxt(t.l39), l40:_limpiaTxt(t.l40), clase:_limpiaTxt(t.clase)};
+  return {nombre:_limpiaTxt(t && t.nombre), clase:_limpiaTxt(t && t.clase)};
+}
+// Forma «canónica» del temario (sin campos del editor, textos limpios, claves ordenadas): es la que
+// se guarda y la que se compara para saber si algo ha cambiado de verdad.
+function _canonTemario(raw){
+  const bl = {};
+  Object.keys(raw.bloques || {}).map(Number).sort((a,b)=>a-b).forEach(k=>{
+    bl[k] = {temas:(raw.bloques[k].temas || []).map(_limpiarTema)};
+  });
+  return {
+    bloques: bl,
+    gravesOrder: (raw.gravesOrder || []).map(Number),
+    mgravesOrder: (raw.mgravesOrder || []).map(Number),
+    leves: (raw.leves || []).map(_limpiarLeve),
+    inglesTotal: Number(raw.inglesTotal),
+    psico: (raw.psico || []).map(_limpiaTxt)
+  };
+}
+// Copia del temario «de serie», tal cual viene en el código: sirve para «Restaurar temario original»
+// y para las cuentas que nunca han tocado nada.
+const TEMARIO_DEFECTO = _canonTemario({bloques:BLOCKS, gravesOrder:GRAVES_ORDER, mgravesOrder:MGRAVES_ORDER, leves:LEVES, inglesTotal:INGLES_TOTAL, psico:PSICO_ITEMS});
+let _temarioSigAplicado = null;
+
+// [1,2,3,4,5,7] -> «1–5, 7»
+function rangoNums(arr){
+  const a = (arr || []).map(Number).filter(n=>!isNaN(n)).sort((x,y)=>x-y);
+  if(!a.length) return '—';
+  const partes = [];
+  let ini = a[0], prev = a[0];
+  for(let i=1;i<=a.length;i++){
+    if(i < a.length && a[i] === prev+1){ prev = a[i]; continue; }
+    partes.push(ini === prev ? String(ini) : ini+'–'+prev);
+    if(i < a.length){ ini = a[i]; prev = a[i]; }
+  }
+  return partes.join(', ');
+}
+
+// Devuelve {errores:[...], avisos:[...]}. Con errores NO se puede guardar ni aplicar: el calendario
+// divide entre el tamaño de cada lista, así que una lista vacía lo rompería todo.
+function validarTemario(t){
+  const errores = [], avisos = [];
+  if(!t || typeof t !== 'object') return {errores:['El temario está vacío.'], avisos};
+  const bl = t.bloques || {};
+  const G = (t.gravesOrder || []).map(Number), M = (t.mgravesOrder || []).map(Number);
+  if(!G.length) errores.push('Tiene que haber al menos un bloque grave.');
+  if(!M.length) errores.push('Tiene que haber al menos un bloque menos grave.');
+  const vistos = new Set();
+  G.concat(M).forEach(n=>{
+    if(vistos.has(n)) errores.push('El bloque '+n+' está repetido.');
+    vistos.add(n);
+    const b = bl[n];
+    if(!b || !Array.isArray(b.temas)){ errores.push('Al bloque '+n+' le falta su contenido.'); return; }
+    if(!b.temas.length){ errores.push('El bloque '+n+' no tiene ningún tema.'); return; }
+    let az = 0, mo = 0;
+    b.temas.forEach((x,i)=>{
+      if(x && x.type === 'armas_explosivos'){
+        if(!_limpiaTxt(x.armas) || !_limpiaTxt(x.explosivos)) errores.push('Bloque '+n+', tema '+(i+1)+': faltan los dos nombres del tema doble.');
+      } else if(!x || !_limpiaTxt(x.nombre)){
+        errores.push('Bloque '+n+', tema '+(i+1)+': falta el nombre.');
+      }
+      if(x && x.color === 'morado') mo++; else az++;
+    });
+    if(!az || !mo) avisos.push('Bloque '+n+': no tiene ningún tema '+(!az ? 'azul' : 'morado')+', así que esa visita saldrá vacía en el calendario.');
+  });
+  Object.keys(bl).forEach(k=>{ if(!vistos.has(Number(k))) errores.push('El bloque '+k+' no está ni en graves ni en menos graves.'); });
+  if(!Array.isArray(t.leves) || !t.leves.length) errores.push('Tiene que haber al menos un leve.');
+  else t.leves.forEach((x,i)=>{
+    if(x && x.type === 'l39_l40'){ if(!_limpiaTxt(x.l39) || !_limpiaTxt(x.l40)) errores.push('Leve '+(i+1)+': faltan los dos nombres del leve doble.'); }
+    else if(!x || !_limpiaTxt(x.nombre)) errores.push('Leve '+(i+1)+': falta el nombre.');
+  });
+  const ing = Number(t.inglesTotal);
+  if(!(Number.isInteger(ing) && ing >= 1 && ing <= 300)) errores.push('El número de temas de inglés tiene que estar entre 1 y 300.');
+  if(!Array.isArray(t.psico) || !t.psico.length) errores.push('Tiene que haber al menos una prueba de psicotécnicos.');
+  else t.psico.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Psicotécnicos '+(i+1)+': falta el nombre.'); });
+  return {errores, avisos};
+}
+
+// Vuelca un temario (ya validado y en forma canónica) sobre las constantes de siempre. Devuelve true si
+// ha cambiado algo. Se muta en el sitio (no se reasignan) porque el resto del código las usa por nombre.
+function aplicarTemario(t){
+  const src = t || TEMARIO_DEFECTO;
+  const sig = JSON.stringify(src);
+  if(sig === _temarioSigAplicado) return false;
+  const c = JSON.parse(sig);
+  const G = c.gravesOrder.map(Number), M = c.mgravesOrder.map(Number);
+  Object.keys(BLOCKS).forEach(k=>{ delete BLOCKS[k]; });
+  Object.keys(c.bloques).forEach(k=>{
+    BLOCKS[Number(k)] = {graves:G.includes(Number(k)), temas:c.bloques[k].temas};
+  });
+  GRAVES_ORDER.splice(0, GRAVES_ORDER.length, ...G);
+  MGRAVES_ORDER.splice(0, MGRAVES_ORDER.length, ...M);
+  LEVES.splice(0, LEVES.length, ...c.leves);
+  PSICO_ITEMS.splice(0, PSICO_ITEMS.length, ...c.psico);
+  INGLES_TOTAL = c.inglesTotal;
+  _temarioSigAplicado = sig;
+  try{ _catRecCache = null; }catch(e){}
+  try{ actualizarTextosTemario(); }catch(e){}
+  try{ invalidatePlan(); }catch(e){}
+  return true;
+}
+// Se llama desde normalizeState(): aplica state.temario si existe y es válido; si no, el de serie.
+function aplicarTemarioGuardado(){
+  let t = null;
+  if(state && state.temario){
+    const v = validarTemario(state.temario);
+    if(v.errores.length){ try{ console.warn('state.temario no es válido, se usa el temario de serie:', v.errores); }catch(e){} }
+    else t = _canonTemario(state.temario);
+  }
+  const cambio = aplicarTemario(t);
+  try{
+    if(cambio && _ed){
+      // El temario cambió por fuera del editor (otro dispositivo, copia importada…): un borrador a medias
+      // ya no se corresponde con lo que hay, así que se descarta para no estropear nada al guardarlo.
+      if(_ed.sucio) showToast('El temario se ha actualizado: se han descartado los cambios sin guardar del editor');
+      _ed.W = null; _ed.sucio = false;
+    }
+  }catch(e){}
+}
+// Textos de la app que mencionaban números fijos («17 leves», «bloques 1 a 5»…).
+function actualizarTextosTemario(){
+  const G = rangoNums(GRAVES_ORDER), M = rangoNums(MGRAVES_ORDER);
+  ARRASTRE_POOL_META.graves.title = 'Bloques graves ('+G+')';
+  ARRASTRE_POOL_META.graves.sub = 'Días impares · una vuelta = pasar una vez por los bloques '+G+' (azul y morado)';
+  ARRASTRE_POOL_META.mgraves.title = 'Bloques menos graves ('+M+')';
+  ARRASTRE_POOL_META.mgraves.sub = 'Días pares · una vuelta = pasar una vez por los bloques '+M+' (azul y morado)';
+  ARRASTRE_POOL_META.leves.sub = 'Una vuelta = pasar una vez por los '+LEVES.length+' leves del ciclo';
+  ARRASTRE_POOL_META.ingles.sub = 'Una vuelta = pasar una vez por los '+INGLES_TOTAL+' temas del ciclo';
+  ARRASTRE_POOL_META.psico.sub = 'Una vuelta = pasar una vez por las '+PSICO_ITEMS.length+' pruebas y controles';
+}
+
+/* ---- Migración de datos cuando cambian las posiciones ----
+   Las notas, vueltas y tiempos de cada tema se guardan con una clave que lleva su POSICIÓN dentro de
+   la lista (b3-2 = tema nº 3 del bloque 3, leve-4, psico-7…; inglés lleva su número). Si mueves o
+   borras un tema, esa posición cambia; sin este paso, las notas se quedarían en el hueco equivocado.
+   El mapa `m` lo construye el editor: para cada posición antigua dice cuál es la nueva (o null si se
+   ha borrado). Forma: {bloques:{num:{borrado?:true, temas:{viejo:nuevo|null}}}, leves:{…}, psico:{…}, inglesTotal} */
+function _remapClaveTemario(key, m){
+  let r;
+  if((r = /^b(\d+)-(\d+)(-armas|-explosivos)?$/.exec(key))){
+    const info = m.bloques[r[1]];
+    if(!info) return key;
+    if(info.borrado) return null;
+    const nu = info.temas[r[2]];
+    return (nu === undefined || nu === null) ? null : 'b'+r[1]+'-'+nu+(r[3] || '');
+  }
+  if((r = /^leve-(\d+)(-l39|-l40)?$/.exec(key))){
+    const nu = m.leves[r[1]];
+    return (nu === undefined || nu === null) ? null : 'leve-'+nu+(r[2] || '');
+  }
+  if((r = /^psico-(\d+)$/.exec(key))){
+    const nu = m.psico[r[1]];
+    return (nu === undefined || nu === null) ? null : 'psico-'+nu;
+  }
+  if((r = /^ingles-(\d+)$/.exec(key))) return Number(r[1]) <= m.inglesTotal ? key : null;
+  return key;
+}
+function _remapObjetoPorClave(obj, m){
+  const nuevo = {};
+  Object.keys(obj || {}).forEach(k=>{
+    const nk = _remapClaveTemario(k, m);
+    if(nk !== null) nuevo[nk] = obj[k];
+  });
+  return nuevo;
+}
+function migrarDatosTemario(m){
+  state.ticks = _remapObjetoPorClave(state.ticks, m);   // vueltas, notas de test, comentarios, «Recuperar»…
+  state.notes = _remapObjetoPorClave(state.notes, m);   // caja de notas de cada tema (las notas de día no encajan en el patrón y no se tocan)
+  if(state.tiempos && state.tiempos.temas) state.tiempos.temas = _remapObjetoPorClave(state.tiempos.temas, m);
+  // Temas añadidos a mano en Arrastre: solo los de leves/inglés/psico llevan posición.
+  if(state.arrastreManual) ['leves','ingles','psico'].forEach(pk=>{
+    if(!Array.isArray(state.arrastreManual[pk])) return;
+    state.arrastreManual[pk] = state.arrastreManual[pk].filter(it=>{
+      if(!it || typeof it.value !== 'string') return true;
+      const nk = _remapClaveTemario(it.value, m);
+      if(nk === null) return false;
+      it.value = nk;
+      return true;
+    });
+  });
+  // Calendario de clases: las clases de inglés guardan el número de lesson y las de psico su posición.
+  const mapPsico = (v)=>{
+    const nu = m.psico[Number(v)];
+    if(nu === undefined || nu === null) return undefined;
+    return typeof v === 'string' ? String(nu) : nu;
+  };
+  Object.keys(state.claseCal || {}).forEach(mk=>{
+    const mo = state.claseCal[mk] || {};
+    Object.keys(mo).forEach(d=>{
+      const e = mo[d]; if(!e) return;
+      if(Array.isArray(e.psico)) e.psico = e.psico.map(mapPsico).filter(v=> v !== undefined);
+      if(Array.isArray(e.ingles)) e.ingles = e.ingles.filter(v=> Number(v) <= m.inglesTotal);
+      if(Array.isArray(e.parciales)) e.parciales = e.parciales.map(s=>{
+        const r = /^(psico|ingles):(\d+)$/.exec(String(s));
+        if(!r) return s;
+        if(r[1] === 'ingles') return Number(r[2]) <= m.inglesTotal ? s : null;
+        const nu = mapPsico(r[2]);
+        return nu === undefined ? null : 'psico:'+nu;
+      }).filter(s=> s !== null);
+    });
+  });
+  // Tablón de clases pendientes: si el tema ya no existe, se queda como clase con texto libre.
+  (state.clasesPendientes || []).forEach(p=>{
+    if(!p || p.temaValue === null || p.temaValue === undefined) return;
+    if(p.materiaKey === 'psico'){
+      const nu = mapPsico(p.temaValue);
+      if(nu === undefined){ p.temaValue = null; p.useExtra = true; } else p.temaValue = nu;
+    } else if(p.materiaKey === 'ingles' && Number(p.temaValue) > m.inglesTotal){
+      p.temaValue = null; p.useExtra = true;
+    }
+  });
+}
+
 
 // Temario general "de Teoría" (el mismo que usas para elegir temas en los test), usado
 // SOLO como catálogo del desplegable "Añadir tema a mano" de Conocimientos en Arrastre —
@@ -614,6 +845,9 @@ function normalizeState(){
       return v ? {mode:'solo_lectura', nota:null} : {mode:'pendiente', nota:null};
     });
   });
+  // Temario editable: si la cuenta tiene un temario propio guardado, se aplica aquí (o se vuelve
+  // al de serie si no lo tiene). Va antes de descartar la caché del plan porque lo cambia todo.
+  try{ aplicarTemarioGuardado(); }catch(e){ try{ console.error('No se pudo aplicar el temario guardado', e); }catch(_){} }
   // El estado (posiblemente) ha cambiado por completo: descartamos la caché de computePlan().
   invalidatePlan();
 }
@@ -1147,6 +1381,7 @@ const DATOS_AVISO = 0.75;                                  // a partir de aquí 
 function bytesUtf8(str){ return new TextEncoder().encode(str).length; }
 function fmtKB(bytes){ return (bytes/1024).toFixed(bytes < 10*1024 ? 1 : 0).replace('.', ',') + ' KB'; }
 const NOMBRES_SECCION = {
+  temario:'Temario personalizado',
   months:'Calendario (meses y estados de día)', dayTicks:'Días marcados «NO completado»', notes:'Notas de cada tema',
   ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
   clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
@@ -1747,7 +1982,7 @@ function invalidatePlan(fromKey){
 }
 function freshPlanCarry(){
   const blockTurn = {}, azulCount = {};
-  for(let b=1;b<=12;b++){ blockTurn[b]=0; azulCount[b]=0; }
+  Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
   return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, blockTurn, azulCount, leveAppear};
@@ -4681,7 +4916,7 @@ function temaNumFromClase(clase){
   return m ? 'TEMA '+m[1] : '';
 }
 function renderLeves(){
-  renderFlatSection('levesHost', 'leves', 'Leves (ciclo 1–17)', 'Leves', (grid)=>{
+  renderFlatSection('levesHost', 'leves', 'Leves (ciclo 1–'+LEVES.length+')', 'Leves', (grid)=>{
     LEVES.forEach((t,idx)=>{
       if(t.type==='l39_l40'){
         [['l39', t.l39], ['l40', t.l40]].forEach(([sub,label])=>{
@@ -4698,7 +4933,7 @@ function renderLeves(){
   });
 }
 function renderIngles(){
-  renderFlatSection('inglesHost', 'ingles', 'Inglés (ciclo 1–32) · notas sobre 20', 'Inglés', (grid)=>{
+  renderFlatSection('inglesHost', 'ingles', 'Inglés (ciclo 1–'+INGLES_TOTAL+') · notas sobre 20', 'Inglés', (grid)=>{
     for(let i=1;i<=INGLES_TOTAL;i++){
       const key = 'ingles-'+i;
       grid.appendChild(buildFlatItem(key, 'Inglés', 'Tema '+i, `<span class="fi-name">Tema ${i}</span>`));
@@ -4706,7 +4941,7 @@ function renderIngles(){
   });
 }
 function renderPsico(){
-  renderFlatSection('psicoHost', 'psico', 'Psicotécnicos (ciclo 1–23 + controles) · notas sobre 30', 'Psicotécnicos', (grid)=>{
+  renderFlatSection('psicoHost', 'psico', 'Psicotécnicos (ciclo de '+PSICO_ITEMS.length+') · notas sobre 30', 'Psicotécnicos', (grid)=>{
     PSICO_ITEMS.forEach((name,idx)=>{
       const key = 'psico-'+idx;
       grid.appendChild(buildFlatItem(key, 'Psicotécnicos', name, `<span class="fi-name">${name}</span>`));
@@ -4781,12 +5016,12 @@ function renderOrto(){
 // usa el resto de la app para avanzar el planning: si no lo has marcado como NO completado, se
 // da por hecho.
 const ARRASTRE_POOL_META = {
-  graves:  {shortTitle:'Graves',        title:'Bloques graves (1–5)',         sub:'Días impares · una vuelta = pasar una vez por los bloques 1 a 5 (azul y morado)'},
-  mgraves: {shortTitle:'Menos graves',  title:'Bloques menos graves (6–12)',  sub:'Días pares · una vuelta = pasar una vez por los bloques 6 a 12 (azul y morado)'},
-  leves:   {shortTitle:'Leves',         title:'Leves',                         sub:'Una vuelta = pasar una vez por los 17 leves del ciclo'},
-  ingles:  {shortTitle:'Inglés',        title:'Inglés',                        sub:'Una vuelta = pasar una vez por los 32 temas del ciclo'},
-  psico:   {shortTitle:'Psicotécnicos', title:'Psicotécnicos',                 sub:'Una vuelta = pasar una vez por las 23 pruebas + los 2 controles'}
-};
+  graves:  {shortTitle:'Graves',        title:'Bloques graves',         sub:''},
+  mgraves: {shortTitle:'Menos graves',  title:'Bloques menos graves',  sub:''},
+  leves:   {shortTitle:'Leves',         title:'Leves',                         sub:''},
+  ingles:  {shortTitle:'Inglés',        title:'Inglés',                        sub:''},
+  psico:   {shortTitle:'Psicotécnicos', title:'Psicotécnicos',                 sub:''}
+}; // title/sub se ponen según el temario actual en actualizarTextosTemario()
 // Etiqueta visual (mismos colores que ya usa el Calendario) para distinguir de un vistazo
 // grave/menos grave/leve cuando van mezclados dentro de "Conocimientos".
 const ARRASTRE_POOL_TAG = {
@@ -5528,11 +5763,11 @@ function renderClasesConocimientos(){
 function renderClasesIngles(){
   const items = [];
   for(let i=1;i<=INGLES_TOTAL;i++) items.push({id:String(i), label:'Lesson '+i});
-  renderClasesSeccionInfo('clasesInglesHost', 'clasesIngles', 'Clase de inglés (lesson 1–32)', 'ingles', items);
+  renderClasesSeccionInfo('clasesInglesHost', 'clasesIngles', 'Clase de inglés (lesson 1–'+INGLES_TOTAL+')', 'ingles', items);
 }
 function renderClasesPsico(){
   const items = PSICO_ITEMS.map((name, idx)=> ({id:String(idx), label:name}));
-  renderClasesSeccionInfo('clasesPsicoHost', 'clasesPsico', 'Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'psico', items);
+  renderClasesSeccionInfo('clasesPsicoHost', 'clasesPsico', 'Clase de psicotécnicos ('+PSICO_ITEMS.length+' pruebas y controles)', 'psico', items);
 }
 /* Ortografía y gramática no tienen temas numerados: cada clase es una entrada suelta con
    su propio nombre. Aquí se listan, agrupadas por nombre, todas las que haya registradas
@@ -6944,10 +7179,10 @@ function renderClaseDayEdit(entry, d, jsDow){
   body.appendChild(buildMultiRow('Clase de conocimientos (temas 1–23)', 'tema de conocimientos', 'conocimientos', conOptions, null, 'Conocimientos', 'conocimientos'));
 
   const ingOptions = []; for(let i=1;i<=INGLES_TOTAL;i++) ingOptions.push({value:i, label:'Lesson '+i});
-  body.appendChild(buildMultiRow('Clase de inglés (lesson 1–32)', 'lesson de inglés', 'ingles', ingOptions, null, 'Inglés', 'ingles'));
+  body.appendChild(buildMultiRow('Clase de inglés (lesson 1–'+INGLES_TOTAL+')', 'lesson de inglés', 'ingles', ingOptions, null, 'Inglés', 'ingles'));
 
   const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
-  body.appendChild(buildMultiRow('Clase de psicotécnicos (prueba 1–23 + control 1 y 2)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
+  body.appendChild(buildMultiRow('Clase de psicotécnicos ('+PSICO_ITEMS.length+' pruebas y controles)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
   body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)', 'Psicotécnicos', 'psico'));
 
   body.appendChild(buildNamedListRow('Clase de ortografía y gramática', 'orto', 'Nombre de la clase (opcional)', 'Ortografía y gramática', 'orto'));
@@ -8051,7 +8286,7 @@ function renderBackupReminder(){
 // (las secciones principales + «Más»). Los selectores de calendario también van fijos abajo
 // (los gestiona el CSS). Todo reutiliza activateTab, así que no cambia ningún comportamiento.
 const BARRA_PRINCIPAL = [['calendario','📅','Calendario'], ['clases','🏫','Clases'], ['temario','📖','Temario'], ['simulacros','📝','Simulacros']];
-const BARRA_MAS = [['entrenos','💪','Entrenos'], ['arrastre','📋','Arrastre'], ['recuperar','🔁','Recuperar'], ['progreso','📊','Progreso'], ['ajustes','⚙️','Ajustes']];
+const BARRA_MAS = [['editar','✏️','Editar temario'], ['entrenos','💪','Entrenos'], ['arrastre','📋','Arrastre'], ['recuperar','🔁','Recuperar'], ['progreso','📊','Progreso'], ['ajustes','⚙️','Ajustes']];
 function crearBarraInferior(){
   if(document.getElementById('bottomNav')) return;
   const bar = document.createElement('nav'); bar.id='bottomNav'; bar.className='bottom-nav'; bar.setAttribute('aria-label','Navegación principal');
@@ -8135,7 +8370,7 @@ function celebrarObjetivoSiToca(){
 })();
 // Pestañas en el ordenador: solo se ve la sección actual, grande y centrada, y un botón ☰ al lado
 // abre un desplegable con todas para elegir. Reutiliza los botones de siempre (activateTab).
-const ETIQUETAS_PESTANA = {calendario:['📅','Calendario'], clases:['🏫','Clases'], temario:['📖','Temario y notas'], simulacros:['📝','Simulacros'],
+const ETIQUETAS_PESTANA = {calendario:['📅','Calendario'], clases:['🏫','Clases'], temario:['📖','Temario y notas'], simulacros:['📝','Simulacros'], editar:['✏️','Editar temario'],
   entrenos:['💪','Entrenos'], arrastre:['📋','Arrastre'], recuperar:['🔁','Recuperar'], progreso:['📊','Progreso'], ajustes:['⚙️','Ajustes']};
 function actualizarTituloPestana(tabName){
   const t = document.getElementById('tabsCurrent'); if(!t) return;
@@ -9712,10 +9947,10 @@ function renderProgreso(){
 
       if(grupo === 'Bloques'){
         const items = data.porGrupo[grupo];
-        const graves = items.filter(it=> bloqueNum(it.label) <= 5);
-        const menosGraves = items.filter(it=> bloqueNum(it.label) >= 6);
-        if(graves.length){ startSection('graves', 'Graves (bloques 1–5)', 'var(--red)', graves.length); porTema(graves, 'var(--red)', true); }
-        if(menosGraves.length){ startSection('menosGraves', 'Menos graves (bloques 6–12)', 'var(--amber)', menosGraves.length); porTema(menosGraves, 'var(--amber)', true); }
+        const graves = items.filter(it=> GRAVES_ORDER.includes(bloqueNum(it.label)));
+        const menosGraves = items.filter(it=> !GRAVES_ORDER.includes(bloqueNum(it.label)));
+        if(graves.length){ startSection('graves', 'Graves (bloques '+rangoNums(GRAVES_ORDER)+')', 'var(--red)', graves.length); porTema(graves, 'var(--red)', true); }
+        if(menosGraves.length){ startSection('menosGraves', 'Menos graves (bloques '+rangoNums(MGRAVES_ORDER)+')', 'var(--amber)', menosGraves.length); porTema(menosGraves, 'var(--amber)', true); }
       } else if(grupo === 'Leves'){
         startSection('leves', 'Leves', 'var(--green)', data.porGrupo[grupo].length);
         porTema(data.porGrupo[grupo], 'var(--green)');
@@ -10870,10 +11105,10 @@ function renderCiclo(){
 
   /* ---------- BLOQUES ---------- */
   appendAccordionSection(host, 'bloques', cicloOpen, 'Vuelta completa por bloque', (body)=>{
-    body.appendChild(cicloIntro('Una "vuelta completa" no es ver los dos colores de este bloque en concreto, sino dar la vuelta a toda su familia de bloques (graves 1-5 o menos graves 6-12): empezando en este bloque en azul, pasando por el resto de la familia en azul, luego toda la familia en morado, hasta volver a tocar este mismo bloque otra vez en azul. En cada línea ves el día exacto en que terminaste esa vuelta (el último día que diste ese bloque en ese color antes de pasar al siguiente; si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días que pasaron desde la vuelta anterior. Las fechas en cursiva todavía no han llegado: son previstas según tu calendario real (con tus descansos y días de trabajo ya metidos). Debajo se muestra, por separado y por color, lo mismo para cada color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
+    body.appendChild(cicloIntro('Una "vuelta completa" no es ver los dos colores de este bloque en concreto, sino dar la vuelta a toda su familia de bloques (graves o menos graves): empezando en este bloque en azul, pasando por el resto de la familia en azul, luego toda la familia en morado, hasta volver a tocar este mismo bloque otra vez en azul. En cada línea ves el día exacto en que terminaste esa vuelta (el último día que diste ese bloque en ese color antes de pasar al siguiente; si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días que pasaron desde la vuelta anterior. Las fechas en cursiva todavía no han llegado: son previstas según tu calendario real (con tus descansos y días de trabajo ya metidos). Debajo se muestra, por separado y por color, lo mismo para cada color de ese bloque (p.ej. bloque 7 azul → próxima vez bloque 7 azul).'));
 
     const blockAppearances = {};
-    for(let b=1;b<=12;b++) blockAppearances[b]=[];
+    Object.keys(BLOCKS).forEach(b=>{ blockAppearances[b]=[]; });
     studyDays.forEach(({dateMs,e})=>{
       const arr = blockAppearances[e.bloque];
       // Colapsamos días consecutivos con el mismo color (repetidos por no completarse):
@@ -10886,7 +11121,7 @@ function renderCiclo(){
       }
     });
     // Una VUELTA COMPLETA no es "ver los dos colores de este bloque": es dar la vuelta a
-    // toda la familia de bloques (graves 1-5 o menos graves 6-12) — empezando en este bloque
+    // toda la familia de bloques (graves o menos graves) — empezando en este bloque
     // en azul, pasando por el resto de la familia en azul, luego toda la familia en morado,
     // hasta volver a tocar ESTE MISMO bloque otra vez en azul. Eso equivale exactamente a
     // medir de "azul" a "siguiente azul" de este bloque (el mismo cálculo que ya hace el
@@ -11007,7 +11242,7 @@ function renderCiclo(){
 
   /* ---------- INGLÉS ---------- */
   appendAccordionSection(host, 'ingles', cicloOpen, 'Vuelta completa por tema de Inglés', (body)=>{
-    body.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de 32). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
+    body.appendChild(cicloIntro('Igual que con los leves: el inglés entra cada día de estudio, así que la vuelta mide cuánto tarda en volver a tocar exactamente el mismo tema (ciclo de '+INGLES_TOTAL+'). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
     let lastInglesNum = null;
@@ -11040,7 +11275,7 @@ function renderCiclo(){
 
   /* ---------- PSICOTÉCNICOS ---------- */
   appendAccordionSection(host, 'psico', cicloOpen, 'Vuelta completa por psicotécnico', (body)=>{
-    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de 23 pruebas + 2 controles). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
+    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de '+PSICO_ITEMS.length+' pruebas y controles). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const psicoAppearances = PSICO_ITEMS.map(()=>[]);
     let lastPsicoIdx = null;
@@ -11134,6 +11369,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   const keepPin = state.settings ? state.settings.pinHash : null;
   state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
   currentMonthKey = null;
+  try{ aplicarTemario(null); _ed.W = null; _ed.sucio = false; }catch(e){}
   invalidatePlan();
   scheduleSave();
   renderAll();
@@ -11157,6 +11393,7 @@ function activateTab(tabName){
   if(tabsNavEl) tabsNavEl.classList.remove('open');
   // Progreso solo se pintaba al cargar la app, así que las notas nuevas no aparecían hasta recargar.
   // Lo repintamos cada vez que se entra en la pestaña (ya visible, así los gráficos toman bien el ancho).
+  if(tabName === 'editar' && typeof renderEditorTemario === 'function'){ renderEditorTemario(); }
   if(tabName === 'progreso' && typeof renderProgreso === 'function'){ renderProgreso(); if(typeof renderRitmo === 'function') renderRitmo(); if(typeof renderFlojos === 'function') renderFlojos(); }
   else if(typeof alEntrarEnPestana === 'function') alEntrarEnPestana(tabName);
 }
@@ -11593,6 +11830,451 @@ document.getElementById('exportSimCalImageBtn').addEventListener('click', export
 document.getElementById('exportSimCalPdfBtn').addEventListener('click', exportarSimCalendarioComoPDF);
 document.getElementById('exportSimCalIcsBtn').addEventListener('click', exportarCalendarioSimulacrosICS);
 
+
+/* ===================== PESTAÑA «EDITAR TEMARIO» =====================
+   Trabaja siempre sobre un BORRADOR (_ed.W): nada cambia en la app hasta pulsar «Guardar cambios».
+   Cada elemento del borrador lleva `_o` = su posición ANTIGUA (null si es nuevo). Al guardar, con
+   esas posiciones se construye el mapa que usa migrarDatosTemario() para que las notas y vueltas
+   viajen con cada tema aunque lo muevas o borres otros. */
+const _ed = {W:null, sucio:false, abiertos:new Set(), errores:[], avisos:[]};
+
+function _e(tag, cls, txt){ const x = document.createElement(tag); if(cls) x.className = cls; if(txt !== undefined && txt !== null) x.textContent = txt; return x; }
+
+/* ---------- Borrador ---------- */
+function edDesdeActual(){
+  const W = {
+    bloques:{}, gravesOrder:GRAVES_ORDER.slice(), mgravesOrder:MGRAVES_ORDER.slice(),
+    leves:LEVES.map((t,i)=> Object.assign(_clonTemario(t), {_o:i})),
+    inglesTotal:INGLES_TOTAL,
+    psico:PSICO_ITEMS.map((n,i)=> ({nombre:n, _o:i})),
+    _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
+  };
+  Object.keys(BLOCKS).forEach(k=>{
+    W.bloques[k] = {temas:BLOCKS[k].temas.map((t,i)=> Object.assign(_clonTemario(t), {_o:i}))};
+  });
+  return W;
+}
+function edW(){ if(!_ed.W) _ed.W = edDesdeActual(); return _ed.W; }
+// Borrador → temario en forma canónica (sin campos del editor).
+function edATemario(W){
+  const bl = {};
+  W.gravesOrder.concat(W.mgravesOrder).forEach(n=>{ if(W.bloques[n]) bl[n] = {temas:W.bloques[n].temas}; });
+  return _canonTemario({bloques:bl, gravesOrder:W.gravesOrder, mgravesOrder:W.mgravesOrder, leves:W.leves, inglesTotal:W.inglesTotal, psico:W.psico.map(p=>p.nombre)});
+}
+// Mapa «posición antigua → posición nueva» para migrarDatosTemario().
+function edMapa(W){
+  const m = {bloques:{}, leves:{}, psico:{}, inglesTotal:W.inglesTotal};
+  W._numsOriginales.forEach(num=>{
+    const enFamilia = W.gravesOrder.includes(num) || W.mgravesOrder.includes(num);
+    const b = W.bloques[num];
+    if(!b || !enFamilia){ m.bloques[num] = {borrado:true}; return; }
+    const temas = {};
+    for(let i=0;i<BLOCKS[num].temas.length;i++) temas[i] = null;
+    b.temas.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) temas[t._o] = nuevo; });
+    m.bloques[num] = {temas};
+  });
+  LEVES.forEach((_,i)=>{ m.leves[i] = null; });
+  W.leves.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.leves[t._o] = nuevo; });
+  PSICO_ITEMS.forEach((_,i)=>{ m.psico[i] = null; });
+  W.psico.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.psico[t._o] = nuevo; });
+  return m;
+}
+// ¿Cambia el ORDEN o el TAMAÑO de algo? (añadir, quitar o mover). Renombrar o cambiar de color no cuenta.
+function edFirmaEstructura(W){
+  const nums = W.gravesOrder.concat(W.mgravesOrder).slice().sort((a,b)=>a-b);
+  return JSON.stringify({g:W.gravesOrder, m:W.mgravesOrder,
+    b:nums.map(n=>[n, W.bloques[n] ? W.bloques[n].temas.map(t=>t._o) : null]),
+    l:W.leves.map(t=>t._o), p:W.psico.map(t=>t._o), i:W.inglesTotal});
+}
+function edHayReflujo(W){ return edFirmaEstructura(W) !== edFirmaEstructura(edDesdeActual()); }
+function _vueltaConContenido(v){
+  return !!(v && typeof v === 'object' && ((v.mode && v.mode !== 'pendiente') || (v.nota !== null && v.nota !== undefined) || v.comentario ||
+    (v.extras && v.extras.length) || (v.notasExtra && v.notasExtra.length) || v.textos || v.fecha));
+}
+// Cuántos temas con notas/vueltas guardadas se perderían con este mapa.
+function edDatosEnRiesgo(m){
+  let n = 0;
+  Object.keys(state.ticks || {}).forEach(k=>{
+    if(_remapClaveTemario(k, m) === null && (state.ticks[k] || []).some(_vueltaConContenido)) n++;
+  });
+  Object.keys(state.notes || {}).forEach(k=>{
+    if(_remapClaveTemario(k, m) === null && String(state.notes[k] || '').trim() !== '' && !(state.ticks && state.ticks[k])) n++;
+  });
+  return n;
+}
+function edResumen(W){
+  const L = [];
+  const orig = W._numsOriginales;
+  const vivos = W.gravesOrder.concat(W.mgravesOrder);
+  const bNuevos = vivos.filter(n=> !orig.includes(n)).length;
+  const bBorrados = orig.filter(n=> !vivos.includes(n)).length;
+  let tNuevos = 0, tBorrados = 0, movidos = 0;
+  vivos.forEach(n=>{
+    const b = W.bloques[n]; if(!b) return;
+    if(!orig.includes(n)) return;
+    tNuevos += b.temas.filter(t=> t._o === null || t._o === undefined).length;
+    tBorrados += BLOCKS[n].temas.length - b.temas.filter(t=> t._o !== null && t._o !== undefined).length;
+    b.temas.forEach((t,i)=>{ if(t._o !== null && t._o !== undefined && t._o !== i) movidos++; });
+  });
+  const lNuevos = W.leves.filter(t=> t._o === null || t._o === undefined).length;
+  const lBorrados = LEVES.length - (W.leves.length - lNuevos);
+  const pNuevos = W.psico.filter(t=> t._o === null || t._o === undefined).length;
+  const pBorrados = PSICO_ITEMS.length - (W.psico.length - pNuevos);
+  const par = (nombre, a, b)=>{ if(a || b) L.push(nombre+': '+(a ? '+'+a : '')+(a && b ? ' ' : '')+(b ? '−'+b : '')); };
+  par('bloques', bNuevos, bBorrados); par('temas', tNuevos, tBorrados); par('leves', lNuevos, lBorrados); par('psicotécnicos', pNuevos, pBorrados);
+  if(W.inglesTotal !== INGLES_TOTAL) L.push('inglés: '+INGLES_TOTAL+' → '+W.inglesTotal);
+  const reord = movidos + W.leves.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length + W.psico.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length;
+  if(reord) L.push(reord+' cambiados de sitio');
+  return L;
+}
+
+/* ---------- Utilidades de interfaz ---------- */
+function edMarcarSucio(){ _ed.sucio = true; edActualizarBarra(); }
+function edRepintar(){
+  const y = window.scrollY;
+  renderEditorTemario();
+  window.scrollTo(0, y);
+}
+function edCambio(){ edMarcarSucio(); edRepintar(); }  // cambio estructural: se vuelve a pintar la lista
+function _edInput(valor, ph, onChange, cls){
+  const i = _e('input', 'ed-input'+(cls ? ' '+cls : ''));
+  i.type = 'text'; i.value = valor || ''; i.placeholder = ph; i.maxLength = 120;
+  i.setAttribute('aria-label', ph);
+  i.oninput = ()=>{ onChange(i.value); edMarcarSucio(); };
+  return i;
+}
+function _edBtn(txt, titulo, fn, cls, desactivado){
+  const b = _e('button', 'ed-mini'+(cls ? ' '+cls : ''), txt);
+  b.type = 'button'; b.title = titulo; b.setAttribute('aria-label', titulo);
+  if(desactivado) b.disabled = true;
+  b.onclick = (ev)=>{ ev.preventDefault(); ev.stopPropagation(); fn(); };
+  return b;
+}
+function _edMover(arr, i, d){
+  const j = i + d;
+  if(j < 0 || j >= arr.length) return false;
+  const t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+  return true;
+}
+function _edAcciones(arr, i){
+  const box = _e('div', 'ed-acciones');
+  box.appendChild(_edBtn('↑', 'Subir', ()=>{ if(_edMover(arr, i, -1)) edCambio(); }, '', i === 0));
+  box.appendChild(_edBtn('↓', 'Bajar', ()=>{ if(_edMover(arr, i, 1)) edCambio(); }, '', i === arr.length-1));
+  box.appendChild(_edBtn('🗑', 'Quitar', ()=>{ arr.splice(i, 1); edCambio(); }, 'ed-quitar'));
+  return box;
+}
+function _edColorSelect(t, row){
+  const s = _e('select', 'ed-select');
+  s.setAttribute('aria-label', 'Color (qué visita lo trae)');
+  s.add(new Option('Azul', 'azul')); s.add(new Option('Morado', 'morado'));
+  s.value = t.color === 'morado' ? 'morado' : 'azul';
+  s.onchange = ()=>{ t.color = s.value; row.className = 'ed-row ed-'+t.color; edMarcarSucio(); };
+  return s;
+}
+
+/* ---------- Secciones ---------- */
+function edFilaTema(temas, i){
+  const t = temas[i];
+  const row = _e('div', 'ed-row ed-'+(t.color === 'morado' ? 'morado' : 'azul'));
+  const campos = _e('div', 'ed-campos');
+  if(t.type === 'armas_explosivos'){
+    campos.appendChild(_edInput(t.armas, 'Sale la 1ª vez (p. ej. ARMAS)', v=>{ t.armas = v; }));
+    campos.appendChild(_edInput(t.explosivos, 'Sale la 2ª vez (p. ej. EXPLOSIVOS)', v=>{ t.explosivos = v; }));
+  } else {
+    campos.appendChild(_edInput(t.nombre, 'Nombre del tema', v=>{ t.nombre = v; }));
+  }
+  campos.appendChild(_edInput(t.clase, 'Clase (opcional)', v=>{ t.clase = v; }, 'ed-clase'));
+  campos.appendChild(_edColorSelect(t, row));
+  row.appendChild(campos);
+  if(t.type === 'armas_explosivos') row.appendChild(_e('div', 'ed-nota', '↔ Tema doble: alterna entre los dos nombres cada vez que le toca.'));
+  row.appendChild(_edAcciones(temas, i));
+  return row;
+}
+function edNuevoNumBloque(W){
+  return Math.max(0, ...Object.keys(W.bloques).map(Number), ...W._numsOriginales) + 1;
+}
+function edTarjetaBloque(num, pos, orden, otra, esGrave){
+  const W = edW();
+  const b = W.bloques[num];
+  const card = _e('div', 'block-card ed-block');
+  const head = _e('div', 'block-head');
+  const title = _e('div', 'block-title');
+  title.appendChild(_e('div', 'block-num'+(esGrave ? '' : ' mg'), String(num)));
+  const info = _e('div');
+  info.appendChild(_e('h4', '', 'Bloque '+num));
+  info.appendChild(_e('div', 'kind', b.temas.length+' tema'+(b.temas.length === 1 ? '' : 's')+' · posición '+(pos+1)+' de '+orden.length));
+  title.appendChild(info);
+  head.appendChild(title);
+  const chev = _e('div', 'chev', _ed.abiertos.has(num) ? '▴' : '▾');
+  head.appendChild(chev);
+  head.setAttribute('role', 'button'); head.setAttribute('tabindex', '0');
+  head.setAttribute('aria-expanded', _ed.abiertos.has(num) ? 'true' : 'false');
+  const body = _e('div', 'block-body'+(_ed.abiertos.has(num) ? ' open' : ''));
+  head.onclick = ()=>{
+    const abierto = body.classList.toggle('open');
+    chev.textContent = abierto ? '▴' : '▾';
+    head.setAttribute('aria-expanded', abierto ? 'true' : 'false');
+    if(abierto) _ed.abiertos.add(num); else _ed.abiertos.delete(num);
+  };
+  head.onkeydown = (ev)=>{ if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); head.onclick(); } };
+
+  const barra = _e('div', 'ed-toolbar');
+  const tb = (txt, tit, fn, cls, dis)=>{ const x = _e('button', 'ed-tb'+(cls ? ' '+cls : ''), txt); x.type = 'button'; x.title = tit; if(dis) x.disabled = true; x.onclick = fn; barra.appendChild(x); };
+  tb('↑ Subir bloque', 'Sube el bloque en el orden de la familia', ()=>{ if(_edMover(orden, pos, -1)) edCambio(); }, '', pos === 0);
+  tb('↓ Bajar bloque', 'Baja el bloque en el orden de la familia', ()=>{ if(_edMover(orden, pos, 1)) edCambio(); }, '', pos === orden.length-1);
+  tb(esGrave ? '⇄ Pasar a menos graves' : '⇄ Pasar a graves', 'Cambia el bloque de familia', ()=>{ orden.splice(pos, 1); otra.push(num); edCambio(); });
+  tb('🗑 Eliminar bloque', 'Elimina el bloque entero', ()=>{ orden.splice(pos, 1); delete W.bloques[num]; _ed.abiertos.delete(num); edCambio(); }, 'ed-quitar');
+  body.appendChild(barra);
+
+  b.temas.forEach((_, i)=> body.appendChild(edFilaTema(b.temas, i)));
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small ghost', '➕ Añadir tema'); a1.type = 'button';
+  a1.onclick = ()=>{ b.temas.push({nombre:'NUEVO TEMA', clase:'', color:'azul', _o:null}); _ed.abiertos.add(num); edCambio(); };
+  const a2 = _e('button', 'btn small ghost', '➕ Añadir tema doble (alterna)'); a2.type = 'button';
+  a2.title = 'Un tema que alterna entre dos nombres cada vez que le toca (como Armas / Explosivos)';
+  a2.onclick = ()=>{ b.temas.push({type:'armas_explosivos', armas:'PRIMERA PARTE', explosivos:'SEGUNDA PARTE', clase:'', color:'azul', _o:null}); _ed.abiertos.add(num); edCambio(); };
+  add.appendChild(a1); add.appendChild(a2);
+  body.appendChild(add);
+  card.appendChild(head); card.appendChild(body);
+  return card;
+}
+function edBloquesFamilia(body, esGrave){
+  const W = edW();
+  const orden = esGrave ? W.gravesOrder : W.mgravesOrder;
+  const otra = esGrave ? W.mgravesOrder : W.gravesOrder;
+  body.appendChild(_e('div', 'ed-ayuda', esGrave
+    ? 'Los días impares del calendario tocan un bloque grave. Van saliendo en este orden, y cada bloque se ve dos veces por vuelta (visita azul y visita morado).'
+    : 'Los días pares del calendario tocan un bloque menos grave. Van saliendo en este orden, y cada bloque se ve dos veces por vuelta (visita azul y visita morado).'));
+  if(!orden.length) body.appendChild(_e('div', 'ed-vacio', 'No hay ningún bloque en esta familia. Tiene que haber al menos uno.'));
+  orden.forEach((num, pos)=>{ if(W.bloques[num]) body.appendChild(edTarjetaBloque(num, pos, orden, otra, esGrave)); });
+  const add = _e('button', 'btn small', '➕ Añadir bloque '+(esGrave ? 'grave' : 'menos grave')); add.type = 'button';
+  add.onclick = ()=>{
+    const num = edNuevoNumBloque(W);
+    W.bloques[num] = {temas:[{nombre:'NUEVO TEMA 1', clase:'', color:'azul', _o:null}, {nombre:'NUEVO TEMA 2', clase:'', color:'morado', _o:null}]};
+    orden.push(num); _ed.abiertos.add(num); edCambio();
+  };
+  const wrap = _e('div', 'ed-add'); wrap.appendChild(add);
+  body.appendChild(wrap);
+}
+function edLeves(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno por cada día de estudio, en este orden; al llegar al último vuelve a empezar. Un leve doble alterna entre sus dos nombres en cada vuelta.'));
+  W.leves.forEach((t, i)=>{
+    const row = _e('div', 'ed-row ed-leve');
+    row.appendChild(_e('div', 'ed-num', String(i+1)));
+    const campos = _e('div', 'ed-campos');
+    if(t.type === 'l39_l40'){
+      campos.appendChild(_edInput(t.l39, 'Sale la 1ª vez', v=>{ t.l39 = v; }));
+      campos.appendChild(_edInput(t.l40, 'Sale la 2ª vez', v=>{ t.l40 = v; }));
+    } else {
+      campos.appendChild(_edInput(t.nombre, 'Nombre del leve', v=>{ t.nombre = v; }));
+    }
+    campos.appendChild(_edInput(t.clase, 'Clase (opcional)', v=>{ t.clase = v; }, 'ed-clase'));
+    row.appendChild(campos);
+    if(t.type === 'l39_l40') row.appendChild(_e('div', 'ed-nota', '↔ Leve doble: alterna entre los dos nombres cada vuelta.'));
+    row.appendChild(_edAcciones(W.leves, i));
+    body.appendChild(row);
+  });
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small', '➕ Añadir leve'); a1.type = 'button';
+  a1.onclick = ()=>{ W.leves.push({nombre:'NUEVO LEVE', clase:'', _o:null}); edCambio(); };
+  const a2 = _e('button', 'btn small ghost', '➕ Añadir leve doble (alterna)'); a2.type = 'button';
+  a2.onclick = ()=>{ W.leves.push({type:'l39_l40', l39:'PRIMERA PARTE', l40:'SEGUNDA PARTE', clase:'', _o:null}); edCambio(); };
+  add.appendChild(a1); add.appendChild(a2);
+  body.appendChild(add);
+}
+function edIngles(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'El inglés son temas numerados (Tema 1, Tema 2…); sale uno por cada día de estudio. Aquí eliges cuántos hay: se añaden y se quitan siempre por el final, así los números de los temas que ya tienes no se descolocan.'));
+  const box = _e('div', 'ed-ingles');
+  const lbl = _e('div', 'ed-ingles-lbl');
+  const pinta = ()=>{ lbl.textContent = 'Tema 1 … Tema '+W.inglesTotal; };
+  const menos = _edBtn('−', 'Quitar el último tema', ()=>{ if(W.inglesTotal > 1){ W.inglesTotal--; edCambio(); } }, '', W.inglesTotal <= 1);
+  const mas = _edBtn('+', 'Añadir un tema al final', ()=>{ if(W.inglesTotal < 300){ W.inglesTotal++; edCambio(); } }, '', W.inglesTotal >= 300);
+  const inp = _e('input', 'ed-input ed-num-input');
+  inp.type = 'number'; inp.min = '1'; inp.max = '300'; inp.step = '1'; inp.inputMode = 'numeric'; inp.value = W.inglesTotal;
+  inp.setAttribute('aria-label', 'Número de temas de inglés');
+  inp.oninput = ()=>{ const n = Math.round(Number(inp.value)); if(n >= 1 && n <= 300){ W.inglesTotal = n; pinta(); edMarcarSucio(); } };
+  inp.onchange = ()=>{ edRepintar(); };
+  box.appendChild(menos); box.appendChild(inp); box.appendChild(mas); box.appendChild(lbl);
+  pinta();
+  body.appendChild(box);
+}
+function edPsico(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno por cada lunes y miércoles de estudio, en este orden (pruebas y controles).'));
+  W.psico.forEach((t, i)=>{
+    const row = _e('div', 'ed-row ed-psico');
+    row.appendChild(_e('div', 'ed-num', String(i+1)));
+    const campos = _e('div', 'ed-campos');
+    campos.appendChild(_edInput(t.nombre, 'Nombre (p. ej. Prueba 24)', v=>{ t.nombre = v; }));
+    row.appendChild(campos);
+    row.appendChild(_edAcciones(W.psico, i));
+    body.appendChild(row);
+  });
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small', '➕ Añadir prueba / control'); a1.type = 'button';
+  a1.onclick = ()=>{ W.psico.push({nombre:'Prueba '+(W.psico.length+1), _o:null}); edCambio(); };
+  add.appendChild(a1);
+  body.appendChild(add);
+}
+function edSeccion(host, key, titulo, build){
+  const d = _e('div'); host.appendChild(d);
+  renderAccordionSection(d, key, titulo, build);
+}
+
+/* ---------- Barra de estado y acciones ---------- */
+function edBarra(){
+  const barra = _e('div', 'ed-barra');
+  const estado = _e('div', 'ed-estado'); estado.setAttribute('aria-live', 'polite');
+  const botones = _e('div', 'ed-botones');
+  const g = _e('button', 'btn ed-guardar', 'Guardar cambios'); g.type = 'button'; g.onclick = edGuardar;
+  const d = _e('button', 'btn ghost ed-descartar', 'Descartar'); d.type = 'button'; d.onclick = edDescartar;
+  botones.appendChild(g); botones.appendChild(d);
+  barra.appendChild(estado); barra.appendChild(botones);
+  return barra;
+}
+function edActualizarBarra(){
+  const sucio = _ed.sucio;
+  let texto = 'Sin cambios: este es tu temario actual.';
+  if(sucio){
+    const r = _ed.W ? edResumen(_ed.W) : [];
+    texto = 'Cambios sin guardar'+(r.length ? ' · '+r.join(' · ') : ' (textos)');
+  }
+  document.querySelectorAll('.ed-barra').forEach(b=>{
+    b.classList.toggle('sucio', sucio);
+    const st = b.querySelector('.ed-estado'); if(st) st.textContent = texto;
+    const g = b.querySelector('.ed-guardar'); if(g) g.disabled = !sucio;
+    const d = b.querySelector('.ed-descartar'); if(d) d.disabled = !sucio;
+  });
+}
+function edPintarAvisos(){
+  const box = document.getElementById('edAvisos'); if(!box) return;
+  box.innerHTML = '';
+  if(_ed.errores.length){
+    const e = _e('div', 'ed-aviso err');
+    e.appendChild(_e('strong', '', 'Hay que corregir esto antes de guardar:'));
+    const ul = _e('ul'); _ed.errores.forEach(x=> ul.appendChild(_e('li', '', x))); e.appendChild(ul);
+    box.appendChild(e);
+  }
+  if(_ed.avisos.length){
+    const w = _e('div', 'ed-aviso warn');
+    w.appendChild(_e('strong', '', 'Ojo (se puede guardar igual):'));
+    const ul = _e('ul'); _ed.avisos.forEach(x=> ul.appendChild(_e('li', '', x))); w.appendChild(ul);
+    box.appendChild(w);
+  }
+}
+function edDescartar(){
+  if(!_ed.sucio) return;
+  if(!confirm('¿Descartar los cambios que no has guardado y volver a tu temario actual?')) return;
+  _ed.W = null; _ed.sucio = false; _ed.errores = []; _ed.avisos = [];
+  renderEditorTemario();
+  showToast('Cambios descartados');
+}
+// Carga el temario de serie en el borrador (sin guardar). Cada elemento hereda la posición del que
+// ocupa ahora ese mismo sitio, para que las notas se queden donde están en vez de perderse.
+function edRestaurarOriginal(){
+  if(!confirm('Se cargará en el editor el temario original de la app (todavía no se guarda nada; podrás revisarlo y pulsar «Guardar cambios», o «Descartar»).\n\nLas notas y vueltas se quedan en la misma posición que ocupan ahora. ¿Seguimos?')) return;
+  const D = TEMARIO_DEFECTO;
+  const mismoTipo = (a, b)=> !!a && ((a.type || '') === (b.type || ''));
+  const W = {
+    bloques:{}, gravesOrder:D.gravesOrder.slice(), mgravesOrder:D.mgravesOrder.slice(), leves:[], inglesTotal:D.inglesTotal, psico:[],
+    _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
+  };
+  Object.keys(D.bloques).forEach(k=>{
+    const actual = BLOCKS[k];
+    W.bloques[k] = {temas:D.bloques[k].temas.map((t,i)=> Object.assign(_clonTemario(t), {_o:(actual && mismoTipo(actual.temas[i], t)) ? i : null}))};
+  });
+  D.leves.forEach((t,i)=>{ W.leves.push(Object.assign(_clonTemario(t), {_o:mismoTipo(LEVES[i], t) ? i : null})); });
+  D.psico.forEach((n,i)=>{ W.psico.push({nombre:n, _o:i < PSICO_ITEMS.length ? i : null}); });
+  _ed.W = W; _ed.sucio = true; _ed.errores = []; _ed.avisos = [];
+  renderEditorTemario();
+  showToast('Temario original cargado en el editor. Revisa y guarda.');
+}
+function edGuardar(){
+  const W = edW();
+  const T = edATemario(W);
+  const v = validarTemario(T);
+  _ed.errores = v.errores; _ed.avisos = v.avisos;
+  edPintarAvisos();
+  if(v.errores.length){
+    showToast('Hay cosas que corregir antes de guardar');
+    const box = document.getElementById('edAvisos'); if(box) box.scrollIntoView({block:'center', behavior:'smooth'});
+    return;
+  }
+  if(JSON.stringify(T) === _temarioSigAplicado){
+    _ed.sucio = false; _ed.W = null; renderEditorTemario();
+    showToast('No había nada que cambiar');
+    return;
+  }
+  const mapa = edMapa(W);
+  const reflujo = edHayReflujo(W);
+  const riesgo = edDatosEnRiesgo(mapa);
+  const resumen = edResumen(W);
+  let msg = 'Vas a guardar tu temario nuevo.'+(resumen.length ? '\n\n• '+resumen.join('\n• ') : '');
+  if(reflujo){
+    msg += '\n\n⚠️ Has añadido, quitado o movido cosas, así que el calendario recalculará qué toca cada día con el nuevo orden/tamaño (también en días que ya pasaron). Las notas y vueltas de cada tema se mueven con él.';
+    msg += '\n\nTe recomiendo descargar antes una copia de seguridad (botón «Copia de seguridad» de arriba).';
+  }
+  if(riesgo){
+    const r = prompt(msg+'\n\n🗑 Se van a eliminar '+riesgo+' tema'+(riesgo === 1 ? '' : 's')+' que tienen notas o vueltas guardadas. Esos datos se perderán.\n\nPara confirmar escribe BORRAR en mayúsculas:');
+    if(r === null || r.trim() !== 'BORRAR'){ showToast('No se ha guardado nada'); return; }
+  } else if(reflujo){
+    if(!confirm(msg+'\n\n¿Guardar?')) return;
+  }
+  migrarDatosTemario(mapa);
+  state.temario = T;
+  aplicarTemario(T);
+  try{ _catRecCache = null; }catch(e){}
+  invalidatePlan();
+  invalidarClasesDerivadas();
+  _ed.W = null; _ed.sucio = false; _ed.errores = []; _ed.avisos = [];
+  scheduleSave();
+  renderAll();
+  renderEditorTemario();
+  showToast('Temario guardado');
+}
+
+/* ---------- Pintado de la pestaña ---------- */
+function renderEditorTemario(){
+  const host = document.getElementById('editorTemarioHost');
+  if(!host) return;
+  const W = edW();
+  host.innerHTML = '';
+
+  const intro = _e('div', 'ed-intro');
+  intro.appendChild(_e('h3', '', 'Editar el temario'));
+  const p = _e('p', '', 'Aquí puedes cambiar lo que estudias: renombrar, mover, añadir o quitar bloques, temas, leves, temas de inglés y psicotécnicos. La lógica del calendario es la de siempre; solo cambia el contenido. Nada se aplica hasta que pulses «Guardar cambios».');
+  intro.appendChild(p);
+  const ul = _e('ul', 'ed-lista');
+  [
+    'Renombrar, cambiar la clase o el color: no mueve nada del calendario.',
+    'Añadir, quitar o mover: el calendario recalcula qué toca cada día con el nuevo orden/tamaño (incluidos los días pasados). Tus notas y vueltas viajan con cada tema.',
+    'Quitar un tema borra sus notas y vueltas (te avisa antes y te pide confirmación).'
+  ].forEach(x=> ul.appendChild(_e('li', '', x)));
+  intro.appendChild(ul);
+  const util = _e('div', 'ed-util');
+  const bk = _e('button', 'btn small ghost', '⬇️ Copia de seguridad'); bk.type = 'button';
+  bk.title = 'Descarga todos tus datos en un archivo JSON'; bk.onclick = ()=>{ try{ exportBackup(); }catch(e){ showToast('No se pudo exportar la copia'); } };
+  const rs = _e('button', 'btn small ghost', '↺ Restaurar temario original'); rs.type = 'button'; rs.onclick = edRestaurarOriginal;
+  util.appendChild(bk); util.appendChild(rs);
+  intro.appendChild(util);
+  host.appendChild(intro);
+
+  host.appendChild(edBarra());
+  const avisos = _e('div'); avisos.id = 'edAvisos'; host.appendChild(avisos);
+
+  const nG = W.gravesOrder.length, nM = W.mgravesOrder.length;
+  edSeccion(host, 'ed_graves', 'Bloques graves · '+nG, body=> edBloquesFamilia(body, true));
+  edSeccion(host, 'ed_mgraves', 'Bloques menos graves · '+nM, body=> edBloquesFamilia(body, false));
+  edSeccion(host, 'ed_leves', 'Leves · '+W.leves.length, body=> edLeves(body));
+  edSeccion(host, 'ed_ingles', 'Inglés · '+W.inglesTotal+' temas', body=> edIngles(body));
+  edSeccion(host, 'ed_psico', 'Psicotécnicos · '+W.psico.length, body=> edPsico(body));
+
+  host.appendChild(edBarra());
+  edPintarAvisos();
+  edActualizarBarra();
+}
 
 /* ===================== INIT ===================== */
 function renderAll(){
