@@ -438,7 +438,7 @@ psicotécnicos. La lógica del calendario no cambia: solo cambia el contenido.
 - Se validan las listas (no pueden quedar vacías ni con nombres en blanco). Los caracteres
   `< > " \`` se eliminan de los nombres.
 - Al añadir una vista que dependa del temario, no hay nada que registrar: leen las mismas constantes.
-- No incluye el catálogo `TEMARIO_GENERAL` (el de «Conocimientos» en Clases/Arrastre), que es aparte.
+- La sección **Temario general (teoría)** edita `TEMARIO_GENERAL` (guardado en `state.temario.general`): el catálogo del desplegable «Añadir tema» de Conocimientos en Arrastre. No afecta al calendario ni necesita migrar datos. Ojo: el selector de clases de Conocimientos (Clases / ficha del día) sigue siendo «Tema 1–23» fijo.
 
 ## Cómo funciona el guardado offline (resumen rápido)
 

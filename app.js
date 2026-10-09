@@ -257,6 +257,9 @@ function _limpiarTema(t){
   }
   return {nombre:_limpiaTxt(t && t.nombre), clase:_limpiaTxt(t && t.clase), color:(t && t.color === 'morado' ? 'morado' : 'azul')};
 }
+function _limpiarGeneral(t){
+  return {num:_limpiaTxt(t && t.num), titulo:_limpiaTxt(t && t.titulo), subtemas:((t && t.subtemas) || []).map(_limpiaTxt).filter(x=>x)};
+}
 function _limpiarLeve(t){
   if(t && t.type === 'l39_l40') return {type:'l39_l40', l39:_limpiaTxt(t.l39), l40:_limpiaTxt(t.l40), clase:_limpiaTxt(t.clase)};
   return {nombre:_limpiaTxt(t && t.nombre), clase:_limpiaTxt(t && t.clase)};
@@ -274,12 +277,13 @@ function _canonTemario(raw){
     mgravesOrder: (raw.mgravesOrder || []).map(Number),
     leves: (raw.leves || []).map(_limpiarLeve),
     inglesTotal: Number(raw.inglesTotal),
-    psico: (raw.psico || []).map(_limpiaTxt)
+    psico: (raw.psico || []).map(_limpiaTxt),
+    general: (raw.general || TEMARIO_DEFECTO.general).map(_limpiarGeneral)
   };
 }
 // Copia del temario «de serie», tal cual viene en el código: sirve para «Restaurar temario original»
 // y para las cuentas que nunca han tocado nada.
-const TEMARIO_DEFECTO = _canonTemario({bloques:BLOCKS, gravesOrder:GRAVES_ORDER, mgravesOrder:MGRAVES_ORDER, leves:LEVES, inglesTotal:INGLES_TOTAL, psico:PSICO_ITEMS});
+// (TEMARIO_DEFECTO se define justo después de TEMARIO_GENERAL, porque también lo incluye.)
 let _temarioSigAplicado = null;
 
 // [1,2,3,4,5,7] -> «1–5, 7»
@@ -333,6 +337,18 @@ function validarTemario(t){
   if(!(Number.isInteger(ing) && ing >= 1 && ing <= 300)) errores.push('El número de temas de inglés tiene que estar entre 1 y 300.');
   if(!Array.isArray(t.psico) || !t.psico.length) errores.push('Tiene que haber al menos una prueba de psicotécnicos.');
   else t.psico.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Psicotécnicos '+(i+1)+': falta el nombre.'); });
+  if(t.general !== undefined){
+    if(!Array.isArray(t.general)) errores.push('El temario general no es válido.');
+    else {
+      const nums = new Set();
+      t.general.forEach((x,i)=>{
+        const n = _limpiaTxt(x && x.num);
+        if(!n || !_limpiaTxt(x && x.titulo)) errores.push('Temario general, tema '+(i+1)+': faltan el número o el título.');
+        else if(nums.has(n)) errores.push('Temario general: el número «'+n+'» está repetido.');
+        nums.add(n);
+      });
+    }
+  }
   return {errores, avisos};
 }
 
@@ -353,6 +369,7 @@ function aplicarTemario(t){
   LEVES.splice(0, LEVES.length, ...c.leves);
   PSICO_ITEMS.splice(0, PSICO_ITEMS.length, ...c.psico);
   INGLES_TOTAL = c.inglesTotal;
+  TEMARIO_GENERAL.splice(0, TEMARIO_GENERAL.length, ...c.general);
   _temarioSigAplicado = sig;
   try{ _catRecCache = null; }catch(e){}
   try{ actualizarTextosTemario(); }catch(e){}
@@ -579,6 +596,7 @@ const TEMARIO_GENERAL = [
   {num:'23.1', titulo:'Contrabando', subtemas:['Represión del Contrabando','Infracciones Administrativas']},
   {num:'23.2', titulo:'Código Aduanero de la Unión Europea', subtemas:['Definiciones']}
 ];
+const TEMARIO_DEFECTO = _canonTemario({bloques:BLOCKS, gravesOrder:GRAVES_ORDER, mgravesOrder:MGRAVES_ORDER, leves:LEVES, inglesTotal:INGLES_TOTAL, psico:PSICO_ITEMS, general:TEMARIO_GENERAL});
 
 /* ===================== CONFIGURACIÓN FIREBASE ===================== */
 // 1) Crea un proyecto gratuito en https://console.firebase.google.com
@@ -11847,6 +11865,7 @@ function edDesdeActual(){
     leves:LEVES.map((t,i)=> Object.assign(_clonTemario(t), {_o:i})),
     inglesTotal:INGLES_TOTAL,
     psico:PSICO_ITEMS.map((n,i)=> ({nombre:n, _o:i})),
+    general:TEMARIO_GENERAL.map(t=> _clonTemario(t)),
     _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
   };
   Object.keys(BLOCKS).forEach(k=>{
@@ -11859,7 +11878,7 @@ function edW(){ if(!_ed.W) _ed.W = edDesdeActual(); return _ed.W; }
 function edATemario(W){
   const bl = {};
   W.gravesOrder.concat(W.mgravesOrder).forEach(n=>{ if(W.bloques[n]) bl[n] = {temas:W.bloques[n].temas}; });
-  return _canonTemario({bloques:bl, gravesOrder:W.gravesOrder, mgravesOrder:W.mgravesOrder, leves:W.leves, inglesTotal:W.inglesTotal, psico:W.psico.map(p=>p.nombre)});
+  return _canonTemario({bloques:bl, gravesOrder:W.gravesOrder, mgravesOrder:W.mgravesOrder, leves:W.leves, inglesTotal:W.inglesTotal, psico:W.psico.map(p=>p.nombre), general:W.general});
 }
 // Mapa «posición antigua → posición nueva» para migrarDatosTemario().
 function edMapa(W){
@@ -12118,6 +12137,41 @@ function edPsico(body){
   add.appendChild(a1);
   body.appendChild(add);
 }
+const _edGenAbiertos = new Set();
+function edGeneral(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'Es el catálogo de teoría que sale en el desplegable «Añadir tema» de Conocimientos, en la pestaña Arrastre. No afecta al calendario ni a tus notas. Escribe un subtema por línea.'));
+  W.general.forEach((t, i)=>{
+    const card = _e('div', 'block-card ed-block');
+    const head = _e('div', 'block-head');
+    const title = _e('div', 'block-title');
+    title.appendChild(_e('div', 'block-num', t.num ? String(t.num).slice(0,4) : '?'));
+    const info = _e('div');
+    info.appendChild(_e('h4', '', t.titulo || '(sin título)'));
+    info.appendChild(_e('div', 'kind', (t.subtemas || []).length+' subtema'+((t.subtemas || []).length === 1 ? '' : 's')));
+    title.appendChild(info); head.appendChild(title);
+    const chev = _e('div', 'chev', _edGenAbiertos.has(t) ? '▴' : '▾'); head.appendChild(chev);
+    head.setAttribute('role', 'button'); head.setAttribute('tabindex', '0');
+    const bd = _e('div', 'block-body'+(_edGenAbiertos.has(t) ? ' open' : ''));
+    head.onclick = ()=>{ const ab = bd.classList.toggle('open'); chev.textContent = ab ? '▴' : '▾'; if(ab) _edGenAbiertos.add(t); else _edGenAbiertos.delete(t); };
+    head.onkeydown = (ev)=>{ if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); head.onclick(); } };
+    const campos = _e('div', 'ed-campos');
+    campos.appendChild(_edInput(t.num, 'Número (p. ej. 4.1)', v=>{ t.num = v; }, 'ed-clase'));
+    campos.appendChild(_edInput(t.titulo, 'Título del tema', v=>{ t.titulo = v; }));
+    const row = _e('div', 'ed-row'); row.appendChild(campos); row.appendChild(_edAcciones(W.general, i));
+    bd.appendChild(row);
+    const ta = _e('textarea', 'ed-input ed-sub'); ta.rows = Math.min(10, Math.max(3, (t.subtemas || []).length+1));
+    ta.placeholder = 'Subtemas, uno por línea (opcional)'; ta.setAttribute('aria-label', 'Subtemas');
+    ta.value = (t.subtemas || []).join('\n');
+    ta.oninput = ()=>{ t.subtemas = ta.value.split('\n'); edMarcarSucio(); };
+    bd.appendChild(ta);
+    card.appendChild(head); card.appendChild(bd); body.appendChild(card);
+  });
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small', '➕ Añadir tema de teoría'); a1.type = 'button';
+  a1.onclick = ()=>{ const t = {num:String(W.general.length+1), titulo:'NUEVO TEMA', subtemas:[]}; W.general.push(t); _edGenAbiertos.add(t); edCambio(); };
+  add.appendChild(a1); body.appendChild(add);
+}
 function edSeccion(host, key, titulo, build){
   const d = _e('div'); host.appendChild(d);
   renderAccordionSection(d, key, titulo, build);
@@ -12178,7 +12232,7 @@ function edRestaurarOriginal(){
   const D = TEMARIO_DEFECTO;
   const mismoTipo = (a, b)=> !!a && ((a.type || '') === (b.type || ''));
   const W = {
-    bloques:{}, gravesOrder:D.gravesOrder.slice(), mgravesOrder:D.mgravesOrder.slice(), leves:[], inglesTotal:D.inglesTotal, psico:[],
+    bloques:{}, gravesOrder:D.gravesOrder.slice(), mgravesOrder:D.mgravesOrder.slice(), leves:[], inglesTotal:D.inglesTotal, psico:[], general:_clonTemario(D.general),
     _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
   };
   Object.keys(D.bloques).forEach(k=>{
@@ -12270,6 +12324,7 @@ function renderEditorTemario(){
   edSeccion(host, 'ed_leves', 'Leves · '+W.leves.length, body=> edLeves(body));
   edSeccion(host, 'ed_ingles', 'Inglés · '+W.inglesTotal+' temas', body=> edIngles(body));
   edSeccion(host, 'ed_psico', 'Psicotécnicos · '+W.psico.length, body=> edPsico(body));
+  edSeccion(host, 'ed_general', 'Temario general (teoría) · '+W.general.length, body=> edGeneral(body));
 
   host.appendChild(edBarra());
   edPintarAvisos();

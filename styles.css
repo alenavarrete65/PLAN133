@@ -1651,3 +1651,5 @@ html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
   .ed-botones{width:100%;}
   .ed-botones .btn{flex:1 1 auto;}
 }
+
+.ed-sub{display:block;width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;line-height:1.4;}
