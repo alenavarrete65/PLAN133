@@ -2608,7 +2608,8 @@ function renderHomeDash(){
   }
 
   const arrastrePools = computeArrastreData();
-  const arrastreTotal = arrastreItemsCount(arrastrePools);
+  const arrastreDes = arrastreDesglose(arrastrePools, true);
+  const arrastreTotal = arrastreDes.total;
   // Aviso: el arrastre cuenta a día vencido, así que lo de hoy todavía no está en la lista.
   const arrastreNota = (todayInfo && todayInfo.status==='ESTUDIO')
     ? '<div class="home-card-note">Lo de hoy se suma mañana, cuando el día termine.</div>'
@@ -2618,8 +2619,11 @@ function renderHomeDash(){
         ? '<div class="home-arrastre-status ok">✓ Test de hoy hecho</div>'
         : '<div class="home-arrastre-status pend">● Test de hoy pendiente</div>')
     : '';
+  const _linea = (txt, n)=> '<div class="home-card-sub"><b>'+n+'</b> '+txt+'</div>';
   const arrastreHtml = arrastreEstado + (arrastreTotal
-    ? '<div class="home-card-value" style="font-size:22px;">'+arrastreTotal+' tema'+(arrastreTotal!==1?'s':'')+'</div>'+
+    ? _linea('tema'+(arrastreDes.conocimientos!==1?'s':'')+' de Conocimientos', arrastreDes.conocimientos)+
+      _linea('tema'+(arrastreDes.ingles!==1?'s':'')+' de Inglés', arrastreDes.ingles)+
+      _linea('Psicotécnico'+(arrastreDes.psico!==1?'s':''), arrastreDes.psico)+
       '<div class="home-card-sub">para meter hoy en tu test de arrastre</div>'+
       arrastreNota+
       '<button class="btn small ghost" id="homeArrastreBtn" style="margin-top:8px;">Ver qué temas son →</button>'
@@ -5256,13 +5260,35 @@ function computeArrastreData(asOfDayKey){
   }
   return pools;
 }
-function arrastreItemsCount(pools){
-  let total = 0;
+/* Desglose del arrastre por materia, contando TEMAS y no las partes de cada tema:
+   · Conocimientos: temas distintos del 1 al 23 (los títulos «TEMA N»); ONU + DUDH, CPI,
+     TUE 1-19… son partes del mismo tema y cuentan una sola vez, salga como grave, menos
+     grave o leve.
+   · Inglés: lecciones distintas pendientes.
+   · Psicotécnicos: pruebas distintas pendientes.
+   Con includeManual también cuenta lo añadido a mano en cada grupo. */
+function arrastreDesglose(pools, includeManual){
+  const con = new Set(), ing = new Set(), psi = new Set();
+  function add(pk, it){
+    if(pk==='ingles'){ if(it.nombre) ing.add(it.nombre); }
+    else if(pk==='psico'){ if(it.nombre) psi.add(it.nombre); }
+    else if(it.numTema){ con.add(it.numTema); }
+  }
   Object.keys(pools).forEach(k=>{
     const p = pools[k];
-    total += ((p.items && p.items[p.lap]) || []).length;
+    ((p.items && p.items[p.lap]) || []).forEach(it=>add(k, it));
   });
-  return total;
+  if(includeManual && state.arrastreManual){
+    ['conocimientos','ingles','psico'].forEach(pk=>{
+      (state.arrastreManual[pk] || []).forEach(m=>{
+        add(pk, {nombre:m.nombre, numTema:temaNumFromClase(m.clase)});
+      });
+    });
+  }
+  return {conocimientos:con.size, ingles:ing.size, psico:psi.size, total:con.size+ing.size+psi.size};
+}
+function arrastreItemsCount(pools, includeManual){
+  return arrastreDesglose(pools, includeManual).total;
 }
 function renderArrastre(){
   const host = document.getElementById('arrastreHost');
