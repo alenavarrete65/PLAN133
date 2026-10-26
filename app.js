@@ -2832,7 +2832,7 @@ function renderHomeDash(){
       : '<div class="home-card-note">Lo de hoy suma mañana, cuando el día termine.</div>';
   }
 
-  const arrastrePools = computeArrastreData();
+  const arrastrePools = computeArrastreData(undefined, true);
   const arrastreDes = arrastreDesglose(arrastrePools, true);
   const arrastreTotal = arrastreDes.total;
   // Aviso: el arrastre cuenta a día vencido, así que lo de hoy todavía no está en la lista.
@@ -5573,9 +5573,9 @@ function arrastreManualCatalog(poolKey){
   }
   return out;
 }
-function computeArrastreData(asOfDayKey){
+function computeArrastreData(asOfDayKey, acumulado){
   const pools = {};
-  Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}}; });
+  Object.keys(ARRASTRE_POOL_META).forEach(k=>{ pools[k] = {lap:1, items:{}, seenKeys:{}, pasadas:{}}; });
   const recSkip = recuperarArrastreKeys(); // temas pendientes de recuperar: no entran en el arrastre
 
   const keys = sortedMonthKeys();
@@ -5588,6 +5588,7 @@ function computeArrastreData(asOfDayKey){
   }
 
   let gIdx=0, mgIdx=0, lIdx=0, iIdx=0, pIdx=0;
+  let gUnits=0, mgUnits=0; // «medias visitas»: 1 por visita de un solo color, 2 si el día es unificado (azul+morado)
   const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
   const blockTurn = {}; Object.keys(BLOCKS).forEach(k=>{ blockTurn[k]=0; });
   const leveAppear = {}; LEVES.forEach((_,i)=>{ leveAppear[i]=0; });
@@ -5600,6 +5601,9 @@ function computeArrastreData(asOfDayKey){
     if(!p.seenKeys[lap]) p.seenKeys[lap] = {};
     if(p.seenKeys[lap][item.key]) return;
     p.seenKeys[lap][item.key] = true;
+    // Nº de veces que este tema ha pasado por el calendario (1ª, 2ª, 3ª vuelta…).
+    p.pasadas[item.key] = (p.pasadas[item.key] || 0) + 1;
+    item.vuelta = p.pasadas[item.key];
     p.items[lap].push(item);
   }
 
@@ -5628,7 +5632,11 @@ function computeArrastreData(asOfDayKey){
       const order = dayOfMonthParity===1 ? GRAVES_ORDER : MGRAVES_ORDER;
       const curIdx = dayOfMonthParity===1 ? gIdx : mgIdx;
       const bloqueNum = order[curIdx % order.length];
-      const lap = Math.floor(curIdx / order.length) + 1;
+      // Una vuelta de bloques = pasar por cada bloque DOS veces (azul y morado), como en el resto de la app.
+      // Antes la vuelta cambiaba cada pasada de un solo color y, al pasar de azul a morado, los temas azules
+      // (4, 9, 15…) desaparecían del Arrastre.
+      const unitsNow = dayOfMonthParity===1 ? gUnits : mgUnits;
+      const lap = Math.floor(unitsNow / (2*order.length)) + 1;
       const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
       let rawTemas, colorHoy;
       if(unifyThisMonth){
@@ -5657,7 +5665,7 @@ function computeArrastreData(asOfDayKey){
             numTema: temaNumFromClase(t.clase)
           });
         });
-        if(dayOfMonthParity===1) gIdx++; else mgIdx++;
+        if(dayOfMonthParity===1){ gIdx++; gUnits += unifyThisMonth ? 2 : 1; } else { mgIdx++; mgUnits += unifyThisMonth ? 2 : 1; }
         if(unifyThisMonth || colorHoy==='azul') azulCount[bloqueNum]++;
         blockTurn[bloqueNum]++;
       }
@@ -5717,6 +5725,19 @@ function computeArrastreData(asOfDayKey){
       }
     }
   }
+  // Conocimientos (graves, menos graves, leves): un tema entra en el Arrastre cada vez que pasa por el
+  // calendario y SE QUEDA hasta que vuelve a tocar, aunque haya empezado una vuelta nueva. Antes, al cambiar
+  // de vuelta la lista se vaciaba y los temas que tocaban al final de la vuelta casi no llegaban a verse.
+  if(acumulado){
+    ['graves','mgraves','leves'].forEach(pk=>{
+      const p = pools[pk];
+      const actual = (p.items[p.lap] || (p.items[p.lap] = []));
+      const claves = new Set(actual.map(x=>x.key));
+      for(let l = p.lap-1; l >= 1; l--){
+        (p.items[l] || []).forEach(it=>{ if(!claves.has(it.key)){ claves.add(it.key); actual.push(it); } });
+      }
+    });
+  }
   return pools;
 }
 /* Desglose del arrastre por materia, contando TEMAS y no las partes de cada tema:
@@ -5762,7 +5783,7 @@ function renderArrastre(){
     return;
   }
 
-  const pools = computeArrastreData();
+  const pools = computeArrastreData(undefined, true);
 
   // Aviso: temas pendientes de recuperar (no cuentan en el arrastre hasta que los recuperes).
   {
@@ -5798,6 +5819,7 @@ function renderArrastre(){
       bits.push('<span class="mini-tag '+ARRASTRE_POOL_TAG[it.pool]+'">'+ARRASTRE_POOL_LABEL[it.pool]+'</span>');
     }
     if(it.manual) bits.push('<span class="mini-tag tag-manual">AÑADIDO A MANO</span>');
+    if(it.vuelta > 1) bits.push('<span class="mini-tag" style="background:transparent;border:1px dashed var(--amber);color:var(--amber-ink);">'+it.vuelta+'ª VUELTA</span>');
     if(it.grupo) bits.push('<span class="grupo-txt">'+it.grupo.replace(/</g,'&lt;')+'</span>');
     if(it.color) bits.push('<span class="colorpill '+it.color+'">'+it.color+'</span>');
     return bits.length ? '<div class="arrastre-meta">'+bits.join('')+'</div>' : '';
@@ -6045,11 +6067,11 @@ function renderArrastre(){
           if(cluster.items.length === 1){
             const it = cluster.items[0];
             const parts = [it.grupo, it.color].filter(Boolean).join(', ');
-            lines.push((it.numTema?(it.numTema+' · '):'')+it.nombre+(parts?' ('+parts+')':''));
+            lines.push((it.numTema?(it.numTema+' · '):'')+it.nombre+(parts?' ('+parts+')':'')+(it.vuelta>1?' — '+it.vuelta+'ª vuelta':''));
           } else {
             const detalle = cluster.items.map(it=>{
               const parts = [it.grupo, it.color].filter(Boolean).join(', ');
-              return it.nombre+(parts?' ('+parts+')':'');
+              return it.nombre+(parts?' ('+parts+')':'')+(it.vuelta>1?' — '+it.vuelta+'ª vuelta':'');
             }).join(' / ');
             lines.push(cluster.numTema+' · '+detalle);
           }
