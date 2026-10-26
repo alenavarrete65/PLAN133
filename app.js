@@ -9694,7 +9694,8 @@ function renderRecuperar(){
 }
 
 /* ===================== RENDER: PROGRESO (comparativa de notas de test) ===================== */
-function collectNotaData(){
+function collectNotaData(opts){
+  const completo = !!(opts && opts.completo);
   const porGrupo = {}; // grupo -> [{key,label,notas:[..],seq:[..],max}]
   Object.keys(state.ticks).forEach(key=>{
     const meta = KEY_LABELS[key];
@@ -9731,6 +9732,43 @@ function collectNotaData(){
       porGrupo[meta.grupo].push({key, label:meta.label, notas, seq, max: meta.max || GROUP_MAX_NOTA[meta.grupo] || 10});
     }
   });
+  if(completo){
+    const ya = {};
+    Object.keys(porGrupo).forEach(g=> porGrupo[g].forEach(it=>{ ya[it.key] = it; }));
+    const poner = (grupo, key, label, seq, max)=>{
+      if(ya[key]){ // sustituye (inglés) o conserva lo ya calculado
+        if(grupo !== 'Inglés') return;
+        const i = porGrupo[grupo].indexOf(ya[key]); if(i > -1) porGrupo[grupo].splice(i, 1);
+      }
+      if(!porGrupo[grupo]) porGrupo[grupo] = [];
+      const it = {key, label, notas:[], seq, max};
+      porGrupo[grupo].push(it); ya[key] = it;
+    };
+    // Inglés: cada tema cuenta como VISTO salvo que lo hayas marcado como «NO visto».
+    for(let n=1; n<=INGLES_TOTAL; n++){
+      const key = 'ingles-'+n;
+      const arr = (state.ticks[key] || []).map(migrateTickEntry);
+      const hayMarcas = arr.some(e=> e.mode === 'visto' || e.mode === 'no_visto');
+      const seq = [];
+      if(!arr.length) seq.push({mode:'visto', vuelta:1});
+      else if(!hayMarcas) seq.push({mode:'visto', vuelta:1}); // sin tocar: 1 vuelta vista por defecto
+      else arr.forEach((e,i)=>{ if(e.mode === 'visto') seq.push({mode:'visto', vuelta:i+1}); });
+      if(seq.length) poner('Inglés', key, 'Tema '+n, seq, GROUP_MAX_NOTA['Inglés']);
+      else if(porGrupo['Inglés']){ /* tema marcado NO visto: no suma */ }
+    }
+    // Exámenes: aparecen siempre, hayan tenido nota o no (los hechos salen con su nota/apto).
+    PSICO_ITEMS.forEach((name,idx)=> poner('Psicotécnicos', 'psico-'+idx, name, [], GROUP_MAX_NOTA['Psicotécnicos']));
+    INGLES_EXAMS.forEach((name,idx)=> poner('Examen inglés', 'iexam-'+idx, name, [], GROUP_MAX_NOTA['Examen inglés']));
+    ORTO_EXAMS.forEach((name,idx)=> poner('Examen ortografía', 'oexam-'+idx, name, [], 10));
+    // Orden de los grupos y de los exámenes según el temario.
+    const orden = ['Bloques','Leves','Inglés','Examen inglés','Examen ortografía','Psicotécnicos'];
+    const ord = {};
+    orden.forEach(g=>{ if(porGrupo[g]) ord[g] = porGrupo[g]; });
+    Object.keys(porGrupo).forEach(g=>{ if(!ord[g]) ord[g] = porGrupo[g]; });
+    const num = (k)=> Number(String(k).replace(/^\D+-/, '').replace(/\D.*$/, '')) || 0;
+    ['Inglés','Examen inglés','Examen ortografía','Psicotécnicos'].forEach(g=>{ if(ord[g]) ord[g].sort((a,b)=> num(a.key) - num(b.key)); });
+    return {porGrupo: ord};
+  }
   return {porGrupo};
 }
 function notaPillClass(n, max){
@@ -9999,8 +10037,22 @@ function renderProgreso(){
 
   // Se calcula aquí arriba (antes de las demás secciones) porque el resumen general lo
   // necesita ya, y así "Detalle por tema" más abajo reutiliza el mismo cálculo sin repetirlo.
-  const data = collectNotaData();
+  const data = collectNotaData({completo:true});
   const grupos = Object.keys(data.porGrupo);
+
+  // Avance: temas de inglés vistos y exámenes hechos (con nota o apto/no apto).
+  if(resumenBody){
+    const hechos = (g)=> (data.porGrupo[g]||[]).filter(it=> it.seq.some(x=> ['nota','apto','no_apto','visto','solo_lectura'].indexOf(x.mode) > -1)).length;
+    const total = (g)=> (data.porGrupo[g]||[]).length;
+    const av = document.createElement('div');
+    av.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);margin-bottom:16px;line-height:1.8;background:var(--bg-panel-2);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:8px;padding:12px 14px;';
+    av.innerHTML = '✅ <strong>Avance</strong>'+
+      '<br>Inglés (temas vistos): <strong>'+hechos('Inglés')+'/'+INGLES_TOTAL+'</strong>'+
+      '<br>Exámenes de inglés: <strong>'+hechos('Examen inglés')+'/'+total('Examen inglés')+'</strong>'+
+      '<br>Exámenes de ortografía: <strong>'+hechos('Examen ortografía')+'/'+total('Examen ortografía')+'</strong>'+
+      '<br>Exámenes de psicotécnicos: <strong>'+hechos('Psicotécnicos')+'/'+total('Psicotécnicos')+'</strong>';
+    resumenBody.appendChild(av);
+  }
 
   // Resumen general: media global (normalizada sobre 10, para poder comparar grupos que usan
   // escalas distintas, ej. /10 vs /20) y qué grupo va mejor y cuál flojea más ahora mismo.
