@@ -254,6 +254,126 @@ const PSICO_ITEMS = [
   '2026 · Modelo A · Guardias',
   '2014 · Suboficiales', '2015 · Suboficiales', '2016 · Suboficiales', '2017 · Suboficiales', '2019 · Suboficiales'
 ];
+/* Exámenes oficiales de inglés (tarea diaria nueva): Guardias 1-21 del índice y luego Suboficiales 22-33.
+   «Jóvenes» = Guardias Jóvenes. Cada día de estudio sale el siguiente de la lista (clave iexam-N). */
+const IEXAM_DEFECTO = [
+  '2005 · Guardias',
+  '2006 · 1A · Guardias',
+  '2006 · 2A · Guardias',
+  '2007 · 1A · Guardias',
+  '2007 · 2A · Guardias',
+  '2009 · 1A · Guardias',
+  '2009 · 2A · Guardias',
+  '2010 · 1A · Guardias',
+  '2010 · 2A · Guardias',
+  '2008 · Junio · 1A · Guardias',
+  '2008 · Junio · 2A · Guardias',
+  '2008 · Septiembre · 1A · Guardias',
+  '2008 · Septiembre · 2A · Guardias',
+  '2011 · Guardias',
+  '2012 · Guardias',
+  '2013 · Guardias',
+  '2014 · Guardias',
+  '2015 · Guardias',
+  '2016 · 1A · Guardias',
+  '2016 · 2A · Guardias',
+  '2017 · 1A · Guardias',
+  '2017 · 2A · Guardias',
+  '2018 · 1A · Guardias',
+  '2018 · 2A · Guardias',
+  '2019 · 1A · Guardias',
+  '2019 · 2A · Guardias',
+  '2020 · 1A · Guardias',
+  '2020 · 2A · Guardias',
+  '2021 · Guardias Jóvenes',
+  '2021 · 1A · Guardias',
+  '2021 · 2A · Guardias',
+  '2022 · Guardias Jóvenes',
+  '2022 · 1A · Guardias',
+  '2022 · 2A · Guardias',
+  '2022 · 3A · Guardias',
+  '2023 · Guardias Jóvenes',
+  '2023 · 1A · Guardias',
+  '2023 · 2A · Guardias',
+  '2024 · Guardias Jóvenes',
+  '2024 · 1A · Guardias',
+  '2024 · 2A · Guardias',
+  '2024 · 3A · Guardias',
+  '2025 · Guardias Jóvenes',
+  '2025 · 1A · Guardias',
+  '2026 · Guardias Jóvenes',
+  '2026 · 1A · Guardias',
+  '2010 · Suboficiales',
+  '2011 · Suboficiales',
+  '2012 · Suboficiales',
+  '2013 · Suboficiales',
+  '2014 · Suboficiales',
+  '2015 · Suboficiales',
+  '2016 · Suboficiales',
+  '2017 · Suboficiales',
+  '2018 · Suboficiales',
+  '2019 · Suboficiales',
+  '2020 · Suboficiales',
+  '2025 · Suboficiales'
+];
+const INGLES_EXAMS = IEXAM_DEFECTO.slice();
+/* Exámenes oficiales de ortografía (tarea diaria nueva, resultado Apto / No apto, sin nota).
+   Cada día de estudio sale el siguiente de la lista (clave oexam-N). */
+const OEXAM_DEFECTO = [
+  '2003 · 1A',
+  '2003 · 2A',
+  '2003 · 3A',
+  '2004 · 1A',
+  '2004 · 2A',
+  '2004 · 3A',
+  '2004 · 4A',
+  '2005 · 1A',
+  '2005 · 2A',
+  '2006',
+  '2007',
+  '2008 · Junio · 1A',
+  '2008 · Junio · 2A',
+  '2008 · Septiembre · 1A',
+  '2008 · Septiembre · 2A',
+  '2009 · 1A',
+  '2009 · 2A',
+  '2010 · 1A',
+  '2010 · 2A',
+  '2011',
+  '2012',
+  '2013',
+  '2014',
+  '2015',
+  '2016 · 1A',
+  '2016 · 2A',
+  '2017 · 1A',
+  '2017 · 2A',
+  '2018 · 1A',
+  '2018 · 2A',
+  '2019 · 1A',
+  '2019 · 2A',
+  '2020 · 1A',
+  '2020 · 2A',
+  '2021 · 1A',
+  '2021 · 2A',
+  '2022 · Guardias Jóvenes',
+  '2022 · 1A',
+  '2022 · 2A',
+  '2022 · 3A',
+  '2023 · Guardias Jóvenes',
+  '2023 · 1A',
+  '2023 · 2A',
+  '2024 · Guardias Jóvenes',
+  '2024 · 1A',
+  '2024 · 2A',
+  '2024 · 3A',
+  '2025 · Guardias Jóvenes',
+  '2025 · 1A',
+  '2026 · Guardias Jóvenes',
+  '2026 · 1A'
+];
+const ORTO_EXAMS = OEXAM_DEFECTO.slice();
+function esKeyOexam(key){ return /^oexam-\d+$/.test(String(key)); }
 // Lista antigua (solo para migrar datos guardados con ella).
 const PSICO_LEGACY = (()=>{ const a = []; for(let i=1;i<=23;i++) a.push('Prueba '+i); a.push('CONTROL 1','CONTROL 2'); return a; })();
 /* ===================== TEMARIO EDITABLE (núcleo) =====================
@@ -294,6 +414,8 @@ function _canonTemario(raw){
     leves: (raw.leves || []).map(_limpiarLeve),
     inglesTotal: Number(raw.inglesTotal),
     psico: (raw.psico || []).map(_limpiaTxt),
+    iexam: ((raw.iexam && raw.iexam.length) ? raw.iexam : IEXAM_DEFECTO).map(_limpiaTxt),
+    oexam: ((raw.oexam && raw.oexam.length) ? raw.oexam : OEXAM_DEFECTO).map(_limpiaTxt),
     general: (raw.general || TEMARIO_DEFECTO.general).map(_limpiarGeneral)
   };
 }
@@ -353,6 +475,14 @@ function validarTemario(t){
   if(!(Number.isInteger(ing) && ing >= 1 && ing <= 300)) errores.push('El número de temas de inglés tiene que estar entre 1 y 300.');
   if(!Array.isArray(t.psico) || !t.psico.length) errores.push('Tiene que haber al menos un examen de psicotécnicos.');
   else t.psico.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Psicotécnicos '+(i+1)+': falta el nombre.'); });
+  if(t.iexam !== undefined){
+    if(!Array.isArray(t.iexam) || !t.iexam.length) errores.push('Tiene que haber al menos un examen de inglés.');
+    else t.iexam.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Examen de inglés '+(i+1)+': falta el nombre.'); });
+  }
+  if(t.oexam !== undefined){
+    if(!Array.isArray(t.oexam) || !t.oexam.length) errores.push('Tiene que haber al menos un examen de ortografía.');
+    else t.oexam.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Examen de ortografía '+(i+1)+': falta el nombre.'); });
+  }
   if(t.general !== undefined){
     if(!Array.isArray(t.general)) errores.push('El temario general no es válido.');
     else {
@@ -384,6 +514,8 @@ function aplicarTemario(t){
   MGRAVES_ORDER.splice(0, MGRAVES_ORDER.length, ...M);
   LEVES.splice(0, LEVES.length, ...c.leves);
   PSICO_ITEMS.splice(0, PSICO_ITEMS.length, ...c.psico);
+  INGLES_EXAMS.splice(0, INGLES_EXAMS.length, ...c.iexam);
+  ORTO_EXAMS.splice(0, ORTO_EXAMS.length, ...c.oexam);
   INGLES_TOTAL = c.inglesTotal;
   TEMARIO_GENERAL.splice(0, TEMARIO_GENERAL.length, ...c.general);
   _temarioSigAplicado = sig;
@@ -492,6 +624,16 @@ function _remapClaveTemario(key, m){
   if((r = /^psico-(\d+)$/.exec(key))){
     const nu = m.psico[r[1]];
     return (nu === undefined || nu === null) ? null : 'psico-'+nu;
+  }
+  if((r = /^oexam-(\d+)$/.exec(key))){
+    if(!m.oexam) return key;
+    const nu = m.oexam[r[1]];
+    return (nu === undefined || nu === null) ? null : 'oexam-'+nu;
+  }
+  if((r = /^iexam-(\d+)$/.exec(key))){
+    if(!m.iexam) return key;
+    const nu = m.iexam[r[1]];
+    return (nu === undefined || nu === null) ? null : 'iexam-'+nu;
   }
   if((r = /^ingles-(\d+)$/.exec(key))) return Number(r[1]) <= m.inglesTotal ? key : null;
   return key;
@@ -660,7 +802,7 @@ const TEMARIO_GENERAL = [
   {num:'23.1', titulo:'Contrabando', subtemas:['Represión del Contrabando','Infracciones Administrativas']},
   {num:'23.2', titulo:'Código Aduanero de la Unión Europea', subtemas:['Definiciones']}
 ];
-const TEMARIO_DEFECTO = _canonTemario({bloques:BLOCKS, gravesOrder:GRAVES_ORDER, mgravesOrder:MGRAVES_ORDER, leves:LEVES, inglesTotal:INGLES_TOTAL, psico:PSICO_ITEMS, general:TEMARIO_GENERAL});
+const TEMARIO_DEFECTO = _canonTemario({bloques:BLOCKS, gravesOrder:GRAVES_ORDER, mgravesOrder:MGRAVES_ORDER, leves:LEVES, inglesTotal:INGLES_TOTAL, psico:PSICO_ITEMS, iexam:INGLES_EXAMS, oexam:ORTO_EXAMS, general:TEMARIO_GENERAL});
 
 /* ===================== CONFIGURACIÓN FIREBASE ===================== */
 // 1) Crea un proyecto gratuito en https://console.firebase.google.com
@@ -1595,6 +1737,8 @@ function exportarCalendarioEstudioICS(){
         }
         if(info.leveInfo && info.leveInfo.nombre) partes.push('Leve: '+info.leveInfo.nombre);
         if(info.inglesNum) partes.push('Inglés: lección '+info.inglesNum);
+        if(info.iexam) partes.push('Examen de inglés: '+info.iexam);
+        if(info.oexam) partes.push('Examen de ortografía: '+info.oexam);
         if(info.entreno) partes.push('Entreno');
         if(info.psico && info.psico.nombre) partes.push('Psicotécnico: '+info.psico.nombre);
         desc = partes.join('\n');
@@ -2068,11 +2212,11 @@ function freshPlanCarry(){
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, blockTurn, azulCount, leveAppear};
+  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, blockTurn, azulCount, leveAppear};
 }
 function clonePlanCarry(c){
   return {
-    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx,
+    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
     leveAppear: Object.assign({}, c.leveAppear)
@@ -2189,6 +2333,16 @@ function computePlan(){
 
       entry.inglesNum = (carry.iIdx % INGLES_TOTAL) + 1;
       if(!ticks.ingles){ carry.iIdx++; }
+
+      // Examen de inglés: uno cada día de estudio, en el orden del índice (mismo criterio de «NO completado»).
+      entry.iexamIdx = carry.xIdx % INGLES_EXAMS.length;
+      entry.iexam = INGLES_EXAMS[entry.iexamIdx];
+      if(!ticks.iexam){ carry.xIdx++; }
+
+      // Examen de ortografía: uno cada día de estudio (resultado Apto / No apto).
+      entry.oexamIdx = carry.oIdx % ORTO_EXAMS.length;
+      entry.oexam = ORTO_EXAMS[entry.oexamIdx];
+      if(!ticks.oexam){ carry.oIdx++; }
 
       entry.orto = true;
       if(isTueThu){
@@ -2545,6 +2699,8 @@ function buildTasksBlock(d, info, compact){
   tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}, 'bc-'+info.color));
   tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
   tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
+  if(info.iexam) tasks.appendChild(taskRow('EXA', info.iexam, 'tag-iexam', {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}));
+  if(info.oexam) tasks.appendChild(taskRow('EOR', info.oexam, 'tag-oexam', {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}));
   if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
   if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
   tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
@@ -2575,6 +2731,8 @@ function dayCompletionInfo(info){
   if(info.status !== 'ESTUDIO') return null;
   const dticks = info.ticks || {};
   const streams = ['bloque','leve','ingles','orto'];
+  if(info.iexam) streams.push('iexam');
+  if(info.oexam) streams.push('oexam');
   if(info.entreno) streams.push('entreno');
   if(info.psico) streams.push('psico');
   const pending = streams.filter(s=> dticks[s]).length;
@@ -2648,6 +2806,8 @@ function renderHomeDash(){
       'Leve '+todayInfo.leveNum+': '+todayInfo.leveInfo.nombre,
       'Inglés tema '+todayInfo.inglesNum
     ];
+    if(todayInfo.iexam) parts.push('Examen de inglés: '+todayInfo.iexam);
+    if(todayInfo.oexam) parts.push('Examen de ortografía: '+todayInfo.oexam);
     if(todayInfo.entreno){ parts.push('Entreno físico'); entrenoHoy = true; }
     if(todayInfo.psico) parts.push('Psicotécnico: '+todayInfo.psico);
     parts.push('Orto-grama');
@@ -3200,6 +3360,8 @@ function openDayModal(d, info, modo){
       if(info.inglesNum){
         addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO);
       }
+      if(info.iexam) addModalRow(sb, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO);
+      if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO);
       if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
       if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
       addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
@@ -4183,7 +4345,7 @@ const VUELTA_MODES = [
 ];
 // Nota máxima según el grupo de temario: bloques y leves se puntúan sobre 10,
 // inglés sobre 20 y psicotécnicos sobre 30.
-const GROUP_MAX_NOTA = { Bloques:10, Leves:10, 'Inglés':20, 'Psicotécnicos':30 };
+const GROUP_MAX_NOTA = { Bloques:10, Leves:10, 'Inglés':20, 'Examen inglés':20, 'Psicotécnicos':30 };
 // Registro global: key de vuelta -> {grupo, label}. Lo rellenan renderBlocks/renderLeves/
 // renderIngles/renderPsico cada vez que se pintan, y lo lee la pestaña «Progreso».
 const KEY_LABELS = {};
@@ -4251,6 +4413,9 @@ function catalogoRecuperar(){
   }
   PSICO_ITEMS.forEach((name,idx)=>{
     items.push({key:'psico-'+idx, grupo:'Psicotécnicos', materia:'psico', label:name, detalle:'', arrKey:'psico-'+idx});
+  });
+  INGLES_EXAMS.forEach((name,idx)=>{
+    items.push({key:'iexam-'+idx, grupo:'Examen inglés', materia:'iexam', label:name, detalle:'', arrKey:'iexam-'+idx});
   });
   const porKey = {};
   items.forEach((it,i)=>{ it.orden = i; porKey[it.key] = it; });
@@ -4667,7 +4832,194 @@ function buildNotasVuelta(entry, ariaBase, onChange){
   pintar();
   return {boxes, addBtn};
 }
+/* Inglés (temas): ya no tienen test. Cada vuelta es solo «Visto» o «No visto» (más notas de texto si quieres).
+   Se guarda en la misma vuelta de siempre: mode 'visto' = visto, 'pendiente' = no visto. Lo que ya tenías
+   guardado no se borra: cualquier vuelta que tuviera estado o nota cuenta ahora como vista. */
+function _vueltaIngVacia(){ return {mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}; }
+function buildTicksRowIngles(key){
+  const arr = ensureTicksArray(key);
+  const wrap = document.createElement('div'); wrap.className='ticks-row';
+  const rehacer = ()=> wrap.replaceWith(buildTicksRowIngles(key));
+  arr.forEach((entry,i)=>{
+    const visto = entry.mode !== 'pendiente';
+    const row = document.createElement('div'); row.className='vuelta-row visto-row mode-'+(visto ? 'solo_lectura' : 'pendiente');
+    const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
+    const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
+    headline.appendChild(lbl);
+    if(entry.fecha){
+      const pin = document.createElement('span'); pin.className='vuelta-pin';
+      pin.textContent = '📌 '+formatFechaEs(entry.fecha);
+      headline.appendChild(pin);
+    }
+    row.appendChild(headline);
+    const lab = document.createElement('label'); lab.className='visto-check'; lab.style.cssText='display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;';
+    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = visto;
+    cb.setAttribute('aria-label', 'Vuelta '+(i+1)+': visto');
+    cb.onchange = ()=>{
+      entry.mode = cb.checked ? 'visto' : 'pendiente';
+      entry.nota = null; entry.notasExtra = [];
+      if(!cb.checked) entry.fecha = null;
+      scheduleSave(); rehacer();
+    };
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(visto ? ' Visto' : ' No visto'));
+    row.appendChild(lab);
+    const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(i+1));
+    row.appendChild(notas.addBtn);
+    if(arr.length > 1){
+      const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
+      delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
+      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); rehacer(); };
+      row.appendChild(delBtn);
+    }
+    row.appendChild(notas.boxes);
+    wrap.appendChild(row);
+  });
+  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push(_vueltaIngVacia()); scheduleSave(); rehacer(); };
+  wrap.appendChild(addBtn);
+  return wrap;
+}
+function buildQuickVistoIngles(key, fechaISO, onChanged, selectedIdx){
+  const arr = ensureTicksArray(key);
+  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=> e.mode === 'pendiente');
+  if(idx === -1) idx = arr.length-1;
+  const entry = arr[idx];
+  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+(entry.mode !== 'pendiente' ? 'solo_lectura' : 'pendiente');
+  const refrescar = (nuevoIdx)=>{
+    const fresh = buildQuickVistoIngles(key, fechaISO, onChanged, nuevoIdx === undefined ? idx : nuevoIdx);
+    wrap.replaceWith(fresh);
+    if(onChanged) onChanged(fresh);
+    return fresh;
+  };
+  const headline = document.createElement('div'); headline.className = 'quick-vuelta-headline';
+  const numSel = document.createElement('select'); numSel.className = 'vuelta-select vuelta-num-select';
+  numSel.setAttribute('aria-label', 'Elegir vuelta de este tema');
+  arr.forEach((e,i)=>{
+    const o = document.createElement('option'); o.value = String(i);
+    o.textContent = 'Vuelta '+(i+1)+' ('+(e.mode !== 'pendiente' ? 'visto' : 'no visto')+')'+marcaNotasTxt(e);
+    if(i === idx) o.selected = true;
+    numSel.appendChild(o);
+  });
+  numSel.onchange = ()=>{ refrescar(Number(numSel.value)); };
+  headline.appendChild(numSel);
+  wrap.appendChild(headline);
+  const visto = entry.mode !== 'pendiente';
+  const lab = document.createElement('label'); lab.className = 'visto-check'; lab.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;';
+  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = visto;
+  cb.setAttribute('aria-label', 'Vuelta '+(idx+1)+' de este tema: visto');
+  cb.onchange = ()=>{
+    entry.mode = cb.checked ? 'visto' : 'pendiente';
+    entry.nota = null; entry.notasExtra = [];
+    entry.fecha = cb.checked ? (entry.fecha || fechaISO || null) : null;
+    scheduleSave();
+    refrescar();
+    try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras marcar visto', err); }catch(e){} }
+  };
+  lab.appendChild(cb); lab.appendChild(document.createTextNode(visto ? ' Visto' : ' No visto'));
+  wrap.appendChild(lab);
+  const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(idx+1)+' de este tema', ()=>{
+    const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+(entry.mode !== 'pendiente' ? 'visto' : 'no visto')+')'+marcaNotasTxt(entry);
+  });
+  wrap.appendChild(notas.addBtn);
+  const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'tick-add tick-add-vuelta';
+  addBtn.textContent = '+ Añadir vuelta';
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push(_vueltaIngVacia()); scheduleSave(); refrescar(arr.length-1); };
+  wrap.appendChild(addBtn);
+  wrap.appendChild(notas.boxes);
+  return wrap;
+}
+/* Exámenes de ortografía: no llevan nota, solo Apto / No apto por vuelta (mode 'apto' | 'no_apto' | 'pendiente'). */
+const APTO_OPCIONES = [['pendiente','Pendiente'],['apto','Apto'],['no_apto','No apto']];
+function _aptoTxt(e){ return e.mode === 'apto' ? 'apto' : (e.mode === 'no_apto' ? 'no apto' : 'pendiente'); }
+function buildTicksRowApto(key){
+  const arr = ensureTicksArray(key);
+  const wrap = document.createElement('div'); wrap.className='ticks-row';
+  const rehacer = ()=> wrap.replaceWith(buildTicksRowApto(key));
+  arr.forEach((entry,i)=>{
+    const row = document.createElement('div'); row.className='vuelta-row mode-'+(entry.mode === 'apto' ? 'solo_lectura' : (entry.mode === 'no_apto' ? 'no_test' : 'pendiente'));
+    const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
+    const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
+    headline.appendChild(lbl);
+    if(entry.fecha){
+      const pin = document.createElement('span'); pin.className='vuelta-pin';
+      pin.textContent = '📌 '+formatFechaEs(entry.fecha);
+      headline.appendChild(pin);
+    }
+    row.appendChild(headline);
+    const sel = document.createElement('select'); sel.className='vuelta-select';
+    sel.setAttribute('aria-label', 'Resultado de la vuelta '+(i+1));
+    APTO_OPCIONES.forEach(([val,txt])=>{ const o = document.createElement('option'); o.value = val; o.textContent = txt; if(entry.mode === val) o.selected = true; sel.appendChild(o); });
+    sel.onchange = ()=>{
+      entry.mode = sel.value; entry.nota = null; entry.notasExtra = [];
+      if(entry.mode === 'pendiente') entry.fecha = null;
+      scheduleSave(); rehacer();
+    };
+    row.appendChild(sel);
+    const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(i+1));
+    row.appendChild(notas.addBtn);
+    if(arr.length > 1){
+      const delBtn = document.createElement('button'); delBtn.type='button'; delBtn.className='vuelta-del';
+      delBtn.textContent='✕'; delBtn.title='Eliminar esta vuelta';
+      delBtn.onclick = ()=>{ arr.splice(i,1); scheduleSave(); rehacer(); };
+      row.appendChild(delBtn);
+    }
+    row.appendChild(notas.boxes);
+    wrap.appendChild(row);
+  });
+  const addBtn = document.createElement('button'); addBtn.type='button'; addBtn.className='tick-add'; addBtn.textContent='+ Añadir vuelta';
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push(_vueltaIngVacia()); scheduleSave(); rehacer(); };
+  wrap.appendChild(addBtn);
+  return wrap;
+}
+function buildQuickApto(key, fechaISO, onChanged, selectedIdx){
+  const arr = ensureTicksArray(key);
+  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=> e.mode === 'pendiente');
+  if(idx === -1) idx = arr.length-1;
+  const entry = arr[idx];
+  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+(entry.mode === 'apto' ? 'solo_lectura' : (entry.mode === 'no_apto' ? 'no_test' : 'pendiente'));
+  const refrescar = (nuevoIdx)=>{
+    const fresh = buildQuickApto(key, fechaISO, onChanged, nuevoIdx === undefined ? idx : nuevoIdx);
+    wrap.replaceWith(fresh);
+    if(onChanged) onChanged(fresh);
+    return fresh;
+  };
+  const headline = document.createElement('div'); headline.className = 'quick-vuelta-headline';
+  const numSel = document.createElement('select'); numSel.className = 'vuelta-select vuelta-num-select';
+  numSel.setAttribute('aria-label', 'Elegir vuelta de este examen');
+  arr.forEach((e,i)=>{
+    const o = document.createElement('option'); o.value = String(i);
+    o.textContent = 'Vuelta '+(i+1)+' ('+_aptoTxt(e)+')'+marcaNotasTxt(e);
+    if(i === idx) o.selected = true;
+    numSel.appendChild(o);
+  });
+  numSel.onchange = ()=>{ refrescar(Number(numSel.value)); };
+  headline.appendChild(numSel);
+  wrap.appendChild(headline);
+  const sel = document.createElement('select'); sel.className = 'vuelta-select';
+  sel.setAttribute('aria-label', 'Resultado de la vuelta '+(idx+1)+' de este examen');
+  APTO_OPCIONES.forEach(([val,txt])=>{ const o = document.createElement('option'); o.value = val; o.textContent = txt; if(entry.mode === val) o.selected = true; sel.appendChild(o); });
+  sel.onchange = ()=>{
+    entry.mode = sel.value; entry.nota = null; entry.notasExtra = [];
+    entry.fecha = entry.mode === 'pendiente' ? null : (entry.fecha || fechaISO || null);
+    scheduleSave();
+    refrescar();
+    try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras marcar apto', err); }catch(e){} }
+  };
+  wrap.appendChild(sel);
+  const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(idx+1)+' de este examen', ()=>{
+    const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+_aptoTxt(entry)+')'+marcaNotasTxt(entry);
+  });
+  wrap.appendChild(notas.addBtn);
+  const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'tick-add tick-add-vuelta';
+  addBtn.textContent = '+ Añadir vuelta';
+  addBtn.onclick = (e)=>{ e.preventDefault(); arr.push(_vueltaIngVacia()); scheduleSave(); refrescar(arr.length-1); };
+  wrap.appendChild(addBtn);
+  wrap.appendChild(notas.boxes);
+  return wrap;
+}
 function buildTicksRow(key, maxNota){
+  if(esKeyOexam(key)) return buildTicksRowApto(key);
+  if(esKeyIngles(key)) return buildTicksRowIngles(key);
   maxNota = maxNota || 10;
   if(!state.ticks[key]) state.ticks[key] = new Array(6).fill(null).map(()=>({mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}));
   state.ticks[key] = state.ticks[key].map(migrateTickEntry);
@@ -4769,6 +5121,8 @@ function vueltaResumenTxt(entry, key){
   return found ? found[1].toLowerCase() : entry.mode;
 }
 function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx){
+  if(esKeyOexam(key)) return buildQuickApto(key, fechaISO, onChanged, selectedIdx);
+  if(esKeyIngles(key)) return buildQuickVistoIngles(key, fechaISO, onChanged, selectedIdx);
   maxNota = maxNota || 10;
   const arr = ensureTicksArray(key);
   const esIng = esKeyIngles(key);
@@ -4875,7 +5229,7 @@ function buildNoteBox(key, placeholder){
 
 /* ===================== RENDER: TEMARIO ===================== */
 // Recuerda qué secciones están desplegadas entre renderizados (por defecto, todas cerradas).
-const temarioOpen = {bloques:false, leves:false, ingles:false, psico:false, orto:false};
+const temarioOpen = {bloques:false, leves:false, ingles:false, iexam:false, oexam:false, psico:false, orto:false};
 function renderAccordionSection(host, key, titleText, buildFn){
   host.innerHTML = '';
   const wrap = document.createElement('div');
@@ -5020,11 +5374,32 @@ function renderLeves(){
   });
 }
 function renderIngles(){
-  renderFlatSection('inglesHost', 'ingles', 'Inglés (ciclo 1–'+INGLES_TOTAL+') · notas sobre 20', 'Inglés', (grid)=>{
+  renderFlatSection('inglesHost', 'ingles', 'Inglés (ciclo 1–'+INGLES_TOTAL+') · visto / no visto', 'Inglés', (grid)=>{
     for(let i=1;i<=INGLES_TOTAL;i++){
       const key = 'ingles-'+i;
       grid.appendChild(buildFlatItem(key, 'Inglés', 'Tema '+i, `<span class="fi-name">Tema ${i}</span>`));
     }
+  });
+}
+function renderIexam(){
+  renderFlatSection('iexamHost', 'iexam', 'Exámenes de inglés (ciclo de '+INGLES_EXAMS.length+') · notas sobre 20', 'Examen inglés', (grid)=>{
+    let grupoPrev = null;
+    INGLES_EXAMS.forEach((name,idx)=>{
+      const grupoAct = /Suboficiales$/.test(name) ? 'Suboficiales' : 'Guardias';
+      if(grupoAct !== grupoPrev){
+        const lab = document.createElement('div'); lab.className = 'tema-group-label'; lab.style.gridColumn = '1 / -1';
+        lab.innerHTML = '<span>Exámenes de inglés · '+grupoAct+'</span>';
+        grid.appendChild(lab); grupoPrev = grupoAct;
+      }
+      grid.appendChild(buildFlatItem('iexam-'+idx, 'Examen inglés', name, `<span class="fi-name">${name}</span>`));
+    });
+  });
+}
+function renderOexam(){
+  renderFlatSection('oexamHost', 'oexam', 'Exámenes de ortografía (ciclo de '+ORTO_EXAMS.length+') · apto / no apto', 'Examen ortografía', (grid)=>{
+    ORTO_EXAMS.forEach((name,idx)=>{
+      grid.appendChild(buildFlatItem('oexam-'+idx, 'Examen ortografía', name, `<span class="fi-name">${name}</span>`));
+    });
   });
 }
 function renderPsico(){
@@ -8891,7 +9266,7 @@ document.getElementById('simDayModal').addEventListener('click', e=>{ if(e.targe
 /* ===================== RENDER: RECUPERAR ===================== */
 const _recForm = {materia:'bloques', bloque:1, key:'', test:'general'};
 const _recAbiertos = new Set(); // todos los grupos empiezan cerrados
-const REC_MATERIAS = [['bloques','Bloques'],['leves','Leves'],['ingles','Inglés'],['psico','Psicotécnicos']];
+const REC_MATERIAS = [['bloques','Bloques'],['leves','Leves'],['ingles','Inglés'],['iexam','Examen inglés'],['psico','Psicotécnicos']];
 function buildRecuperarForm(host){
   host.innerHTML = '';
   const cat = catalogoRecuperar();
@@ -9318,6 +9693,8 @@ function collectNotaData(){
     const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
     const esIng = esKeyIngles(key);
     entries.forEach((e,vueltaIdx)=>{
+      if(esIng){ if(e.mode !== 'pendiente') seq.push({mode:'visto', vuelta:vueltaIdx+1}); return; } // inglés: solo visto / no visto
+      if(esKeyOexam(key)){ if(e.mode === 'apto' || e.mode === 'no_apto') seq.push({mode:e.mode, vuelta:vueltaIdx+1}); return; } // ortografía: apto / no apto
       // vuelta: número de vuelta (1-based) al que pertenece esta entrada, tal cual aparece
       // en «Temario y notas». Varios tests de una misma vuelta comparten el mismo número.
       const vuelta = vueltaIdx+1;
@@ -9662,6 +10039,10 @@ function renderProgreso(){
           else { k = grupo+'|'+item.key; nombre = item.label+' ('+(grupo==='Bloques' ? 'bloques' : 'leves')+')'; }
         } else if(grupo==='Inglés'){
           k = grupo+'|'+item.key; nombre = item.label+' de inglés';
+        } else if(grupo==='Examen ortografía'){
+          k = grupo+'|'+item.key; nombre = 'Examen de ortografía '+item.label;
+        } else if(grupo==='Examen inglés'){
+          k = grupo+'|'+item.key; nombre = 'Examen de inglés '+item.label;
         } else {
           k = grupo+'|'+item.key; nombre = item.label+' (psicotécnicos)';
         }
@@ -9856,12 +10237,16 @@ function renderProgreso(){
       'Bloques':'g-bloques',
       'Leves':'g-leves',
       'Inglés':'g-ingles',
+      'Examen inglés':'g-iexam',
+      'Examen ortografía':'g-oexam',
       'Psicotécnicos':'g-psico'
     };
     const GRUPO_BORDER_COLOR = {
       'Bloques':'var(--amber)',
       'Leves':'var(--green)',
       'Inglés':'var(--blue)',
+      'Examen inglés':'#3f8f8a',
+      'Examen ortografía':'#9c6b3f',
       'Psicotécnicos':'#7a5c9c'
     };
     // Mismos colores que arriba pero en hex literal: el contexto 2D del <canvas> no resuelve
@@ -9871,6 +10256,8 @@ function renderProgreso(){
       'Bloques':'#c9a227',
       'Leves':'#6f9a6a',
       'Inglés':'#5c8a99',
+      'Examen inglés':'#3f8f8a',
+      'Examen ortografía':'#9c6b3f',
       'Psicotécnicos':'#7a5c9c'
     };
     // Cada parte del temario (Graves, Menos graves, Leves, Inglés, Psicotécnicos) es un desplegable:
@@ -9935,7 +10322,10 @@ function renderProgreso(){
           no_test:      {label:'No test',      color:'var(--muted)'},
           no_tiempo:    {label:'No tiempo',     color:'#a9531d'},
           recuperar:    {label:'Recuperar',     color:'#b8901f'},
-          solo_lectura: {label:'Solo lectura',  color:'#5c8a99'}
+          solo_lectura: {label:'Solo lectura',  color:'#5c8a99'},
+          visto:        {label:'Visto',         color:'var(--green-ink)'},
+          apto:         {label:'Apto',          color:'var(--green-ink)'},
+          no_apto:      {label:'No apto',       color:'var(--red-text)'}
         };
         const vueltaGroups = [];
         item.seq.forEach(entry=>{
@@ -10072,7 +10462,7 @@ function renderProgreso(){
         startSection('leves', 'Leves', 'var(--green)', data.porGrupo[grupo].length);
         porTema(data.porGrupo[grupo], 'var(--green)');
       } else {
-        startSection(grupo === 'Inglés' ? 'ingles' : grupo === 'Psicotécnicos' ? 'psico' : grupo, grupo, GRUPO_BORDER_COLOR[grupo] || 'var(--amber)', data.porGrupo[grupo].length);
+        startSection(grupo === 'Inglés' ? 'ingles' : grupo === 'Examen inglés' ? 'iexam' : grupo === 'Examen ortografía' ? 'oexam' : grupo === 'Psicotécnicos' ? 'psico' : grupo, grupo === 'Inglés' ? 'Inglés (visto / no visto)' : grupo, GRUPO_BORDER_COLOR[grupo] || 'var(--amber)', data.porGrupo[grupo].length);
         data.porGrupo[grupo].forEach(renderItemRow);
       }
     });
@@ -10217,7 +10607,7 @@ function renderProgreso(){
     host.appendChild(sArr);
   }
 }
-const detalleSeccionesOpen = {graves:false, menosGraves:false, leves:false, ingles:false, psico:false};
+const detalleSeccionesOpen = {graves:false, menosGraves:false, leves:false, ingles:false, iexam:false, oexam:false, psico:false};
 const progresoOpen = {resumen:false, detalleTema:false, tendenciaArrastre:false, comparativaSimulacros:false, testArrastre:false};
 // Meses del test de arrastre que el usuario ha abierto/cerrado a mano (clave 'YYYY-MM'). Si un mes no está
 // aquí, se abre solo el más reciente. Vive en memoria: sobrevive a repintar Progreso, no a recargar.
@@ -11964,6 +12354,8 @@ function edDesdeActual(){
     leves:LEVES.map((t,i)=> Object.assign(_clonTemario(t), {_o:i})),
     inglesTotal:INGLES_TOTAL,
     psico:PSICO_ITEMS.map((n,i)=> ({nombre:n, _o:i})),
+    iexam:INGLES_EXAMS.map((n,i)=> ({nombre:n, _o:i})),
+    oexam:ORTO_EXAMS.map((n,i)=> ({nombre:n, _o:i})),
     general:TEMARIO_GENERAL.map(t=> _clonTemario(t)),
     _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
   };
@@ -11977,11 +12369,11 @@ function edW(){ if(!_ed.W) _ed.W = edDesdeActual(); return _ed.W; }
 function edATemario(W){
   const bl = {};
   W.gravesOrder.concat(W.mgravesOrder).forEach(n=>{ if(W.bloques[n]) bl[n] = {temas:W.bloques[n].temas}; });
-  return _canonTemario({bloques:bl, gravesOrder:W.gravesOrder, mgravesOrder:W.mgravesOrder, leves:W.leves, inglesTotal:W.inglesTotal, psico:W.psico.map(p=>p.nombre), general:W.general});
+  return _canonTemario({bloques:bl, gravesOrder:W.gravesOrder, mgravesOrder:W.mgravesOrder, leves:W.leves, inglesTotal:W.inglesTotal, psico:W.psico.map(p=>p.nombre), iexam:W.iexam.map(p=>p.nombre), oexam:W.oexam.map(p=>p.nombre), general:W.general});
 }
 // Mapa «posición antigua → posición nueva» para migrarDatosTemario().
 function edMapa(W){
-  const m = {bloques:{}, leves:{}, psico:{}, inglesTotal:W.inglesTotal};
+  const m = {bloques:{}, leves:{}, psico:{}, iexam:{}, oexam:{}, inglesTotal:W.inglesTotal};
   W._numsOriginales.forEach(num=>{
     const enFamilia = W.gravesOrder.includes(num) || W.mgravesOrder.includes(num);
     const b = W.bloques[num];
@@ -11995,6 +12387,10 @@ function edMapa(W){
   W.leves.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.leves[t._o] = nuevo; });
   PSICO_ITEMS.forEach((_,i)=>{ m.psico[i] = null; });
   W.psico.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.psico[t._o] = nuevo; });
+  INGLES_EXAMS.forEach((_,i)=>{ m.iexam[i] = null; });
+  W.iexam.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.iexam[t._o] = nuevo; });
+  ORTO_EXAMS.forEach((_,i)=>{ m.oexam[i] = null; });
+  W.oexam.forEach((t,nuevo)=>{ if(t._o !== null && t._o !== undefined) m.oexam[t._o] = nuevo; });
   return m;
 }
 // ¿Cambia el ORDEN o el TAMAÑO de algo? (añadir, quitar o mover). Renombrar o cambiar de color no cuenta.
@@ -12002,7 +12398,7 @@ function edFirmaEstructura(W){
   const nums = W.gravesOrder.concat(W.mgravesOrder).slice().sort((a,b)=>a-b);
   return JSON.stringify({g:W.gravesOrder, m:W.mgravesOrder,
     b:nums.map(n=>[n, W.bloques[n] ? W.bloques[n].temas.map(t=>t._o) : null]),
-    l:W.leves.map(t=>t._o), p:W.psico.map(t=>t._o), i:W.inglesTotal});
+    l:W.leves.map(t=>t._o), p:W.psico.map(t=>t._o), x:W.iexam.map(t=>t._o), o:W.oexam.map(t=>t._o), i:W.inglesTotal});
 }
 function edHayReflujo(W){ return edFirmaEstructura(W) !== edFirmaEstructura(edDesdeActual()); }
 function _vueltaConContenido(v){
@@ -12038,10 +12434,14 @@ function edResumen(W){
   const lBorrados = LEVES.length - (W.leves.length - lNuevos);
   const pNuevos = W.psico.filter(t=> t._o === null || t._o === undefined).length;
   const pBorrados = PSICO_ITEMS.length - (W.psico.length - pNuevos);
+  const xNuevos = W.iexam.filter(t=> t._o === null || t._o === undefined).length;
+  const xBorrados = INGLES_EXAMS.length - (W.iexam.length - xNuevos);
+  const oNuevos = W.oexam.filter(t=> t._o === null || t._o === undefined).length;
+  const oBorrados = ORTO_EXAMS.length - (W.oexam.length - oNuevos);
   const par = (nombre, a, b)=>{ if(a || b) L.push(nombre+': '+(a ? '+'+a : '')+(a && b ? ' ' : '')+(b ? '−'+b : '')); };
-  par('bloques', bNuevos, bBorrados); par('temas', tNuevos, tBorrados); par('leves', lNuevos, lBorrados); par('psicotécnicos', pNuevos, pBorrados);
+  par('bloques', bNuevos, bBorrados); par('temas', tNuevos, tBorrados); par('leves', lNuevos, lBorrados); par('psicotécnicos', pNuevos, pBorrados); par('exámenes de inglés', xNuevos, xBorrados); par('exámenes de ortografía', oNuevos, oBorrados);
   if(W.inglesTotal !== INGLES_TOTAL) L.push('inglés: '+INGLES_TOTAL+' → '+W.inglesTotal);
-  const reord = movidos + W.leves.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length + W.psico.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length;
+  const reord = movidos + W.leves.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length + W.psico.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length + W.iexam.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length + W.oexam.filter((t,i)=> t._o !== null && t._o !== undefined && t._o !== i).length;
   if(reord) L.push(reord+' cambiados de sitio');
   return L;
 }
@@ -12236,6 +12636,42 @@ function edPsico(body){
   add.appendChild(a1);
   body.appendChild(add);
 }
+function edIexam(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno cada día de estudio, en este orden (Guardias primero y luego Suboficiales). Cada uno lleva su nota sobre 20.'));
+  W.iexam.forEach((t, i)=>{
+    const row = _e('div', 'ed-row ed-psico');
+    row.appendChild(_e('div', 'ed-num', String(i+1)));
+    const campos = _e('div', 'ed-campos');
+    campos.appendChild(_edInput(t.nombre, 'Nombre (p. ej. 2027 · 1A · Guardias)', v=>{ t.nombre = v; }));
+    row.appendChild(campos);
+    row.appendChild(_edAcciones(W.iexam, i));
+    body.appendChild(row);
+  });
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small', '➕ Añadir examen de inglés'); a1.type = 'button';
+  a1.onclick = ()=>{ W.iexam.push({nombre:'Examen '+(W.iexam.length+1), _o:null}); edCambio(); };
+  add.appendChild(a1);
+  body.appendChild(add);
+}
+function edOexam(body){
+  const W = edW();
+  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno cada día de estudio, en este orden. No llevan nota: cada vuelta es Apto o No apto.'));
+  W.oexam.forEach((t, i)=>{
+    const row = _e('div', 'ed-row ed-psico');
+    row.appendChild(_e('div', 'ed-num', String(i+1)));
+    const campos = _e('div', 'ed-campos');
+    campos.appendChild(_edInput(t.nombre, 'Nombre (p. ej. 2027 · 1A)', v=>{ t.nombre = v; }));
+    row.appendChild(campos);
+    row.appendChild(_edAcciones(W.oexam, i));
+    body.appendChild(row);
+  });
+  const add = _e('div', 'ed-add');
+  const a1 = _e('button', 'btn small', '➕ Añadir examen de ortografía'); a1.type = 'button';
+  a1.onclick = ()=>{ W.oexam.push({nombre:'Examen '+(W.oexam.length+1), _o:null}); edCambio(); };
+  add.appendChild(a1);
+  body.appendChild(add);
+}
 const _edGenAbiertos = new Set();
 function edGeneral(body){
   const W = edW();
@@ -12331,7 +12767,7 @@ function edRestaurarOriginal(){
   const D = TEMARIO_DEFECTO;
   const mismoTipo = (a, b)=> !!a && ((a.type || '') === (b.type || ''));
   const W = {
-    bloques:{}, gravesOrder:D.gravesOrder.slice(), mgravesOrder:D.mgravesOrder.slice(), leves:[], inglesTotal:D.inglesTotal, psico:[], general:_clonTemario(D.general),
+    bloques:{}, gravesOrder:D.gravesOrder.slice(), mgravesOrder:D.mgravesOrder.slice(), leves:[], inglesTotal:D.inglesTotal, psico:[], iexam:[], oexam:[], general:_clonTemario(D.general),
     _numsOriginales:Object.keys(BLOCKS).map(Number), _inglesOrig:INGLES_TOTAL
   };
   Object.keys(D.bloques).forEach(k=>{
@@ -12340,6 +12776,8 @@ function edRestaurarOriginal(){
   });
   D.leves.forEach((t,i)=>{ W.leves.push(Object.assign(_clonTemario(t), {_o:mismoTipo(LEVES[i], t) ? i : null})); });
   D.psico.forEach((n,i)=>{ W.psico.push({nombre:n, _o:i < PSICO_ITEMS.length ? i : null}); });
+  D.iexam.forEach((n,i)=>{ W.iexam.push({nombre:n, _o:i < INGLES_EXAMS.length ? i : null}); });
+  D.oexam.forEach((n,i)=>{ W.oexam.push({nombre:n, _o:i < ORTO_EXAMS.length ? i : null}); });
   _ed.W = W; _ed.sucio = true; _ed.errores = []; _ed.avisos = [];
   renderEditorTemario();
   showToast('Temario original cargado en el editor. Revisa y guarda.');
@@ -12422,6 +12860,8 @@ function renderEditorTemario(){
   edSeccion(host, 'ed_mgraves', 'Bloques menos graves · '+nM, body=> edBloquesFamilia(body, false));
   edSeccion(host, 'ed_leves', 'Leves · '+W.leves.length, body=> edLeves(body));
   edSeccion(host, 'ed_ingles', 'Inglés · '+W.inglesTotal+' temas', body=> edIngles(body));
+  edSeccion(host, 'ed_iexam', 'Exámenes de inglés · '+W.iexam.length, body=> edIexam(body));
+  edSeccion(host, 'ed_oexam', 'Exámenes de ortografía · '+W.oexam.length, body=> edOexam(body));
   edSeccion(host, 'ed_psico', 'Psicotécnicos · '+W.psico.length, body=> edPsico(body));
   edSeccion(host, 'ed_general', 'Temario general (teoría) · '+W.general.length, body=> edGeneral(body));
 
@@ -12443,6 +12883,8 @@ function renderAll(){
   renderBlocks();
   renderLeves();
   renderIngles();
+  renderIexam();
+  renderOexam();
   renderPsico();
   renderOrto();
   renderRecuperar();
@@ -12493,7 +12935,7 @@ const RENDER_PESTANA = {
     renderTodoCalMonthBar(); renderTodoCalLegend(); renderTodoCalendar();
   },
   clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); renderClasesSeminarios(); },
-  temario(){ renderBlocks(); renderLeves(); renderIngles(); renderPsico(); renderOrto(); },
+  temario(){ renderBlocks(); renderLeves(); renderIngles(); renderIexam(); renderOexam(); renderPsico(); renderOrto(); },
   simulacros(){ renderSimulacrosList(); },
   entrenos(){ renderMarcas(); renderEntrenos(); },
   progreso(){ renderCiclo(); renderRitmo(); renderFlojos(); renderProgreso(); },

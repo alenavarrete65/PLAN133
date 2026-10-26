@@ -507,3 +507,24 @@ Los psicotécnicos ya no son «Prueba 1…23 + CONTROL 1/2»: son 20 exámenes o
 versión, `migrarPsicoPorExamenes()` (marca `state.settings.psicoTemarioV = 2`) archiva en
 `state.psicoLegacy` las vueltas, notas y tiempos antiguos de `psico-N`, pasa a texto libre las clases
 de psico ya registradas en el calendario de clases y deja el progreso de psicotécnicos en blanco.
+
+
+## Examen de inglés diario y temas de inglés «visto / no visto»
+
+- **Examen de inglés (tarea nueva):** cada día de estudio sale un examen oficial de inglés más
+  (`INGLES_EXAMS`, claves `iexam-N`, stream `iexam`): Guardias 1-21 del índice y luego Suboficiales 22-33
+  (58 en total). Va en el calendario (etiqueta EXA), en el modal del día con su vuelta y su nota sobre 20,
+  en «Temario y notas», en Progreso, en Recuperar y en «Editar temario». Mismo criterio que el resto:
+  marcar el tick = NO completado, y el examen se repite.
+- **Temas de inglés:** ya no tienen test. Cada vuelta es solo **Visto / No visto** (`mode: 'visto'` o
+  `'pendiente'`) más notas de texto. Lo que había guardado no se borra: cualquier vuelta que tuviera
+  estado o nota cuenta como vista, y los tests antiguos (`textos`) siguen en los datos pero ya no se muestran.
+
+
+## Examen de ortografía diario (Apto / No apto)
+
+Otra tarea diaria más (`ORTO_EXAMS`, claves `oexam-N`, stream `oexam`, etiqueta EOR): cada día de estudio sale
+el siguiente examen oficial de ortografía del índice (51 en total, Guardias 2003-2026). No llevan nota: cada
+vuelta es **Apto / No apto** (`mode: 'apto' | 'no_apto' | 'pendiente'`). Va en el calendario, en el modal del día,
+en «Temario y notas», en Progreso (pastillas Apto / No apto por vuelta) y en «Editar temario». Es independiente
+de la tarea «Orto-grama» de siempre y de los tests Apto/No apto de la sección «Ortografía y gramática».

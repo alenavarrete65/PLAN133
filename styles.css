@@ -380,6 +380,8 @@
   .tag-leve{background:var(--green);color:#12241a;}
   .tag-ing{background:var(--blue);color:#0e2027;}
   .tag-psico{background:#7a5c9c;color:#fff;}
+  .tag-iexam{background:#3f8f8a;color:#fff;}
+  .tag-oexam{background:#9c6b3f;color:#fff;}
   .tag-manual{background:transparent;border:1px solid var(--amber-dim);color:var(--amber-ink);}
   .grupo-tag{
     font-family:var(--font-mono);font-size:11px;font-weight:600;letter-spacing:.03em;
@@ -389,6 +391,8 @@
   .grupo-tag.g-leves{background:var(--green);color:#12241a;}
   .grupo-tag.g-ingles{background:var(--blue);color:#0e2027;}
   .grupo-tag.g-psico{background:#7a5c9c;color:#fff;}
+  .grupo-tag.g-iexam{background:#3f8f8a;color:#fff;}
+  .grupo-tag.g-oexam{background:#9c6b3f;color:#fff;}
   .tag-orto{background:#6b7368;color:#fff;}
   .tag-entreno{background:#a9531d;color:#fff;}
   .tag-nota{background:transparent;border:1px solid var(--line);color:var(--cream-dim);}
@@ -1567,7 +1571,7 @@ html[data-theme="light"]{
   .modal-row[class*="mr-"]{background:color-mix(in srgb, var(--tc) 13%, transparent);}
 }
 .mr-grave{--tc:var(--tc-grave);} .mr-mgrave{--tc:var(--tc-mgrave);} .mr-leve{--tc:var(--tc-leve);}
-.mr-ing{--tc:var(--tc-ing);} .mr-psico{--tc:var(--tc-psico);} .mr-orto{--tc:var(--tc-orto);}
+.mr-iexam{--tc:#3f8f8a;} .mr-oexam{--tc:#9c6b3f;} .mr-ing{--tc:var(--tc-ing);} .mr-psico{--tc:var(--tc-psico);} .mr-orto{--tc:var(--tc-orto);}
 .mr-entreno{--tc:var(--tc-entreno);} .mr-manual{--tc:var(--amber-dim);} .mr-nota{--tc:var(--line-strong);}
 /* Calendario de clases: cada materia con la franja de su color */
 .clase-preview-row{
