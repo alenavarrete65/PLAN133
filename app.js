@@ -9744,17 +9744,38 @@ function collectNotaData(opts){
       const it = {key, label, notas:[], seq, max};
       porGrupo[grupo].push(it); ya[key] = it;
     };
-    // Inglés: cada tema cuenta como VISTO salvo que lo hayas marcado como «NO visto».
+    // Inglés: cuenta como VISTO cada tema que el calendario ya ha puesto hasta hoy (incluido el de hoy).
+    // La 1ª vez que sale un tema es la vuelta 1, la 2ª la vuelta 2… Los días marcados «NO completado»
+    // no avanzan el temario, así que no cuentan. Si marcaste una vuelta como «NO visto», no suma.
+    const vecesVisto = {}; // tema (1..INGLES_TOTAL) -> nº de veces que ya ha tocado
+    try{
+      const plan = computePlan();
+      const hoyISO = hoyLocalISO();
+      Object.keys(plan).sort().forEach(mk=>{
+        Object.keys(plan[mk]).map(Number).sort((x,y)=>x-y).forEach(d=>{
+          const e = plan[mk][d];
+          if(!e || e.status !== 'ESTUDIO' || !e.inglesNum) return;
+          if(mk+'-'+pad2(d) > hoyISO) return;
+          if(e.ticks && e.ticks.ingles) return; // «NO completado»
+          vecesVisto[e.inglesNum] = (vecesVisto[e.inglesNum] || 0) + 1;
+        });
+      });
+    }catch(err){ try{ console.error('Progreso inglés: no se pudo leer el calendario', err); }catch(_){} }
     for(let n=1; n<=INGLES_TOTAL; n++){
       const key = 'ingles-'+n;
       const arr = (state.ticks[key] || []).map(migrateTickEntry);
-      const hayMarcas = arr.some(e=> e.mode === 'visto' || e.mode === 'no_visto');
-      const seq = [];
-      if(!arr.length) seq.push({mode:'visto', vuelta:1});
-      else if(!hayMarcas) seq.push({mode:'visto', vuelta:1}); // sin tocar: 1 vuelta vista por defecto
-      else arr.forEach((e,i)=>{ if(e.mode === 'visto') seq.push({mode:'visto', vuelta:i+1}); });
+      const vueltas = {}; // nº de vuelta -> true
+      for(let v=1; v<=(vecesVisto[n]||0); v++) vueltas[v] = true;
+      arr.forEach((e,i)=>{
+        if(e.mode === 'no_visto') delete vueltas[i+1];
+        else if(e.mode === 'visto') vueltas[i+1] = true; // marcado a mano
+      });
+      const seq = Object.keys(vueltas).map(Number).sort((x,y)=>x-y).map(v=>({mode:'visto', vuelta:v}));
       if(seq.length) poner('Inglés', key, 'Tema '+n, seq, GROUP_MAX_NOTA['Inglés']);
-      else if(porGrupo['Inglés']){ /* tema marcado NO visto: no suma */ }
+      else if(ya[key]){ // sin vueltas vistas: fuera del progreso
+        const i = porGrupo['Inglés'].indexOf(ya[key]); if(i > -1) porGrupo['Inglés'].splice(i, 1);
+        delete ya[key];
+      }
     }
     // Exámenes: aparecen siempre, hayan tenido nota o no (los hechos salen con su nota/apto).
     PSICO_ITEMS.forEach((name,idx)=> poner('Psicotécnicos', 'psico-'+idx, name, [], GROUP_MAX_NOTA['Psicotécnicos']));
