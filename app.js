@@ -237,9 +237,25 @@ const LEVES = [
   {type:'l39_l40', l39:'(L39) PLAZOS', l40:'(L40) PACO CLASE ADM. GOBIERNO', clase:'10.0'},
 ];
 let INGLES_TOTAL = 32;
-const PSICO_ITEMS = [];
-for(let i=1;i<=23;i++) PSICO_ITEMS.push('Prueba '+i);
-PSICO_ITEMS.push('CONTROL 1'); PSICO_ITEMS.push('CONTROL 2');
+/* Psicotécnicos: exámenes oficiales por año y modelo, en el orden del índice (Guardias 1-11, luego
+   Suboficiales 12-16). El sufijo final (Guardias / Cabos / Suboficiales) lo usa «Temario y notas» para
+   agrupar. Antes eran «Prueba 1…23» + «CONTROL 1/2»: migrarPsicoPorExamenes() las archiva una vez. */
+const PSICO_ITEMS = [
+  '2016 · Modelo A · Guardias', '2016 · Modelo B · Guardias',
+  '2017 · Guardias',
+  '2018 · Modelo A · Guardias', '2018 · Modelo B · Guardias', '2018 · Cabos',
+  '2019 · Guardias',
+  '2020 · Modelo A · Guardias', '2020 · Modelo B · Guardias',
+  '2021 · Modelo B · Guardias',
+  '2022 · Modelo B · Guardias',
+  '2023 · Modelo B · Guardias',
+  '2024 · Modelo A · Guardias',
+  '2025 · Modelo B · Guardias',
+  '2026 · Modelo A · Guardias',
+  '2014 · Suboficiales', '2015 · Suboficiales', '2016 · Suboficiales', '2017 · Suboficiales', '2019 · Suboficiales'
+];
+// Lista antigua (solo para migrar datos guardados con ella).
+const PSICO_LEGACY = (()=>{ const a = []; for(let i=1;i<=23;i++) a.push('Prueba '+i); a.push('CONTROL 1','CONTROL 2'); return a; })();
 /* ===================== TEMARIO EDITABLE (núcleo) =====================
    Hasta ahora el temario (bloques, leves, inglés, psicotécnicos) estaba escrito a mano arriba del
    todo. Ahora se puede editar desde la pestaña «Editar temario»: el resultado se guarda en
@@ -335,7 +351,7 @@ function validarTemario(t){
   });
   const ing = Number(t.inglesTotal);
   if(!(Number.isInteger(ing) && ing >= 1 && ing <= 300)) errores.push('El número de temas de inglés tiene que estar entre 1 y 300.');
-  if(!Array.isArray(t.psico) || !t.psico.length) errores.push('Tiene que haber al menos una prueba de psicotécnicos.');
+  if(!Array.isArray(t.psico) || !t.psico.length) errores.push('Tiene que haber al menos un examen de psicotécnicos.');
   else t.psico.forEach((x,i)=>{ if(!_limpiaTxt(x)) errores.push('Psicotécnicos '+(i+1)+': falta el nombre.'); });
   if(t.general !== undefined){
     if(!Array.isArray(t.general)) errores.push('El temario general no es válido.');
@@ -376,6 +392,54 @@ function aplicarTemario(t){
   try{ invalidatePlan(); }catch(e){}
   return true;
 }
+/* Migración única (state.settings.psicoTemarioV = 2): de «Prueba N / CONTROL» a exámenes por año y modelo.
+   Las posiciones antiguas no equivalen a ningún examen nuevo, así que NO se remapean: lo antiguo
+   (vueltas, notas, tiempos) se guarda en state.psicoLegacy y las clases ya dadas se conservan en el
+   calendario de clases como texto («Prueba 5»). El temario propio de la cuenta, si lo había, pasa a la lista nueva. */
+function migrarPsicoPorExamenes(){
+  if(!state.settings) state.settings = {};
+  if(state.settings.psicoTemarioV >= 2) return;
+  state.settings.psicoTemarioV = 2;
+  const viejos = (state.temario && Array.isArray(state.temario.psico) && state.temario.psico.length)
+    ? state.temario.psico.map(_limpiaTxt) : PSICO_LEGACY.slice();
+  if(state.temario) state.temario.psico = PSICO_ITEMS.slice();
+  const nombre = (i)=> viejos[Number(i)] || ('Prueba '+(Number(i)+1));
+  const re = /^psico-\d+$/;
+  const arch = {ticks:{}, notes:{}, tiempos:{}, nombres:viejos, archivadoEl:new Date().toISOString().slice(0,10)};
+  let hay = false;
+  const mueve = (obj, dest)=>{
+    Object.keys(obj || {}).forEach(k=>{ if(re.test(k)){ dest[k] = obj[k]; delete obj[k]; hay = true; } });
+  };
+  mueve(state.ticks, arch.ticks);
+  mueve(state.notes, arch.notes);
+  if(state.tiempos && state.tiempos.temas) mueve(state.tiempos.temas, arch.tiempos);
+  if(state.arrastreManual && Array.isArray(state.arrastreManual.psico) && state.arrastreManual.psico.length){
+    arch.arrastreManual = state.arrastreManual.psico; state.arrastreManual.psico = []; hay = true;
+  }
+  // Clases ya dadas (calendario de clases): pasan a texto libre para no perder el rastro.
+  Object.keys(state.claseCal || {}).forEach(mk=>{
+    const mo = state.claseCal[mk] || {};
+    Object.keys(mo).forEach(d=>{
+      const e = mo[d]; if(!e) return;
+      if(Array.isArray(e.psico) && e.psico.length){
+        const extra = Array.isArray(e.psicoExtra) ? e.psicoExtra : [];
+        const sy = Array.isArray(e.psico_synced) ? e.psico_synced : [];
+        const syE = Array.isArray(e.psicoExtra_synced) ? e.psicoExtra_synced : extra.map(()=>false);
+        e.psico.forEach((idx,i)=>{ extra.push(nombre(idx)); syE.push(!!sy[i]); });
+        e.psicoExtra = extra; e.psicoExtra_synced = syE;
+        e.psico = []; delete e.psico_synced; hay = true;
+      }
+      if(Array.isArray(e.parciales)) e.parciales = e.parciales.filter(x=> !/^psico:\d+$/.test(String(x)));
+    });
+  });
+  // Tablón de clases pendientes de psico: pasan a texto libre.
+  (state.clasesPendientes || []).forEach(p=>{
+    if(p && p.materiaKey === 'psico' && p.temaValue !== null && p.temaValue !== undefined){
+      p.temaLabel = nombre(p.temaValue); p.temaValue = null; p.useExtra = true; hay = true;
+    }
+  });
+  if(hay) state.psicoLegacy = arch;
+}
 // Se llama desde normalizeState(): aplica state.temario si existe y es válido; si no, el de serie.
 function aplicarTemarioGuardado(){
   let t = null;
@@ -403,7 +467,7 @@ function actualizarTextosTemario(){
   ARRASTRE_POOL_META.mgraves.sub = 'Días pares · una vuelta = pasar una vez por los bloques '+M+' (azul y morado)';
   ARRASTRE_POOL_META.leves.sub = 'Una vuelta = pasar una vez por los '+LEVES.length+' leves del ciclo';
   ARRASTRE_POOL_META.ingles.sub = 'Una vuelta = pasar una vez por los '+INGLES_TOTAL+' temas del ciclo';
-  ARRASTRE_POOL_META.psico.sub = 'Una vuelta = pasar una vez por las '+PSICO_ITEMS.length+' pruebas y controles';
+  ARRASTRE_POOL_META.psico.sub = 'Una vuelta = pasar una vez por las '+PSICO_ITEMS.length+' exámenes (por año y modelo)';
 }
 
 /* ---- Migración de datos cuando cambian las posiciones ----
@@ -865,6 +929,7 @@ function normalizeState(){
   });
   // Temario editable: si la cuenta tiene un temario propio guardado, se aplica aquí (o se vuelve
   // al de serie si no lo tiene). Va antes de descartar la caché del plan porque lo cambia todo.
+  try{ migrarPsicoPorExamenes(); }catch(e){ try{ console.error('No se pudo migrar los psicotécnicos', e); }catch(_){} }
   try{ aplicarTemarioGuardado(); }catch(e){ try{ console.error('No se pudo aplicar el temario guardado', e); }catch(_){} }
   // El estado (posiblemente) ha cambiado por completo: descartamos la caché de computePlan().
   invalidatePlan();
@@ -3630,7 +3695,7 @@ function renderDayClasesEditor(host, d, jsDow){
       const or = document.createElement('div'); or.className='clase-quiz-or'; or.textContent='O si no está en la lista, escríbelo:';
       detalle.appendChild(or);
       const row2 = document.createElement('div'); row2.className='day-pend-row';
-      const inp = document.createElement('input'); inp.type='text'; inp.className='clase-quiz-text-input'; inp.placeholder='Escribe la prueba';
+      const inp = document.createElement('input'); inp.type='text'; inp.className='clase-quiz-text-input'; inp.placeholder='Escribe el examen';
       const btn2 = document.createElement('button'); btn2.type='button'; btn2.className='day-mini-btn'; btn2.textContent='Añadir';
       btn2.onclick = ()=>{
         if(!inp.value.trim()) return;
@@ -4964,8 +5029,16 @@ function renderIngles(){
 }
 function renderPsico(){
   renderFlatSection('psicoHost', 'psico', 'Psicotécnicos (ciclo de '+PSICO_ITEMS.length+') · notas sobre 30', 'Psicotécnicos', (grid)=>{
+    let grupoPrev = null;
     PSICO_ITEMS.forEach((name,idx)=>{
       const key = 'psico-'+idx;
+      const gm = /(Guardias|Suboficiales)$/.exec(name);
+      const grupoAct = gm ? gm[1] : (/Cabos$/.test(name) ? 'Guardias' : null);
+      if(grupoAct && grupoAct !== grupoPrev){
+        const lab = document.createElement('div'); lab.className = 'tema-group-label'; lab.style.gridColumn = '1 / -1';
+        lab.innerHTML = '<span>Exámenes de '+grupoAct+'</span>';
+        grid.appendChild(lab); grupoPrev = grupoAct;
+      }
       grid.appendChild(buildFlatItem(key, 'Psicotécnicos', name, `<span class="fi-name">${name}</span>`));
     });
   });
@@ -5811,7 +5884,7 @@ function renderClasesIngles(){
 }
 function renderClasesPsico(){
   const items = PSICO_ITEMS.map((name, idx)=> ({id:String(idx), label:name}));
-  renderClasesSeccionInfo('clasesPsicoHost', 'clasesPsico', 'Clase de psicotécnicos ('+PSICO_ITEMS.length+' pruebas y controles)', 'psico', items);
+  renderClasesSeccionInfo('clasesPsicoHost', 'clasesPsico', 'Clase de psicotécnicos ('+PSICO_ITEMS.length+' exámenes)', 'psico', items);
 }
 /* Ortografía y gramática no tienen temas numerados: cada clase es una entrada suelta con
    su propio nombre. Aquí se listan, agrupadas por nombre, todas las que haya registradas
@@ -5956,7 +6029,7 @@ function renderClasesOrtoGram(){
     const extraKeys = Object.keys(extra);
     if(extraKeys.length){
       const t = document.createElement('div'); t.className='clase-info-total'; t.style.marginTop='18px';
-      t.textContent = 'Psicotécnicos escritos a mano en el calendario (fuera de la lista de pruebas):';
+      t.textContent = 'Psicotécnicos escritos a mano en el calendario (fuera de la lista de exámenes):';
       body.appendChild(t);
       const chips = document.createElement('div'); chips.className='clase-multi-chips';
       extraKeys.forEach(k=>{
@@ -7226,7 +7299,7 @@ function renderClaseDayEdit(entry, d, jsDow){
   body.appendChild(buildMultiRow('Clase de inglés (lesson 1–'+INGLES_TOTAL+')', 'lesson de inglés', 'ingles', ingOptions, null, 'Inglés', 'ingles'));
 
   const psiOptions = PSICO_ITEMS.map((name, idx)=>({value:idx, label:name}));
-  body.appendChild(buildMultiRow('Clase de psicotécnicos ('+PSICO_ITEMS.length+' pruebas y controles)', 'prueba de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
+  body.appendChild(buildMultiRow('Clase de psicotécnicos ('+PSICO_ITEMS.length+' exámenes)', 'examen de psicotécnicos', 'psico', psiOptions, null, 'Psicotécnicos', 'psico'));
   body.appendChild(buildNamedListRow('Otra clase de psicotécnicos (fuera de la lista anterior)', 'psicoExtra', 'Nombre de la clase (opcional)', 'Psicotécnicos', 'psico'));
 
   body.appendChild(buildNamedListRow('Clase de ortografía y gramática', 'orto', 'Nombre de la clase (opcional)', 'Ortografía y gramática', 'orto'));
@@ -11319,7 +11392,7 @@ function renderCiclo(){
 
   /* ---------- PSICOTÉCNICOS ---------- */
   appendAccordionSection(host, 'psico', cicloOpen, 'Vuelta completa por psicotécnico', (body)=>{
-    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de '+PSICO_ITEMS.length+' pruebas y controles). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
+    body.appendChild(cicloIntro('Los psicotécnicos solo entran lunes y miércoles de estudio (cuando no hay entreno), así que la vuelta se mide contando solo esos días, no el calendario completo (ciclo de '+PSICO_ITEMS.length+' exámenes por año y modelo). En cada línea ves el día exacto en que terminaste esa vuelta (si un día lo dejaste sin completar y se repitió, cuenta el día en que por fin lo terminaste) y, a la derecha, los días desde la vuelta anterior; las fechas en cursiva son previstas según tu calendario.'));
 
     const psicoAppearances = PSICO_ITEMS.map(()=>[]);
     let lastPsicoIdx = null;
@@ -12147,19 +12220,19 @@ function edIngles(body){
 }
 function edPsico(body){
   const W = edW();
-  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno por cada lunes y miércoles de estudio, en este orden (pruebas y controles).'));
+  body.appendChild(_e('div', 'ed-ayuda', 'Sale uno por cada lunes y miércoles de estudio, en este orden (exámenes por año y modelo, Guardias primero y luego Suboficiales).'));
   W.psico.forEach((t, i)=>{
     const row = _e('div', 'ed-row ed-psico');
     row.appendChild(_e('div', 'ed-num', String(i+1)));
     const campos = _e('div', 'ed-campos');
-    campos.appendChild(_edInput(t.nombre, 'Nombre (p. ej. Prueba 24)', v=>{ t.nombre = v; }));
+    campos.appendChild(_edInput(t.nombre, 'Nombre (p. ej. 2027 · Modelo A · Guardias)', v=>{ t.nombre = v; }));
     row.appendChild(campos);
     row.appendChild(_edAcciones(W.psico, i));
     body.appendChild(row);
   });
   const add = _e('div', 'ed-add');
-  const a1 = _e('button', 'btn small', '➕ Añadir prueba / control'); a1.type = 'button';
-  a1.onclick = ()=>{ W.psico.push({nombre:'Prueba '+(W.psico.length+1), _o:null}); edCambio(); };
+  const a1 = _e('button', 'btn small', '➕ Añadir examen'); a1.type = 'button';
+  a1.onclick = ()=>{ W.psico.push({nombre:'Examen '+(W.psico.length+1), _o:null}); edCambio(); };
   add.appendChild(a1);
   body.appendChild(add);
 }

@@ -328,7 +328,7 @@ fecha del examen de la cuenta atrás (editable) y las **mismas reglas que el cal
   vuelta (azul y morado): vuelta = 2 × nº de bloques de la familia (10 y 14 visitas). En repaso final
   (unificado) cada visita cuenta doble.
 - **Leves:** uno por día de estudio (`LEVES.length` por vuelta). **Inglés:** uno por día (32 por vuelta).
-  **Psicotécnicos:** solo lunes y miércoles de estudio (`PSICO_ITEMS.length`, 25 por vuelta).
+  **Psicotécnicos:** solo lunes y miércoles de estudio (`PSICO_ITEMS.length`, 20 exámenes por vuelta: Guardias 2016-2026 con sus modelos A/B y Cabos 2018, y Suboficiales 2014-2019).
 - **Hechas hasta hoy:** todo día de estudio pasado que no marcaste «NO completado».
 - **Hasta el examen:** los días de estudio de tu calendario; los meses aún sin crear se estiman con tu
   proporción de días de estudio. Se multiplica por tu **ritmo real** (% de días completados en los
@@ -418,7 +418,7 @@ restaura el 10 de julio de siempre. Se guarda en `state.settings.examDate` (`"YY
 ## Pestaña «Editar temario» (cambiar bloques, leves, inglés y psicotécnicos)
 
 Desde esta pestaña (menú «Más» en el móvil) puedes **renombrar, mover, añadir y quitar** bloques
-(graves y menos graves), temas dentro de cada bloque, leves, temas de inglés y pruebas de
+(graves y menos graves), temas dentro de cada bloque, leves, temas de inglés y exámenes de
 psicotécnicos. La lógica del calendario no cambia: solo cambia el contenido.
 
 - Se trabaja sobre un **borrador**: nada cambia en la app hasta pulsar **Guardar cambios**
@@ -498,3 +498,12 @@ psicotécnicos. La lógica del calendario no cambia: solo cambia el contenido.
       falta pasar a módulos ES (`type="module"` + `import`/`export`), un cambio más grande
       porque hoy todas las funciones viven en el mismo ámbito global y se llaman unas a otras
       sin pasar por imports.
+
+
+## Psicotécnicos por año y modelo (migración v2)
+
+Los psicotécnicos ya no son «Prueba 1…23 + CONTROL 1/2»: son 20 exámenes oficiales por año y modelo
+(Guardias 1-11, con Cabos 2018, y Suboficiales 12-16). Al abrir la app por primera vez con esta
+versión, `migrarPsicoPorExamenes()` (marca `state.settings.psicoTemarioV = 2`) archiva en
+`state.psicoLegacy` las vueltas, notas y tiempos antiguos de `psico-N`, pasa a texto libre las clases
+de psico ya registradas en el calendario de clases y deja el progreso de psicotécnicos en blanco.
