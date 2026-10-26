@@ -4836,12 +4836,31 @@ function buildNotasVuelta(entry, ariaBase, onChange){
    Se guarda en la misma vuelta de siempre: mode 'visto' = visto, 'pendiente' = no visto. Lo que ya tenías
    guardado no se borra: cualquier vuelta que tuviera estado o nota cuenta ahora como vista. */
 function _vueltaIngVacia(){ return {mode:'pendiente', nota:null, comentario:'', extras:[], notasExtra:[], fecha:null}; }
+/* VISTO por defecto: un tema de inglés cuenta como visto salvo que lo marques expresamente como
+   «NO visto» (mode 'no_visto'). Los modos antiguos 'pendiente' (sin tocar) y 'visto' cuentan como visto. */
+function inglesVisto(e){ return !e || e.mode !== 'no_visto'; }
+// Etiqueta «VISTO / NO VISTO» + botón para cambiar el estado.
+function buildInglesVistoControl(visto, ariaBase, onToggle){
+  const box = document.createElement('div'); box.className = 'visto-check';
+  box.style.cssText = 'display:inline-flex;align-items:center;gap:8px;flex-wrap:wrap;';
+  const badge = document.createElement('strong');
+  badge.style.cssText = 'font-size:13px;letter-spacing:.5px;';
+  badge.style.color = visto ? 'var(--green-ink)' : 'var(--red-text)';
+  badge.textContent = visto ? '✓ VISTO' : '✗ NO VISTO';
+  const btn = document.createElement('button'); btn.type = 'button';
+  btn.className = 'btn small ' + (visto ? 'danger' : 'ghost');
+  btn.textContent = visto ? 'Marcar NO visto' : 'Marcar como visto';
+  btn.setAttribute('aria-label', ariaBase + (visto ? ': marcar como NO visto' : ': marcar como visto'));
+  btn.onclick = (e)=>{ e.preventDefault(); onToggle(!visto); };
+  box.appendChild(badge); box.appendChild(btn);
+  return box;
+}
 function buildTicksRowIngles(key){
   const arr = ensureTicksArray(key);
   const wrap = document.createElement('div'); wrap.className='ticks-row';
   const rehacer = ()=> wrap.replaceWith(buildTicksRowIngles(key));
   arr.forEach((entry,i)=>{
-    const visto = entry.mode !== 'pendiente';
+    const visto = inglesVisto(entry);
     const row = document.createElement('div'); row.className='vuelta-row visto-row mode-'+(visto ? 'solo_lectura' : 'pendiente');
     const headline = document.createElement('div'); headline.className='quick-vuelta-headline';
     const lbl = document.createElement('span'); lbl.className='vuelta-lbl'; lbl.textContent = 'Vuelta '+(i+1);
@@ -4852,16 +4871,12 @@ function buildTicksRowIngles(key){
       headline.appendChild(pin);
     }
     row.appendChild(headline);
-    const lab = document.createElement('label'); lab.className='visto-check'; lab.style.cssText='display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;';
-    const cb = document.createElement('input'); cb.type='checkbox'; cb.checked = visto;
-    cb.setAttribute('aria-label', 'Vuelta '+(i+1)+': visto');
-    cb.onchange = ()=>{
-      entry.mode = cb.checked ? 'visto' : 'pendiente';
+    const lab = buildInglesVistoControl(visto, 'Vuelta '+(i+1), (nuevoVisto)=>{
+      entry.mode = nuevoVisto ? 'visto' : 'no_visto';
       entry.nota = null; entry.notasExtra = [];
-      if(!cb.checked) entry.fecha = null;
+      if(!nuevoVisto) entry.fecha = null;
       scheduleSave(); rehacer();
-    };
-    lab.appendChild(cb); lab.appendChild(document.createTextNode(visto ? ' Visto' : ' No visto'));
+    });
     row.appendChild(lab);
     const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(i+1));
     row.appendChild(notas.addBtn);
@@ -4881,10 +4896,10 @@ function buildTicksRowIngles(key){
 }
 function buildQuickVistoIngles(key, fechaISO, onChanged, selectedIdx){
   const arr = ensureTicksArray(key);
-  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=> e.mode === 'pendiente');
-  if(idx === -1) idx = arr.length-1;
+  let idx = (typeof selectedIdx === 'number' && arr[selectedIdx]) ? selectedIdx : arr.findIndex(e=> e.mode === 'no_visto');
+  if(idx === -1) idx = 0;
   const entry = arr[idx];
-  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+(entry.mode !== 'pendiente' ? 'solo_lectura' : 'pendiente');
+  const wrap = document.createElement('div'); wrap.className = 'vuelta-row quick-vuelta mode-'+(inglesVisto(entry) ? 'solo_lectura' : 'pendiente');
   const refrescar = (nuevoIdx)=>{
     const fresh = buildQuickVistoIngles(key, fechaISO, onChanged, nuevoIdx === undefined ? idx : nuevoIdx);
     wrap.replaceWith(fresh);
@@ -4896,29 +4911,25 @@ function buildQuickVistoIngles(key, fechaISO, onChanged, selectedIdx){
   numSel.setAttribute('aria-label', 'Elegir vuelta de este tema');
   arr.forEach((e,i)=>{
     const o = document.createElement('option'); o.value = String(i);
-    o.textContent = 'Vuelta '+(i+1)+' ('+(e.mode !== 'pendiente' ? 'visto' : 'no visto')+')'+marcaNotasTxt(e);
+    o.textContent = 'Vuelta '+(i+1)+' ('+(inglesVisto(e) ? 'visto' : 'no visto')+')'+marcaNotasTxt(e);
     if(i === idx) o.selected = true;
     numSel.appendChild(o);
   });
   numSel.onchange = ()=>{ refrescar(Number(numSel.value)); };
   headline.appendChild(numSel);
   wrap.appendChild(headline);
-  const visto = entry.mode !== 'pendiente';
-  const lab = document.createElement('label'); lab.className = 'visto-check'; lab.style.cssText = 'display:inline-flex;align-items:center;gap:6px;font-size:13px;cursor:pointer;';
-  const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = visto;
-  cb.setAttribute('aria-label', 'Vuelta '+(idx+1)+' de este tema: visto');
-  cb.onchange = ()=>{
-    entry.mode = cb.checked ? 'visto' : 'pendiente';
+  const visto = inglesVisto(entry);
+  const lab = buildInglesVistoControl(visto, 'Vuelta '+(idx+1)+' de este tema', (nuevoVisto)=>{
+    entry.mode = nuevoVisto ? 'visto' : 'no_visto';
     entry.nota = null; entry.notasExtra = [];
-    entry.fecha = cb.checked ? (entry.fecha || fechaISO || null) : null;
+    entry.fecha = nuevoVisto ? (entry.fecha || fechaISO || null) : null;
     scheduleSave();
     refrescar();
     try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras marcar visto', err); }catch(e){} }
-  };
-  lab.appendChild(cb); lab.appendChild(document.createTextNode(visto ? ' Visto' : ' No visto'));
+  });
   wrap.appendChild(lab);
   const notas = buildNotasVuelta(entry, 'Notas de la vuelta '+(idx+1)+' de este tema', ()=>{
-    const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+(entry.mode !== 'pendiente' ? 'visto' : 'no visto')+')'+marcaNotasTxt(entry);
+    const opt = numSel.options[idx]; if(opt) opt.textContent = 'Vuelta '+(idx+1)+' ('+(inglesVisto(entry) ? 'visto' : 'no visto')+')'+marcaNotasTxt(entry);
   });
   wrap.appendChild(notas.addBtn);
   const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'tick-add tick-add-vuelta';
@@ -9693,7 +9704,7 @@ function collectNotaData(){
     const seq = [];   // notas + "no test" + "no tiempo" + "solo lectura", en el orden real de las vueltas
     const esIng = esKeyIngles(key);
     entries.forEach((e,vueltaIdx)=>{
-      if(esIng){ if(e.mode !== 'pendiente') seq.push({mode:'visto', vuelta:vueltaIdx+1}); return; } // inglés: solo visto / no visto
+      if(esIng){ if(e.mode !== 'pendiente' && e.mode !== 'no_visto') seq.push({mode:'visto', vuelta:vueltaIdx+1}); return; } // inglés: solo visto / no visto
       if(esKeyOexam(key)){ if(e.mode === 'apto' || e.mode === 'no_apto') seq.push({mode:e.mode, vuelta:vueltaIdx+1}); return; } // ortografía: apto / no apto
       // vuelta: número de vuelta (1-based) al que pertenece esta entrada, tal cual aparece
       // en «Temario y notas». Varios tests de una misma vuelta comparten el mismo número.
