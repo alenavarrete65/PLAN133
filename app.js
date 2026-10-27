@@ -3287,7 +3287,7 @@ function daySection(body, titulo){
 // Cuando la ficha se repinta a sí misma (sin indicar calendario) mantiene el último modo.
 var diaModalModo = 'todo';
 function openDayModal(d, info, modo){
-  if(modo){ diaModalModo = modo; _secAbiertas = {}; } // abrir un día desde el calendario: todo cerrado
+  if(modo){ diaModalModo = modo; _secAbiertas = {}; if(modo==='tiempos') _secAbiertas['Tareas del día'] = true; } // abrir un día desde el calendario: todo cerrado (salvo las tareas en el calendario de tiempos)
   const verTiempo = (diaModalModo==='todo' || diaModalModo==='tiempos');
   const verEstudio = (diaModalModo==='todo' || diaModalModo==='estudio');
   const verClases = (diaModalModo==='todo');
@@ -3309,7 +3309,7 @@ function openDayModal(d, info, modo){
   if(verTiempo){ try{ buildTiempoSection(body, info, fechaISO); }catch(e){ console.error('Tiempo del día', e); } }
 
   /* ---------- 1. Tareas del día (solo días de estudio) ---------- */
-  if(verEstudio && status === 'ESTUDIO'){
+  if((verEstudio || diaModalModo==='tiempos') && status === 'ESTUDIO'){
     try{
       const {body:sb} = daySection(body, 'Tareas del día');
       const dticks = info.ticks || {};
@@ -3336,6 +3336,7 @@ function openDayModal(d, info, modo){
           const txt = document.createElement('span'); txt.className='tema-line-txt';
           txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
+          line.appendChild(tiempoMini((state.tiempos.temas||{})[t.key], v=>setTiempoTema(t.key, v), t.clase?t.clase:t.nombre));
           line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
           bLeft.appendChild(line);
         });
@@ -3355,16 +3356,16 @@ function openDayModal(d, info, modo){
       }
 
       if(info.leveInfo){
-        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO);
+        addModalRow(sb, 'tag-leve', 'LEVE', 'Leve '+info.leveNum+' — '+(info.leveInfo.clase?info.leveInfo.clase:info.leveInfo.nombre)+(info.leveInfo.clase?' ('+info.leveInfo.nombre+')':''), {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}, {key:info.leveInfo.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO, 'leve');
       }
       if(info.inglesNum){
-        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO);
+        addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO, 'ingles');
       }
-      if(info.iexam) addModalRow(sb, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO);
-      if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO);
-      if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno});
-      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO);
-      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto});
+      if(info.iexam) addModalRow(sb, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO, 'iexam');
+      if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO, 'oexam');
+      if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}, null, fechaISO, 'entreno');
+      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, 'psico');
+      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}, fechaISO);
     }catch(err){
       // Pase lo que pase con las tareas del día, las notas siguen funcionando: el aviso es
       // solo para saber que ahí ha fallado algo.
@@ -3883,7 +3884,7 @@ function renderDayClasesEditor(host, d, jsDow){
   notaWrap.appendChild(ta);
   host.appendChild(notaWrap);
 }
-function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
+function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO, tiempoStream){
   const row = document.createElement('div'); row.className='modal-row';
   { const mt = /tag-(\w+)/.exec(tagClass||''); if(mt) row.classList.add('mr-'+mt[1]); } // color por tipo (grave, mgrave, leve, ing, psico…)
   if(vueltaInfo) row.style.flexWrap = 'wrap';
@@ -3894,6 +3895,7 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
   const txtEl = document.createElement('span'); txtEl.style.cssText = 'font-size:13px;flex:1;'; txtEl.textContent = txt;
   headWrap.appendChild(txtEl);
   row.appendChild(headWrap);
+  if(tiempoStream && fechaISO) row.appendChild(tiempoMiniTarea(fechaISO, tiempoStream, txt));
   if(tickInfo){
     const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
     cb.checked = !!tickInfo.checked; cb.title='Marcar como NO completado';
@@ -3920,7 +3922,7 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO){
    añadir un test de cada uno directamente desde el día, sin ir a esa pestaña; escribe en el
    mismo sitio (state.ortoTests), así que la cuenta de aptos/no aptos ya sale actualizada
    también en «Ortografía y gramática». */
-function addOrtoGramRow(body, tickInfo){
+function addOrtoGramRow(body, tickInfo, fechaISO){
   const row = document.createElement('div'); row.className='modal-row'; row.style.flexWrap='wrap';
   const headWrap = document.createElement('div');
   headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
@@ -3929,6 +3931,7 @@ function addOrtoGramRow(body, tickInfo){
   const txtEl = document.createElement('span'); txtEl.style.cssText='font-size:13px;flex:1;'; txtEl.textContent='Ortografía y gramática diaria';
   headWrap.appendChild(txtEl);
   row.appendChild(headWrap);
+  if(fechaISO) row.appendChild(tiempoMiniTarea(fechaISO, 'orto', 'Ortografía y gramática'));
   const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
   cb.checked = !!tickInfo.checked; cb.title='Marcar como NO completado';
   cb.setAttribute('aria-label', 'Marcar "Ortografía y gramática diaria" como NO completado');
@@ -3992,12 +3995,8 @@ function addArrastreTestRow(body, fechaISO){
   const card = document.createElement('div'); card.className = 'arrastre-hero';
   card.setAttribute('role','group'); card.setAttribute('aria-label','Test de arrastre del día');
 
-  const kicker = document.createElement('div'); kicker.className = 'arrastre-hero-kicker';
-  kicker.textContent = '★ Lo primero del día';
-  card.appendChild(kicker);
-
   const head = document.createElement('div'); head.className = 'arrastre-hero-head';
-  const title = document.createElement('span'); title.className = 'arrastre-hero-title'; title.textContent = 'Test de arrastre';
+  const title = document.createElement('span'); title.className = 'arrastre-hero-title'; title.innerHTML = '<span class=\"arrastre-hero-kicker\">★ Lo primero del día</span>Test de arrastre';
   const status = document.createElement('span'); status.className = 'arrastre-hero-status';
   head.appendChild(title); head.appendChild(status);
   card.appendChild(head);
@@ -4024,6 +4023,8 @@ function addArrastreTestRow(body, fechaISO){
   notaLbl.appendChild(inp);
   notaLbl.appendChild(document.createTextNode('/10'));
   actions.appendChild(notaLbl);
+  { const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+    actions.appendChild(tiempoMini(dd.arrastre, v=>setTiempoDia(fechaISO,'arrastre',v), 'Test de arrastre')); }
   card.appendChild(actions);
 
   const hint = document.createElement('div'); hint.className = 'arrastre-hero-hint';
@@ -4031,14 +4032,14 @@ function addArrastreTestRow(body, fechaISO){
   card.appendChild(hint);
 
   const goBtn = document.createElement('button');
-  goBtn.type='button'; goBtn.className='btn small ghost'; goBtn.style.marginTop='10px';
+  goBtn.type='button'; goBtn.className='btn small ghost arrastre-hero-go';
   goBtn.textContent = 'Ver qué temas son →';
   goBtn.onclick = ()=>{
     document.getElementById('dayModal').classList.remove('open');
     const tabBtn = document.querySelector('.tab-btn[data-tab="arrastre"]');
     if(tabBtn) tabBtn.click();
   };
-  card.appendChild(goBtn);
+  actions.appendChild(goBtn);
 
   const paintState = ()=>{
     const hecho = arrastreTestHechoDe(fechaISO);
@@ -8410,7 +8411,9 @@ function computeTiempoDia(fechaISO, info){
   if(info && info.status==='ESTUDIO' && Array.isArray(info.temasDelDia) && !(info.ticks && info.ticks.bloque)){
     info.temasDelDia.forEach(x=>{ temas += Number(tt[x.key])||0; });
   }
-  const clase = Number(t.clase)||0, estudioClase = Number(t.estudioClase)||0, otras = Number(t.otras)||0;
+  let otrasTareas = 0;
+  if(t.tareas && typeof t.tareas==='object') Object.keys(t.tareas).forEach(k=>{ otrasTareas += Number(t.tareas[k])||0; });
+  const clase = Number(t.clase)||0, estudioClase = Number(t.estudioClase)||0, otras = (Number(t.otras)||0) + otrasTareas;
   const test = Number(t.test)||0, arrastre = Number(t.arrastre)||0;
   const descanso = (t.descanso===undefined || t.descanso===null || t.descanso==='') ? DESCANSO_DEFECTO_MIN : (Number(t.descanso)||0);
   const estudio = temas+clase+estudioClase+otras+test+arrastre;
@@ -8425,6 +8428,38 @@ function setTiempoDia(fechaISO, campo, valor){
   if(!Object.keys(state.tiempos.dias[fechaISO]).length) delete state.tiempos.dias[fechaISO];
   scheduleSave();
 }
+/* Minutos de una tarea concreta del día (leve, inglés, entreno…): dias[fecha].tareas[stream]. Se suman a «Otras». */
+function setTiempoTarea(fechaISO, stream, valor){
+  normalizeState();
+  const v = String(valor).trim();
+  if(!state.tiempos.dias[fechaISO]) state.tiempos.dias[fechaISO] = {};
+  const d = state.tiempos.dias[fechaISO];
+  if(!d.tareas || typeof d.tareas!=='object') d.tareas = {};
+  if(v==='' || !(Number(v)>0)) delete d.tareas[stream];
+  else d.tareas[stream] = Math.round(Number(v));
+  if(!Object.keys(d.tareas).length) delete d.tareas;
+  if(!Object.keys(d).length) delete state.tiempos.dias[fechaISO];
+  scheduleSave();
+}
+/* Se rellena al pintar la ficha: refresca el resumen del cuadro de tiempo cuando cambias unos minutos. */
+var _tiempoRefresh = null;
+/* Campo pequeño «[  ] min» para apuntar el tiempo al lado de una tarea. */
+function tiempoMini(valor, onSet, etiqueta){
+  const w = document.createElement('label'); w.className='tmini'; w.title = 'Minutos que has dedicado a esto';
+  const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.step='5'; inp.inputMode='numeric';
+  inp.placeholder='0'; inp.setAttribute('aria-label', 'Minutos: '+(etiqueta||'tarea'));
+  if(valor!==undefined && valor!==null && valor!=='' && Number(valor)>0) inp.value = valor;
+  inp.onclick = (e)=>e.stopPropagation();
+  inp.oninput = ()=>{ onSet(inp.value); if(_tiempoRefresh) _tiempoRefresh(); };
+  w.appendChild(inp);
+  const u = document.createElement('em'); u.textContent='min'; w.appendChild(u);
+  return w;
+}
+/* Mini campo ya enlazado a una tarea del día (leve, inglés, examen, entreno, psico, orto). */
+function tiempoMiniTarea(fechaISO, stream, etiqueta){
+  const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+  return tiempoMini(d.tareas ? d.tareas[stream] : '', v=>setTiempoTarea(fechaISO, stream, v), etiqueta);
+}
 function setTiempoTema(key, valor){
   normalizeState();
   const v = String(valor).trim();
@@ -8437,39 +8472,46 @@ function tiempoResumenHTML(tm){
     '<span>😴 Descanso <strong>'+fmtMin(tm.descanso)+'</strong></span>'+
     '<span class="tiempo-total">Total del día <strong>'+fmtMin(tm.total)+'</strong></span></div>';
 }
-/* Sección «Tiempo del día» de la ficha: campos en minutos + resumen que se actualiza al teclear. */
+/* Cuadro «Tiempo del día» de la ficha: pequeño y siempre visible arriba. Aquí solo van los tiempos que no
+   pertenecen a una tarea concreta (clase, test, otros) y el descanso; el tiempo de cada tarea se apunta
+   en un mini campo al lado de la propia tarea. El resumen se actualiza al teclear en cualquiera de los dos sitios. */
 function buildTiempoSection(body, info, fechaISO){
-  const {body:tb, setResumen:resTiempo} = daySection(body, '⏱ Tiempo del día');
-  { const tm0 = computeTiempoDia(fechaISO, info); resTiempo(tm0.estudio ? fmtMin(tm0.estudio)+' de estudio' : 'sin tiempo apuntado'); }
-  const resumen = document.createElement('div');
-  const pintarResumen = ()=>{ resumen.innerHTML = tiempoResumenHTML(computeTiempoDia(fechaISO, info)); };
-  const campo = (label, valor, placeholder, onSet)=>{
-    const row = document.createElement('label'); row.className='tiempo-row';
-    const sp = document.createElement('span'); sp.textContent = label; row.appendChild(sp);
-    const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.step='5'; inp.inputMode='numeric';
-    inp.className='tiempo-inp'; inp.placeholder = placeholder||'0';
-    if(valor!==undefined && valor!==null && valor!=='') inp.value = valor;
-    inp.oninput = ()=>{ onSet(inp.value); pintarResumen(); };
-    row.appendChild(inp);
-    const u = document.createElement('em'); u.textContent='min'; row.appendChild(u);
-    tb.appendChild(row);
+  const box = document.createElement('div'); box.className='tiempo-box';
+  const head = document.createElement('div'); head.className='tiempo-box-head';
+  const ttl = document.createElement('span'); ttl.className='tiempo-box-title'; ttl.textContent='⏱ Tiempo del día';
+  const resumen = document.createElement('span'); resumen.className='tiempo-box-sum';
+  head.appendChild(ttl); head.appendChild(resumen);
+  box.appendChild(head);
+  const pintarResumen = ()=>{
+    const tm = computeTiempoDia(fechaISO, info);
+    resumen.innerHTML = '📚 <strong>'+fmtMin(tm.estudio)+'</strong> · 😴 <strong>'+fmtMin(tm.descanso)+'</strong> · Total <strong>'+fmtMin(tm.total)+'</strong>';
   };
+  _tiempoRefresh = pintarResumen;
+  const grid = document.createElement('div'); grid.className='tiempo-box-grid';
   const dia = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
-  if(info && info.status==='ESTUDIO' && Array.isArray(info.temasDelDia) && info.temasDelDia.length){
-    const h = document.createElement('div'); h.className='tiempo-sub';
-    h.textContent = 'Duración predeterminada de cada tema del bloque (se recuerda para todos los días):';
-    tb.appendChild(h);
-    info.temasDelDia.forEach(t=>{
-      campo(t.clase ? t.clase+' · '+t.nombre : t.nombre, (state.tiempos.temas||{})[t.key], '0', v=>setTiempoTema(t.key, v));
-    });
-  }
-  campo('Duración de la clase', dia.clase, '0', v=>setTiempoDia(fechaISO,'clase',v));
-  campo('Estudio dedicado a la clase', dia.estudioClase, '0', v=>setTiempoDia(fechaISO,'estudioClase',v));
-  campo('Test', dia.test, '0', v=>setTiempoDia(fechaISO,'test',v));
-  campo('Test de arrastre', dia.arrastre, '0', v=>setTiempoDia(fechaISO,'arrastre',v));
-  campo('Otras tareas (leve, inglés, entreno…)', dia.otras, '0', v=>setTiempoDia(fechaISO,'otras',v));
-  campo('Descanso (2 h por defecto)', dia.descanso, String(DESCANSO_DEFECTO_MIN), v=>setTiempoDia(fechaISO,'descanso',v));
-  tb.appendChild(resumen);
+  const chip = (label, valor, placeholder, campo)=>{
+    const c = document.createElement('label'); c.className='tiempo-chip';
+    const sp = document.createElement('span'); sp.textContent = label; c.appendChild(sp);
+    const wrap = document.createElement('div'); wrap.className='tiempo-chip-in';
+    const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.step='5'; inp.inputMode='numeric';
+    inp.placeholder = placeholder||'0';
+    if(valor!==undefined && valor!==null && valor!=='') inp.value = valor;
+    inp.oninput = ()=>{ setTiempoDia(fechaISO, campo, inp.value); pintarResumen(); };
+    wrap.appendChild(inp);
+    const u = document.createElement('em'); u.textContent='min'; wrap.appendChild(u);
+    c.appendChild(wrap);
+    grid.appendChild(c);
+  };
+  chip('Clase', dia.clase, '0', 'clase');
+  chip('Estudio de la clase', dia.estudioClase, '0', 'estudioClase');
+  chip('Test', dia.test, '0', 'test');
+  chip('Otros', dia.otras, '0', 'otras');
+  chip('Descanso', dia.descanso, String(DESCANSO_DEFECTO_MIN), 'descanso');
+  box.appendChild(grid);
+  const nota = document.createElement('div'); nota.className='tiempo-box-hint';
+  nota.textContent = 'El tiempo de cada tarea (test de arrastre, bloque, leve, inglés…) se apunta al lado de la propia tarea. El descanso vale 2 h si no lo cambias.';
+  box.appendChild(nota);
+  body.appendChild(box);
   pintarResumen();
 }
 /* ===================== CALENDARIO DE TIEMPOS =====================

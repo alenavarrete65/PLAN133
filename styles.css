@@ -1657,3 +1657,52 @@ html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
 }
 
 .ed-sub{display:block;width:100%;box-sizing:border-box;margin-top:8px;resize:vertical;line-height:1.4;}
+
+/* ===================== Tiempo del día: cuadro compacto + minutos al lado de cada tarea ===================== */
+.tiempo-box{
+  --tono:var(--sec-tiempo,#4fb3a6);
+  margin:0 0 10px;padding:8px 12px 10px;
+  border:1px solid var(--line);border-left:4px solid var(--tono);border-radius:8px;background:var(--bg-panel-2);
+}
+@supports (background:color-mix(in srgb, red 10%, blue)){
+  .tiempo-box{background:color-mix(in srgb, var(--tono) 11%, var(--bg-panel));border-color:color-mix(in srgb, var(--tono) 32%, transparent);border-left-color:var(--tono);}
+}
+.tiempo-box-head{display:flex;align-items:baseline;justify-content:space-between;gap:6px 14px;flex-wrap:wrap;margin-bottom:6px;}
+.tiempo-box-title{font-weight:700;font-size:14px;color:var(--cream);}
+.tiempo-box-sum{font-size:13px;color:var(--cream-dim);}
+.tiempo-box-sum strong{color:var(--cream);}
+.tiempo-box-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px 8px;}
+.tiempo-chip{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);min-width:0;}
+.tiempo-chip > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.tiempo-chip-in{display:flex;align-items:center;gap:4px;}
+.tiempo-chip-in input{width:100%;min-width:0;padding:5px 7px;text-align:right;font-family:var(--font-mono);font-size:13px;}
+.tiempo-chip-in em,.tmini em{font-style:normal;font-family:var(--font-mono);font-size:11px;color:var(--muted);}
+.tiempo-box-hint{font-size:11px;color:var(--muted);margin-top:6px;line-height:1.35;}
+
+.tmini{display:inline-flex;align-items:center;gap:4px;flex-shrink:0;margin:0;}
+.tmini input{
+  width:58px;padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:12px;
+  background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line-strong);border-radius:3px;
+}
+.modal-row > .tmini{margin-left:auto;margin-top:0;}
+.modal-row > .tmini + .day-tick{margin-left:0;}
+.modal-tema-line > .tmini{margin-left:0;}
+
+/* ---- Test de arrastre: mismos colores, más pequeño y menos llamativo ---- */
+.arrastre-hero{margin:0 0 10px;padding:8px 12px 8px 16px;border-width:1.5px;box-shadow:none;}
+.arrastre-hero::before{width:6px;}
+.arrastre-hero:not(.done){animation:none !important;}
+.arrastre-hero-title{font-size:16px;letter-spacing:.02em;}
+.arrastre-hero-kicker{display:block;font-size:10px;letter-spacing:.1em;margin-bottom:1px;}
+.arrastre-hero-status{font-size:10px;padding:2px 8px;}
+.arrastre-hero-desc{font-size:12px;margin:4px 0 6px;}
+.arrastre-hero-actions{gap:8px;}
+.arrastre-seg button{font-size:12px;padding:5px 10px;}
+.arrastre-nota-lbl{font-size:11px;}
+.arrastre-nota-lbl input{width:62px;font-size:12px;padding:4px 6px;}
+.arrastre-hero-hint{font-size:11px;margin-top:5px;}
+.arrastre-hero-actions .tmini{margin-left:0;}
+.arrastre-hero-go{margin:0 0 0 auto !important;padding:4px 10px;font-size:12px;}
+
+/* ---- Ficha del día un poco más grande (en móvil sigue a todo el ancho) ---- */
+#dayModal .modal{max-width:880px;}
