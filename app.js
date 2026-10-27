@@ -373,6 +373,7 @@ const OEXAM_DEFECTO = [
   '2026 · 1A'
 ];
 const ORTO_EXAMS = OEXAM_DEFECTO.slice();
+function esKeyPsico(key){ return /^psico-\d+$/.test(String(key)); }
 function esKeyOexam(key){ return /^oexam-\d+$/.test(String(key)); }
 // Lista antigua (solo para migrar datos guardados con ella).
 const PSICO_LEGACY = (()=>{ const a = []; for(let i=1;i<=23;i++) a.push('Prueba '+i); a.push('CONTROL 1','CONTROL 2'); return a; })();
@@ -933,6 +934,10 @@ function normalizeState(){
   if(!(state.settings.flojosDias > 0)) state.settings.flojosDias = 30;
   // Recuperar: máximo de temas que «Programar» apila en un mismo día de descanso.
   if(!(state.settings.recuperarMaxDia >= 1)) state.settings.recuperarMaxDia = 3;
+  // Psicotécnicos especiales: días de recuperación en los que NO se hizo el que tocaba: {noHecho:{fechaISO:true}}.
+  if(!state.psicoEsp || typeof state.psicoEsp !== 'object' || Array.isArray(state.psicoEsp)) state.psicoEsp = {noHecho:{}};
+  if(!state.psicoEsp.noHecho || typeof state.psicoEsp.noHecho !== 'object') state.psicoEsp.noHecho = {};
+  if(!state.psicoEsp.res || typeof state.psicoEsp.res !== 'object' || Array.isArray(state.psicoEsp.res)) state.psicoEsp.res = {};
   // Días en los que has confirmado que hiciste el test de arrastre: {fechaISO: true}.
   if(!state.arrastreTestHecho || typeof state.arrastreTestHecho !== 'object' || Array.isArray(state.arrastreTestHecho)){
     state.arrastreTestHecho = {};
@@ -1611,7 +1616,7 @@ const NOMBRES_SECCION = {
   ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
   clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
   simulacroCal:'Calendario de simulacros', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
-  arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho',
+  arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
   settings:'Ajustes'
 };
 function computeDataSize(){
@@ -1727,7 +1732,7 @@ function exportarCalendarioEstudioICS(){
       let summary, desc = '';
       if(info.status === 'DESCANSO') summary = 'Descanso';
       else if(info.status === 'TRABAJO') summary = 'Trabajo';
-      else if(info.status === 'RECUPERACION'){ summary = 'Recuperación'; desc = recuperarDelDia(fecha).map(x=> x.label).join('\n'); }
+      else if(info.status === 'RECUPERACION'){ summary = 'Recuperación'; desc = (psicoEspDe(fecha) ? ['Psico especial: '+psicoEspDe(fecha).nombre] : []).concat(recuperarDelDia(fecha).map(x=> x.label)).join('\n'); }
       else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
       else {
         summary = 'Estudio: Bloque '+info.bloque+' ('+info.color+')';
@@ -2898,6 +2903,21 @@ function renderHomeDash(){
       '<button class="btn small ghost" id="homeSimBtn" style="margin-top:8px;">Ir al calendario de simulacros →</button>';
   }
 
+  // Anillo de hoy: estudio apuntado frente al objetivo diario (mismo que el de la ficha del día).
+  let anilloHoyHtml = '';
+  try{
+    const tmHoy = computeTiempoDia(hoyLocalISO(), todayInfo || {status:'ESTUDIO'});
+    const objHoy = objetivoMin();
+    if(objHoy>0 && (tmHoy.estudio>0 || (todayInfo && todayInfo.status==='ESTUDIO'))){
+      const frH = tmHoy.estudio/objHoy, okH = frH>=1, Rh = 26, Ch = 2*Math.PI*Rh;
+      anilloHoyHtml = '<div class="dia-anillo home-anillo'+(okH?' completo':'')+'" role="img" aria-label="Objetivo de hoy: '+fmtMin(tmHoy.estudio)+' de '+fmtMin(objHoy)+'">'+
+        '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="an-fondo" cx="32" cy="32" r="'+Rh+'"/>'+
+        '<circle class="an-prog" cx="32" cy="32" r="'+Rh+'" transform="rotate(-90 32 32)" stroke-dasharray="'+Ch.toFixed(2)+'" stroke-dashoffset="'+Ch.toFixed(2)+'" data-off="'+(Ch*(1-Math.min(1,frH))).toFixed(2)+'"/></svg>'+
+        '<span class="an-pct">'+(okH?'✓':Math.round(frH*100)+'%')+'</span>'+
+        '<span class="an-cap">'+(okH?'Completo':fmtMin(tmHoy.estudio)+' / '+fmtMin(objHoy))+'</span></div>';
+    }
+  }catch(e){ anilloHoyHtml = ''; }
+
   el.innerHTML =
     '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
       (exam.daysLeft >= 0
@@ -2907,13 +2927,17 @@ function renderHomeDash(){
           '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
       '<button type="button" class="home-exam-edit" id="homeExamEditBtn">✏️ Cambiar fecha</button></div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>'+
-    '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+resumenHtml+'</div>'+
+    '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+
+      (anilloHoyHtml ? '<div class="home-hoy-fila"><div class="home-hoy-main">'+resumenHtml+'</div>'+anilloHoyHtml+'</div>' : resumenHtml)+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div>';
 
   const examEditBtn = document.getElementById('homeExamEditBtn');
   if(examEditBtn) examEditBtn.onclick = openExamDateModal;
+  // El anillo de hoy entra llenándose desde vacío.
+  { const pg = el.querySelector('.home-anillo .an-prog');
+    if(pg) requestAnimationFrame(()=>requestAnimationFrame(()=>{ pg.setAttribute('stroke-dashoffset', pg.getAttribute('data-off')); })); }
 
   const arrastreBtn = document.getElementById('homeArrastreBtn');
   if(arrastreBtn) arrastreBtn.onclick = ()=>{
@@ -4493,16 +4517,167 @@ function anadirRecuperarManual(key, testId){
   showToast('Añadido a Recuperar (vuelta '+(idx+1)+')');
 }
 // Mini-resumen (en las celdas del calendario) de los temas de un día marcado como «Recuperación».
+/* ===================== NOTA DE PSICOTÉCNICO: aciertos, errores y blancas =====================
+   Prueba oficial: 80 preguntas con 4 alternativas, sobre 30 puntos; APTO desde 12 (antes 11).
+   Nota = 0,375 × (Aciertos − Errores/3), que es lo mismo que 30 × (Aciertos − Errores/3) / 80.
+   Si el test tiene otro número de preguntas se escribe en «Total» y la nota sale equivalente sobre 30:
+   30 × (Aciertos − Errores/3) / Total. Las blancas ni suman ni restan. */
+const PSICO_PREGUNTAS = 80, PSICO_MAX = 30, PSICO_APTO = 12;
+function notaPsico(a, e, total){
+  const t = (Number(total) > 0) ? Number(total) : PSICO_PREGUNTAS;
+  const n = PSICO_MAX * ((Number(a)||0) - (Number(e)||0)/3) / t;
+  return Math.max(0, Math.min(PSICO_MAX, Math.round(n*100)/100));
+}
+function fmtNotaEs(n){ return Number(n).toLocaleString('es-ES', {maximumFractionDigits:2}); }
+/* Campos «Total / Aciertos / Errores / Blancas» que calculan la nota (equivalente sobre 30) y la guardan en
+   target.nota (así Progreso y el resto de la app la ven como cualquier otra nota). target.psicoAEB guarda los números.
+   opts.manual → añade un campo «Nota manual» (para tests que corriges a mano o que puntúan de otra forma).
+   opts.totalDefault / opts.onTotal → total de preguntas por defecto y aviso cuando lo cambias (para recordarlo).
+   «anclar» (opcional) se llama justo antes de escribir, por si target todavía no está guardado en ningún sitio. */
+function buildCalcPsico(target, onSet, anclar, opts){
+  opts = opts || {};
+  const box = document.createElement('div'); box.className = 'psico-calc';
+  const ttl = document.createElement('span'); ttl.className = 'psico-calc-ttl';
+  ttl.textContent = 'Calculadora: total de preguntas, aciertos, errores y blancas (la nota sale equivalente sobre '+PSICO_MAX+')';
+  box.appendChild(ttl);
+  const d = target.psicoAEB || {};
+  const campos = {};
+  const mk = (clave, etiqueta, valor, ancho)=>{
+    const l = document.createElement('label'); l.className = 'psico-calc-f';
+    l.appendChild(document.createTextNode(etiqueta));
+    const inp = document.createElement('input'); inp.type = 'number'; inp.min = '0'; inp.step = (clave==='nota' ? '0.1' : '1'); inp.inputMode = 'decimal';
+    inp.setAttribute('aria-label', etiqueta+' del psicotécnico');
+    if(valor!==undefined && valor!==null && valor!=='') inp.value = valor;
+    l.appendChild(inp); box.appendChild(l); campos[clave] = inp;
+    return inp;
+  };
+  const totalIni = (d.n > 0) ? d.n : (opts.totalDefault > 0 ? opts.totalDefault : PSICO_PREGUNTAS);
+  mk('n', 'Total', totalIni);
+  mk('a', 'Aciertos', d.a); mk('e', 'Errores', d.e); mk('b', 'Blancas', d.b);
+  if(opts.manual) mk('nota', 'Nota manual', (target.psicoManual ? target.nota : ''));
+  const res = document.createElement('span'); res.className = 'psico-calc-res'; box.appendChild(res);
+  const total = ()=> (Number(campos.n.value) > 0 ? Number(campos.n.value) : PSICO_PREGUNTAS);
+  const pintar = ()=>{
+    const a = campos.a.value, e = campos.e.value, b = campos.b.value, N = total();
+    const tieneAE = (a!=='' || e!=='');
+    const na = Number(a)||0, ne = Number(e)||0;
+    campos.b.placeholder = (a!=='' && e!=='' && b==='') ? String(Math.max(0, N-na-ne)) : '';
+    if(!tieneAE){ res.textContent = ''; res.className = 'psico-calc-res'; return; }
+    const n = notaPsico(na, ne, N), apto = n >= PSICO_APTO;
+    const neto = Math.round((na - ne/3)*100)/100;
+    const suma = na+ne+(Number(b)||0);
+    res.className = 'psico-calc-res '+(apto ? 'apto' : 'noapto');
+    res.textContent = (N!==PSICO_PREGUNTAS ? 'Neto '+fmtNotaEs(neto)+' de '+N+' → ' : '')+'Nota '+fmtNotaEs(n)+' / '+PSICO_MAX+' · '+(apto ? 'APTO' : 'NO APTO')+(suma>N ? ' · ⚠ suman más de '+N : '');
+  };
+  const guardar = (quien)=>{
+    if(anclar) anclar(target);
+    const a = campos.a.value, e = campos.e.value, b = campos.b.value, N = total();
+    if(a==='' && e==='' && b==='' && N===PSICO_PREGUNTAS) delete target.psicoAEB;
+    else target.psicoAEB = {n:N, a: a===''?null:Number(a), e: e===''?null:Number(e), b: b===''?null:Number(b)};
+    if(quien==='nota'){
+      // nota manual: manda lo que escribas; si la borras, vuelve a mandar la calculada
+      if(campos.nota.value===''){ delete target.psicoManual; target.nota = (a!==''||e!=='') ? notaPsico(a,e,N) : null; }
+      else { target.psicoManual = true; target.nota = Math.max(0, Math.min(PSICO_MAX, Number(campos.nota.value))); }
+    } else if(a!=='' || e!==''){
+      target.nota = notaPsico(a, e, N); delete target.psicoManual;
+      if(campos.nota) campos.nota.value = '';
+    }
+    if(quien==='n' && opts.onTotal) opts.onTotal(N);
+    scheduleSave(); pintar();
+  };
+  Object.keys(campos).forEach(k=>{
+    campos[k].oninput = ()=> guardar(k);
+    // al terminar de escribir se repinta el control para que la casilla «Nota» enseñe el valor calculado
+    campos[k].onchange = ()=>{ if(onSet) onSet(); };
+  });
+  pintar();
+  return box;
+}
+/* ===================== PSICOTÉCNICOS ESPECIALES =====================
+   18 apartados fijos que se hacen de uno en uno, EN ORDEN, en los días de recuperación (estado «Recuperación»
+   del calendario). Cada día de recuperación toca el siguiente. Si marcas «NO hecho» ese día, el mismo apartado
+   pasa al siguiente día de recuperación; si no marcas nada, se da por hecho y el siguiente día toca el siguiente. */
+const PSICO_ESPECIALES = [
+  'Claves y operaciones matemáticas', 'Desarrollos de cubos (dados numéricos)', 'Desarrollos de cubos (dados transparentes)',
+  'Suma de monedas (sacos)', 'Observación de figuras e imágenes', 'Órdenes aplicadas a figuras', 'Encajar pletinas',
+  'Completar puzzles al combinar piezas', 'Completar series de figuras', 'Suma de figuras y suma de figuras con rotaciones',
+  'Problemas con tablas, gráficas y planos', 'Formación de figuras', 'Giros y volteos de figuras', 'Unir trozos para formar figuras',
+  'Figuras iguales a las del recuadro con rotaciones', 'Figuras diferentes al resto', 'Sinónimos y antónimos',
+  'Definiciones - palabras que no pertenecen al grupo - comparaciones'
+];
+function psicoEspFechas(){
+  const out = [];
+  sortedMonthKeys().forEach(mk=>{
+    const dias = (state.months[mk] && state.months[mk].days) || {};
+    Object.keys(dias).map(Number).sort((a,b)=>a-b).forEach(d=>{ if(dias[d]==='RECUPERACION') out.push(mk+'-'+pad2(d)); });
+  });
+  return out.sort();
+}
+/* {porFecha:{fechaISO: idx}, fechas:[…]} — qué apartado toca cada día de recuperación. */
+function psicoEspAsignacion(){
+  const fechas = psicoEspFechas(), porFecha = {};
+  const nh = (state.psicoEsp && state.psicoEsp.noHecho) || {};
+  let p = 0;
+  for(let i=0; i<fechas.length && p<PSICO_ESPECIALES.length; i++){
+    porFecha[fechas[i]] = p;
+    if(!nh[fechas[i]]) p++;
+  }
+  return {porFecha, fechas, hechos: Math.min(p, PSICO_ESPECIALES.length)};
+}
+function psicoEspDe(fechaISO){
+  const a = psicoEspAsignacion();
+  return a.porFecha[fechaISO] === undefined ? null : {idx:a.porFecha[fechaISO], nombre:PSICO_ESPECIALES[a.porFecha[fechaISO]], asig:a};
+}
+/* Fila del apartado especial que toca en un día de recuperación (con «NO hecho» y minutos). */
+function psicoEspFila(fechaISO, repintar, onCambio, onTiempo){
+  const e = psicoEspDe(fechaISO); if(!e) return null;
+  const row = document.createElement('div'); row.className='modal-row mr-psico'; row.style.flexWrap='wrap';
+  const head = document.createElement('div'); head.style.cssText='display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
+  const tag = document.createElement('span'); tag.className='tag tag-psico'; tag.style.marginTop='2px'; tag.textContent='PSICO ESPECIAL';
+  const tx = document.createElement('span'); tx.style.cssText='font-size:13px;flex:1;'; tx.textContent = (e.idx+1)+'/'+PSICO_ESPECIALES.length+' · '+e.nombre;
+  head.appendChild(tag); head.appendChild(tx); row.appendChild(head);
+  const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+  row.appendChild(tiempoMini(dd.tareas ? dd.tareas['rec:psicoesp'] : '', v=>{ setTiempoTarea(fechaISO,'rec:psicoesp',v); if(onTiempo) onTiempo(); }, 'Psicotécnico especial'));
+  const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
+  cb.checked = !!(state.psicoEsp.noHecho[fechaISO]);
+  cb.title = 'Marcar como NO hecho (pasa al siguiente día de recuperación)';
+  cb.setAttribute('aria-label','Marcar el psicotécnico especial como NO hecho');
+  cb.onchange = ()=>{
+    if(cb.checked) state.psicoEsp.noHecho[fechaISO] = true; else delete state.psicoEsp.noHecho[fechaISO];
+    scheduleSave(); repintar(); if(onCambio) onCambio();
+  };
+  row.appendChild(cb);
+  const cap = document.createElement('div'); cap.className='tiempo-box-hint'; cap.style.cssText='width:100%;margin-top:0;';
+  const sig = e.asig.fechas.filter(f=> f > fechaISO)[0];
+  const fcorta = (iso)=>{ const [yy,mm,dd2] = iso.split('-').map(Number); return dd2+' '+MESES[mm-1].slice(0,3).toLowerCase(); };
+  cap.textContent = state.psicoEsp.noHecho[fechaISO]
+    ? (sig ? 'No hecho: este apartado pasa al siguiente día de recuperación ('+fcorta(sig)+').' : 'No hecho: no hay más días de recuperación programados; queda pendiente.')
+    : 'Si no lo haces, marca la casilla y pasará al siguiente día de recuperación.';
+  row.appendChild(cap);
+  const resObj = state.psicoEsp.res[fechaISO] || {};
+  if(!state.psicoEsp.totales || typeof state.psicoEsp.totales !== 'object') state.psicoEsp.totales = {};
+  const calc = buildCalcPsico(resObj, null, (t)=>{ t.idx = e.idx; t.fecha = fechaISO; state.psicoEsp.res[fechaISO] = t; }, {
+    manual: true,
+    totalDefault: state.psicoEsp.totales[e.idx],
+    onTotal: (N)=>{ if(N===PSICO_PREGUNTAS) delete state.psicoEsp.totales[e.idx]; else state.psicoEsp.totales[e.idx] = N; }
+  });
+  calc.style.width = '100%';
+  row.appendChild(calc);
+  return row;
+}
 function recDiaResumenEl(fechaISO){
   const l = recuperarDelDia(fechaISO);
+  const esp = psicoEspDe(fechaISO);
   const box = document.createElement('div'); box.className = 'rec-dia-resumen';
-  if(!l.length){ box.textContent = 'Nada asignado'; return box; }
-  l.slice(0,3).forEach(x=>{
+  if(!l.length && !esp){ box.textContent = 'Nada asignado'; return box; }
+  if(esp){ const r = document.createElement('div'); r.className='rec-dia-resumen-it'; r.textContent = '★ Psico esp. '+(esp.idx+1)+'/'+PSICO_ESPECIALES.length; box.appendChild(r); }
+  l.slice(0, esp ? 2 : 3).forEach(x=>{
     const r = document.createElement('div'); r.className = 'rec-dia-resumen-it'+(x.s.recuperado ? ' hecho' : '');
     r.textContent = (x.s.recuperado ? '✓ ' : '• ')+x.label;
     box.appendChild(r);
   });
-  if(l.length > 3){ const mas = document.createElement('div'); mas.className = 'rec-dia-resumen-it'; mas.textContent = '+'+(l.length-3)+' más'; box.appendChild(mas); }
+  const mostrados = esp ? 2 : 3;
+  if(l.length > mostrados){ const mas = document.createElement('div'); mas.className = 'rec-dia-resumen-it'; mas.textContent = '+'+(l.length-mostrados)+' más'; box.appendChild(mas); }
   return box;
 }
 // Lo que toca (o se ha hecho) en un día concreto: asignado a ese día o recuperado ese día.
@@ -4566,6 +4741,8 @@ function buildDiaRecuperacion(body, fechaISO, onCambio){
   const nombreDe = (x)=> x.label+(x.detalle && x.label.indexOf(x.detalle)===-1 ? ' — '+x.detalle : '')+(x.slot ? ' · '+slotEtiqueta(x.slot) : '');
   const pintar = ()=>{
     host.innerHTML = '';
+    const espFila = psicoEspFila(fechaISO, pintar, onCambio, pintarResRec);
+    if(espFila) host.appendChild(espFila);
     const hoy = recuperarDelDia(fechaISO).sort((p,q)=> (p.s.recuperado?1:0)-(q.s.recuperado?1:0));
     hoy.forEach(it=>{
       const row = document.createElement('div'); row.className = 'rec-dia-item'+(it.s.recuperado?' hecho':'');
@@ -4614,7 +4791,7 @@ function buildDiaRecuperacion(body, fechaISO, onCambio){
         scheduleSave(); pintar(); if(onCambio) onCambio();
       };
       host.appendChild(sel);
-    } else if(!hoy.length){
+    } else if(!hoy.length && !espFila){
       const v = document.createElement('div'); v.className = 'rec-meta';
       v.textContent = 'No hay nada pendiente en Recuperar.';
       host.appendChild(v);
@@ -5086,6 +5263,7 @@ function buildTicksRow(key, maxNota){
 
     if(target.mode === 'nota'){
       row.appendChild(buildTestsVuelta(target, maxNota, 'Nota del test de la vuelta '+(i+1)+etqTarget));
+      if(esKeyPsico(key)) row.appendChild(buildCalcPsico(target, ()=>{ rehacer(); try{ renderAll(); }catch(err){} }));
     }
 
     // Notas de esta vuelta en concreto (no la general del tema): dudas, fallos del test, lo que
@@ -5214,6 +5392,7 @@ function buildQuickVueltaControl(key, maxNota, fechaISO, onChanged, selectedIdx)
       // terminar de editar sí actualizamos Progreso y demás pestañas con la nota ya puesta.
       onCommit: ()=>{ try{ renderAll(); }catch(err){ try{ console.error('Error al repintar tras guardar una nota', err); }catch(e){} } }
     }));
+    if(esKeyPsico(key)) wrap.appendChild(buildCalcPsico(target, ()=>{ refrescar(); try{ renderAll(); }catch(err){} }));
   }
 
   // Notas de esta vuelta (en inglés, del test/texto elegido). Para no llenar el día de cajas
@@ -8538,6 +8717,7 @@ function buildTiempoSection(body, info, fechaISO){
       if(fechaISO===hoyLocalISO()){ try{ celebrarObjetivoSiToca(); }catch(e){} }
     }
     fraccionPrev = fr;
+    if(fechaISO===hoyLocalISO()){ clearTimeout(pintarResumen._h); pintarResumen._h = setTimeout(()=>{ try{ renderHomeDash(); }catch(e){} }, 700); }
   };
   _tiempoRefresh = pintarResumen;
   const grid = document.createElement('div'); grid.className='tiempo-box-grid';
@@ -9894,15 +10074,25 @@ function collectNotaData(opts){
     }
     // Exámenes: aparecen siempre, hayan tenido nota o no (los hechos salen con su nota/apto).
     PSICO_ITEMS.forEach((name,idx)=> poner('Psicotécnicos', 'psico-'+idx, name, [], GROUP_MAX_NOTA['Psicotécnicos']));
+    // Psicotécnicos especiales (los 18 de los días de recuperación): cada día con nota es una «vuelta» de ese apartado.
+    try{
+      const resEsp = (state.psicoEsp && state.psicoEsp.res) || {};
+      PSICO_ESPECIALES.forEach((name,idx)=>{
+        const fechas = Object.keys(resEsp).filter(f=> resEsp[f] && resEsp[f].idx===idx && typeof resEsp[f].nota==='number' && isFinite(resEsp[f].nota)).sort();
+        const seq = fechas.map((f,k)=>({mode:'nota', nota:resEsp[f].nota, extra:false, vuelta:k+1, rec:false}));
+        poner('Psico especiales', 'psicoesp-'+idx, (idx+1)+'. '+name, seq, PSICO_MAX);
+        if(seq.length) ya['psicoesp-'+idx].notas = seq.map(x=>x.nota);
+      });
+    }catch(err){ try{ console.error('Progreso: psicotécnicos especiales', err); }catch(_){} }
     INGLES_EXAMS.forEach((name,idx)=> poner('Examen inglés', 'iexam-'+idx, name, [], GROUP_MAX_NOTA['Examen inglés']));
     ORTO_EXAMS.forEach((name,idx)=> poner('Examen ortografía', 'oexam-'+idx, name, [], 10));
     // Orden de los grupos y de los exámenes según el temario.
-    const orden = ['Bloques','Leves','Inglés','Examen inglés','Examen ortografía','Psicotécnicos'];
+    const orden = ['Bloques','Leves','Inglés','Examen inglés','Examen ortografía','Psicotécnicos','Psico especiales'];
     const ord = {};
     orden.forEach(g=>{ if(porGrupo[g]) ord[g] = porGrupo[g]; });
     Object.keys(porGrupo).forEach(g=>{ if(!ord[g]) ord[g] = porGrupo[g]; });
     const num = (k)=> Number(String(k).replace(/^\D+-/, '').replace(/\D.*$/, '')) || 0;
-    ['Inglés','Examen inglés','Examen ortografía','Psicotécnicos'].forEach(g=>{ if(ord[g]) ord[g].sort((a,b)=> num(a.key) - num(b.key)); });
+    ['Inglés','Examen inglés','Examen ortografía','Psicotécnicos','Psico especiales'].forEach(g=>{ if(ord[g]) ord[g].sort((a,b)=> num(a.key) - num(b.key)); });
     return {porGrupo: ord};
   }
   return {porGrupo};
@@ -10186,7 +10376,8 @@ function renderProgreso(){
       '<br>Inglés (temas vistos): <strong>'+hechos('Inglés')+'/'+INGLES_TOTAL+'</strong>'+
       '<br>Exámenes de inglés: <strong>'+hechos('Examen inglés')+'/'+total('Examen inglés')+'</strong>'+
       '<br>Exámenes de ortografía: <strong>'+hechos('Examen ortografía')+'/'+total('Examen ortografía')+'</strong>'+
-      '<br>Exámenes de psicotécnicos: <strong>'+hechos('Psicotécnicos')+'/'+total('Psicotécnicos')+'</strong>';
+      '<br>Exámenes de psicotécnicos: <strong>'+hechos('Psicotécnicos')+'/'+total('Psicotécnicos')+'</strong>'+
+      '<br>Psicotécnicos especiales (con nota): <strong>'+hechos('Psico especiales')+'/'+total('Psico especiales')+'</strong>';
     resumenBody.appendChild(av);
   }
 
@@ -10438,7 +10629,8 @@ function renderProgreso(){
       'Inglés':'g-ingles',
       'Examen inglés':'g-iexam',
       'Examen ortografía':'g-oexam',
-      'Psicotécnicos':'g-psico'
+      'Psicotécnicos':'g-psico',
+      'Psico especiales':'g-psicoesp'
     };
     const GRUPO_BORDER_COLOR = {
       'Bloques':'var(--amber)',
@@ -10446,7 +10638,8 @@ function renderProgreso(){
       'Inglés':'var(--blue)',
       'Examen inglés':'#3f8f8a',
       'Examen ortografía':'#9c6b3f',
-      'Psicotécnicos':'#7a5c9c'
+      'Psicotécnicos':'#7a5c9c',
+      'Psico especiales':'#a8567f'
     };
     // Mismos colores que arriba pero en hex literal: el contexto 2D del <canvas> no resuelve
     // variables CSS (var(--amber)) como sí hace el resto de la app, así que para dibujar el
@@ -10457,7 +10650,8 @@ function renderProgreso(){
       'Inglés':'#5c8a99',
       'Examen inglés':'#3f8f8a',
       'Examen ortografía':'#9c6b3f',
-      'Psicotécnicos':'#7a5c9c'
+      'Psicotécnicos':'#7a5c9c',
+      'Psico especiales':'#a8567f'
     };
     // Cada parte del temario (Graves, Menos graves, Leves, Inglés, Psicotécnicos) es un desplegable:
     // su cabecera es una fila clicable y las filas que la siguen se muestran u ocultan. El estado

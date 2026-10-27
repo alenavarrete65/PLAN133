@@ -1730,3 +1730,21 @@ html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
 }
 @media (prefers-reduced-motion:reduce){ .dia-anillo .an-prog{transition:none;} }
 @media (max-width:420px){ .tiempo-box-fila{gap:10px;} .dia-anillo{width:62px;} .dia-anillo svg{width:54px;height:54px;} .dia-anillo .an-pct{top:16px;font-size:12px;} .dia-anillo.completo .an-pct{top:14px;font-size:15px;} }
+
+/* Anillo de hoy en la tarjeta «Hoy» de inicio */
+.home-hoy-fila{display:flex;align-items:center;justify-content:space-between;gap:14px;}
+.home-hoy-main{flex:1;min-width:0;}
+.home-anillo{width:84px;}
+.home-anillo .an-cap{font-size:10px;}
+@media (max-width:420px){ .home-anillo{width:72px;} }
+
+/* Calculadora de nota de psicotécnico (aciertos / errores / blancas) */
+.psico-calc{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;margin-top:6px;padding:6px 8px;border:1px dashed var(--line-strong);border-radius:6px;}
+.psico-calc-ttl{font-size:11px;color:var(--muted);flex-basis:100%;}
+.psico-calc-f{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--cream-dim);}
+.psico-calc-f input{width:58px;padding:4px 6px;text-align:right;font-family:var(--font-mono);font-size:12px;background:var(--bg-panel-2);color:var(--cream);border:1px solid var(--line-strong);border-radius:3px;}
+.psico-calc-res{font-size:12px;font-weight:700;margin-left:auto;}
+.psico-calc-res.apto{color:var(--green-ink,var(--green));}
+.psico-calc-res.noapto{color:var(--red);}
+.psico-calc-f input[aria-label^="Total"]{width:52px;}
+.grupo-tag.g-psicoesp{background:#a8567f;color:#fff;}
