@@ -8067,6 +8067,13 @@ function computeConocimientosNota(sim){
   const fa = sim.conFallos!=null ? Number(sim.conFallos) : 0;
   return Math.round((ac - fa*0.33)*100)/100;
 }
+/* Inglés: igual que conocimientos (acierto +1, fallo −0,33, blanco 0), sobre 20. */
+function computeInglesNota(sim){
+  if(sim.ingAciertos==null && sim.ingFallos==null) return null;
+  const ac = sim.ingAciertos!=null ? Number(sim.ingAciertos) : 0;
+  const fa = sim.ingFallos!=null ? Number(sim.ingFallos) : 0;
+  return Math.round((ac - fa*0.33)*100)/100;
+}
 /* Total del simulacro: suma de conocimientos (sobre 100), inglés (sobre 20), psicotécnico
    (sobre 30) y el baremo extra que se añada a mano. Si ortografía o gramática están marcadas
    como "No apto", el simulacro entero es NO APTO, da igual lo bien que vaya el resto. */
@@ -8080,142 +8087,294 @@ function computeSimTotal(sim){
   const total = Math.round(((con||0)+(ing||0)+(psi||0)+(bar||0))*100)/100;
   return {noApto, total, hasAny, con, ing, psi, bar};
 }
+/* ===================== FICHA DE NOTAS DEL SIMULACRO =====================
+   Tres tarjetas (conocimientos, inglés, psicotécnico) con entrada rápida de aciertos / fallos / blancas y
+   nota en vivo, ortografía y gramática como interruptores apto / no apto, baremo y un total grande que
+   cuenta hacia arriba. Se usa en la pestaña Simulacros y en el modal del calendario de simulacros.
+   Guarda exactamente los mismos campos de siempre (conocimientos, ingles, psico, orto, gram, baremo…). */
+const _simShown = new WeakMap(); // últimos valores pintados por simulacro: así la animación parte de lo anterior
+function _reduceMotion(){ try{ return window.matchMedia('(prefers-reduced-motion: reduce)').matches; }catch(e){ return false; } }
+function simAnimNum(el, to, from){
+  if(el._raf){ cancelAnimationFrame(el._raf); el._raf = 0; }
+  const fmt = (v)=> fmtNotaEs(Math.round(v*100)/100);
+  if(to==null || isNaN(to)){ el.textContent = '—'; return; }
+  if(from==null || isNaN(from) || from===to || _reduceMotion()){ el.textContent = fmt(to); return; }
+  const t0 = performance.now(), dur = 450;
+  const paso = (t)=>{
+    const k = Math.min(1, (t-t0)/dur), e = 1-Math.pow(1-k,3);
+    el.textContent = fmt(from + (to-from)*e);
+    el._raf = k<1 ? requestAnimationFrame(paso) : 0;
+  };
+  el._raf = requestAnimationFrame(paso);
+}
+function simPop(el, cls){
+  if(_reduceMotion()) return;
+  cls = cls || 'sf-pop';
+  el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls);
+}
+const PLAZA_NOTA = 95; // desde 95 (incluido) con todo apto: apto con plaza; por debajo: apto sin plaza
+const SIM_TRICORNIO_SVG = '<svg viewBox="0 0 64 48" width="100%" height="100%" focusable="false">'+
+  '<path d="M3 31 C17 21 47 21 61 31 C49 39 15 39 3 31Z" fill="#0f1214"/>'+
+  '<path d="M6 30 C8 14 22 8 32 8 C42 8 56 14 58 30 C48 25 16 25 6 30Z" fill="#1d2326"/>'+
+  '<path d="M15 18 C21 12 29 11 36 11" stroke="rgba(255,255,255,.28)" stroke-width="1.6" fill="none" stroke-linecap="round"/>'+
+  '<path d="M3 31 C17 21 47 21 61 31" stroke="#c9a227" stroke-width="1.3" fill="none"/>'+
+  '<circle cx="32" cy="21" r="4.6" fill="#c9a227"/><circle cx="32" cy="21" r="2" fill="#16302a"/></svg>';
+function simConfetti(host){
+  if(_reduceMotion()) return;
+  const colores = ['#d8b53a','#6f9a6a','#f4ecd6','#b6543f','#c9a227'];
+  for(let i=0;i<22;i++){
+    const p = document.createElement('i'); p.className = 'sf-conf';
+    const ang = (-Math.PI/2) + (Math.random()-0.5)*2.4, fuerza = 60 + Math.random()*110;
+    p.style.setProperty('--dx', Math.round(Math.cos(ang)*fuerza + 40)+'px');
+    p.style.setProperty('--dy', Math.round(Math.sin(ang)*fuerza)+'px');
+    p.style.setProperty('--r', Math.round((Math.random()-0.5)*720)+'deg');
+    p.style.setProperty('--c', colores[i % colores.length]);
+    p.style.animationDelay = (Math.random()*0.12)+'s';
+    host.appendChild(p);
+    setTimeout(()=>{ if(p.parentNode) p.parentNode.removeChild(p); }, 1600);
+  }
+}
 function buildSimScoreFields(sim, opts){
   opts = opts || {};
-  const fields = document.createElement('div'); fields.className='sim-fields';
+  const root = document.createElement('div'); root.className = 'sim-fields sf';
+  const shown = _simShown.get(sim) || {}; _simShown.set(sim, shown);
+  const painters = [];
   let paintTotal = ()=>{};
+  const el = (tag, cls, txt)=>{ const n = document.createElement(tag); if(cls) n.className = cls; if(txt!=null) n.textContent = txt; return n; };
+  const paintAll = ()=>{ painters.forEach(p=>p()); paintTotal(); };
+  const cambio = ()=>{ scheduleSave(); paintAll(); if(opts.onChange) opts.onChange(); };
 
-  const mkNotaField = (label, prop, max)=>{
-    const f = document.createElement('div'); f.className='sim-field';
-    const lbl = document.createElement('label'); lbl.textContent = label+' (sobre '+max+')';
-    f.appendChild(lbl);
-    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
-    const inp = document.createElement('input'); inp.type='number'; inp.step='0.1'; inp.min='0'; inp.max=String(max);
-    inp.value = sim[prop]==null ? '' : sim[prop];
-    inp.placeholder = 'Nota';
-    const pillHolder = document.createElement('span');
-    const paintPill = ()=>{
-      pillHolder.innerHTML = (sim[prop]!=null && !isNaN(sim[prop]))
-        ? '<span class="nota-pill '+notaPillClass(sim[prop],max)+'">'+sim[prop]+'/'+max+'</span>' : '';
+  /* Casilla numérica con − / + (cómoda en móvil). Enter pasa a la siguiente casilla. */
+  const mkStep = (label, valor, o)=>{
+    o = o || {};
+    const box = el('div', 'sf-step'+(o.cls ? ' '+o.cls : ''));
+    box.appendChild(el('span', 'sf-step-l', label));
+    const row = el('div', 'sf-step-row');
+    const inp = el('input', 'sf-in'); inp.type = 'number'; inp.min = '0'; inp.step = String(o.inputStep || 1);
+    inp.inputMode = o.decimal ? 'decimal' : 'numeric';
+    inp.placeholder = o.ph!=null ? o.ph : '0';
+    inp.setAttribute('aria-label', o.aria || label);
+    if(valor!=null && valor!=='') inp.value = valor;
+    const leer = ()=> (inp.value==='' || isNaN(Number(inp.value))) ? null : Number(inp.value);
+    inp.addEventListener('input', ()=> o.onInput(leer()));
+    inp.addEventListener('focus', ()=>{ setTimeout(()=>{ try{ inp.select(); }catch(e){} }, 0); });
+    inp.addEventListener('keydown', (ev)=>{
+      if(ev.key!=='Enter') return;
+      const todos = Array.from(root.querySelectorAll('.sf-in')), i = todos.indexOf(inp);
+      if(todos[i+1]){ ev.preventDefault(); todos[i+1].focus(); } else inp.blur();
+    });
+    const mkBtn = (txt, aria, d)=>{
+      const b = el('button', null, txt); b.type = 'button'; b.tabIndex = -1; b.setAttribute('aria-label', aria+' · '+label);
+      b.addEventListener('click', ()=>{
+        const cur = inp.value==='' ? 0 : Number(inp.value)||0;
+        const n = Math.max(0, Math.round((cur + d*(o.btnStep||1))*100)/100);
+        inp.value = n; inp.dispatchEvent(new Event('input')); simPop(inp);
+      });
+      return b;
     };
-    inp.oninput = ()=>{
-      sim[prop] = inp.value===''? null : Number(inp.value);
-      scheduleSave();
-      paintPill();
-      paintTotal();
-      if(opts.onChange) opts.onChange();
-    };
-    paintPill();
-    wrap.appendChild(inp); wrap.appendChild(pillHolder);
-    f.appendChild(wrap);
-    return f;
+    if(!o.noButtons) row.appendChild(mkBtn('−', 'Restar', -1));
+    row.appendChild(inp);
+    if(!o.noButtons) row.appendChild(mkBtn('+', 'Sumar', 1));
+    box.appendChild(row);
+    return {box, inp};
   };
 
-  // Conocimientos ya no es una nota suelta: se calcula sola a partir de aciertos, fallos y
-  // blancos (acierto +1, fallo -0,33, blanco 0), sobre 100, para poder ver de un vistazo
-  // cuántas preguntas conviene arriesgar en el examen real.
-  const mkConocimientosField = ()=>{
-    const f = document.createElement('div'); f.className='sim-field'; f.style.gridColumn='1 / -1';
-    const lbl = document.createElement('label'); lbl.textContent = 'Nota conocimientos (sobre 100)';
-    f.appendChild(lbl);
-    const row = document.createElement('div'); row.style.cssText='display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;';
-    const pillHolder = document.createElement('span');
-    const paintPill = ()=>{
-      const n = sim.conocimientos;
-      pillHolder.innerHTML = (n!=null && !isNaN(n))
-        ? '<span class="nota-pill '+notaPillClass(n,100)+'">'+n+'/100</span>' : '';
-    };
-    const mkSub = (subLabel, prop)=>{
-      const wrap = document.createElement('div'); wrap.style.cssText='display:flex;flex-direction:column;gap:3px;';
-      const l = document.createElement('span');
-      l.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);text-transform:uppercase;letter-spacing:.05em;';
-      l.textContent = subLabel;
-      const inp = document.createElement('input'); inp.type='number'; inp.step='1'; inp.min='0'; inp.style.width='76px';
-      inp.value = sim[prop]==null ? '' : sim[prop];
-      inp.placeholder='0';
-      inp.setAttribute('aria-label', subLabel+' de conocimientos');
-      inp.oninput = ()=>{
-        sim[prop] = inp.value===''? null : Number(inp.value);
-        sim.conocimientos = computeConocimientosNota(sim);
-        scheduleSave();
-        paintPill();
-        paintTotal();
-        if(opts.onChange) opts.onChange();
-      };
-      wrap.appendChild(l); wrap.appendChild(inp);
-      return wrap;
-    };
-    row.appendChild(mkSub('Aciertos','conAciertos'));
-    row.appendChild(mkSub('Fallos','conFallos'));
-    row.appendChild(mkSub('En blanco','conBlanco'));
-    row.appendChild(pillHolder);
-    paintPill();
-    f.appendChild(row);
-    return f;
+  /* Tarjeta con cabecera, nota grande, barra de progreso y zona de casillas. */
+  const mkCard = (cls, titulo, sobre, regla)=>{
+    const card = el('div', 'sf-card '+cls);
+    const head = el('div', 'sf-head');
+    head.appendChild(el('span', 'sf-title', titulo));
+    head.appendChild(el('span', 'sf-sub', 'sobre '+sobre));
+    card.appendChild(head);
+    const score = el('div', 'sf-score');
+    const num = el('span', 'sf-num', '—'), max = el('span', 'sf-max', '/ '+sobre), badge = el('span', 'sf-badge');
+    score.appendChild(num); score.appendChild(max); score.appendChild(badge);
+    card.appendChild(score);
+    const bar = el('div', 'sf-bar'), fill = el('div', 'sf-bar-fill');
+    bar.appendChild(fill); card.appendChild(bar);
+    const inputs = el('div', 'sf-inputs'); card.appendChild(inputs);
+    const foot = el('div', 'sf-rule', regla); card.appendChild(foot);
+    return {card, num, badge, bar, fill, inputs, foot, sobre};
   };
-  fields.appendChild(mkConocimientosField());
-  fields.appendChild(mkNotaField('Nota inglés','ingles',20));
-  fields.appendChild(mkNotaField('Nota psicotécnico','psico',30));
-
-  const mkAptoField = (label, prop)=>{
-    const f = document.createElement('div'); f.className='sim-field';
-    const lbl = document.createElement('label'); lbl.textContent = label;
-    f.appendChild(lbl);
-    const sel = document.createElement('select');
-    sel.setAttribute('aria-label', label);
-    sel.appendChild(new Option('— Sin marcar —',''));
-    sel.appendChild(new Option('Apto','APTO'));
-    sel.appendChild(new Option('No apto','NO_APTO'));
-    sel.value = sim[prop] || '';
-    sel.onchange = ()=>{ sim[prop] = sel.value || null; scheduleSave(); paintTotal(); if(opts.onChange) opts.onChange(); };
-    f.appendChild(sel);
-    return f;
+  const pintaNota = (c, clave, n, mostrarClase)=>{
+    const valida = (n!=null && !isNaN(n));
+    const antes = shown[clave];
+    simAnimNum(c.num, valida ? n : null, antes);
+    if(antes!==undefined && antes!==(valida ? n : null)) simPop(c.num);
+    shown[clave] = valida ? n : null;
+    c.fill.style.width = valida ? Math.max(0, Math.min(100, n/c.sobre*100))+'%' : '0%';
+    c.fill.className = 'sf-bar-fill'+(valida ? ' '+(mostrarClase || notaPillClass(n, c.sobre)) : '');
+    c.card.classList.toggle('vacia', !valida);
   };
-  fields.appendChild(mkAptoField('Ortografía','orto'));
-  fields.appendChild(mkAptoField('Gramática','gram'));
+  const cards = el('div', 'sf-cards'); root.appendChild(cards);
 
-  // Baremo: puntos externos (méritos, etc.) que se suman a la nota total del simulacro.
-  const mkBaremoField = ()=>{
-    const f = document.createElement('div'); f.className='sim-field';
-    const lbl = document.createElement('label'); lbl.textContent = 'Baremo (puntos extra)';
-    f.appendChild(lbl);
-    const wrap = document.createElement('div'); wrap.style.display='flex'; wrap.style.alignItems='center';
-    const inp = document.createElement('input'); inp.type='number'; inp.step='0.01'; inp.min='0';
-    inp.value = sim.baremo==null ? '' : sim.baremo;
-    inp.placeholder = '0';
-    inp.oninput = ()=>{
-      sim.baremo = inp.value===''? null : Number(inp.value);
-      scheduleSave();
-      paintTotal();
-      if(opts.onChange) opts.onChange();
+  // ---- Conocimientos: acierto +1, fallo −0,33, blanco 0 (sobre 100) ----
+  {
+    const c = mkCard('con', 'Conocimientos', 100, 'Acierto +1 · Fallo −0,33 · En blanco 0');
+    const mk = (label, prop)=> mkStep(label, sim[prop], {onInput:(v)=>{
+      sim[prop] = v;
+      sim.conocimientos = (sim.conAciertos==null && sim.conFallos==null && sim.conBlanco==null) ? null : computeConocimientosNota(sim);
+      cambio();
+    }, aria: label+' de conocimientos'});
+    const a = mk('Aciertos','conAciertos'), f = mk('Fallos','conFallos'), b = mk('En blanco','conBlanco');
+    [a,f,b].forEach(x=> c.inputs.appendChild(x.box));
+    painters.push(()=>{
+      pintaNota(c, 'con', sim.conocimientos);
+      const ac = a.inp.value, fa = f.inp.value;
+      b.inp.placeholder = (ac!=='' && fa!=='' && b.inp.value==='') ? String(Math.max(0, 100-Number(ac)-Number(fa))) : '0';
+    });
+    cards.appendChild(c.card);
+  }
+
+  // ---- Inglés: acierto +1, fallo −0,33, blanco 0 (sobre 20) ----
+  {
+    const c = mkCard('ing', 'Inglés', 20, 'Acierto +1 · Fallo −0,33 · En blanco 0');
+    const mk = (label, prop)=> mkStep(label, sim[prop], {onInput:(v)=>{
+      sim[prop] = v;
+      sim.ingles = (sim.ingAciertos==null && sim.ingFallos==null && sim.ingBlanco==null) ? null : computeInglesNota(sim);
+      cambio();
+    }, aria: label+' de inglés'});
+    const a = mk('Aciertos','ingAciertos'), f = mk('Fallos','ingFallos'), b = mk('En blanco','ingBlanco');
+    [a,f,b].forEach(x=> c.inputs.appendChild(x.box));
+    painters.push(()=>{
+      pintaNota(c, 'ing', sim.ingles);
+      const ac = a.inp.value, fa = f.inp.value;
+      b.inp.placeholder = (ac!=='' && fa!=='' && b.inp.value==='') ? String(Math.max(0, 20-Number(ac)-Number(fa))) : '0';
+    });
+    cards.appendChild(c.card);
+  }
+
+  // ---- Psicotécnico: misma fórmula que los días de prueba: 30 × (A − E/3) / Total, por defecto 80 preguntas ----
+  {
+    const c = mkCard('psi', 'Psicotécnico', PSICO_MAX, '30 × (Aciertos − Errores/3) ÷ Total · Apto desde '+PSICO_APTO);
+    const d = sim.psicoAEB || {};
+    const tick = el('span', 'sf-bar-tick'); tick.style.left = (PSICO_APTO/PSICO_MAX*100)+'%'; tick.title = 'Mínimo para apto ('+PSICO_APTO+')';
+    c.bar.appendChild(tick);
+    let tot, ac, er, bl;
+    const totalAhora = ()=> (Number(tot.inp.value) > 0 ? Number(tot.inp.value) : PSICO_PREGUNTAS);
+    const guardar = (quien)=>(v)=>{
+      const a = ac.inp.value, e = er.inp.value, b = bl.inp.value, N = totalAhora();
+      if(a==='' && e==='' && b==='' && N===PSICO_PREGUNTAS) delete sim.psicoAEB;
+      else sim.psicoAEB = {n:N, a: a===''?null:Number(a), e: e===''?null:Number(e), b: b===''?null:Number(b)};
+      if(a!=='' || e!==''){ sim.psico = notaPsico(a, e, N); delete sim.psicoManual; }
+      else if(quien==='a' || quien==='e'){ sim.psico = null; } // vaciar aciertos y errores quita la nota calculada
+      cambio();
     };
-    wrap.appendChild(inp);
-    f.appendChild(wrap);
-    return f;
-  };
-  fields.appendChild(mkBaremoField());
+    tot = mkStep('Preguntas', (d.n>0 ? d.n : PSICO_PREGUNTAS), {onInput:guardar('n'), ph:String(PSICO_PREGUNTAS), aria:'Total de preguntas del psicotécnico', btnStep:5, cls:'sf-step-total'});
+    ac = mkStep('Aciertos', d.a, {onInput:guardar('a'), aria:'Aciertos del psicotécnico'});
+    er = mkStep('Errores', d.e, {onInput:guardar('e'), aria:'Errores del psicotécnico'});
+    bl = mkStep('Blancas', d.b, {onInput:guardar('b'), aria:'Blancas del psicotécnico'});
+    [tot,ac,er,bl].forEach(x=> c.inputs.appendChild(x.box));
+    painters.push(()=>{
+      pintaNota(c, 'psi', sim.psico, (sim.psico!=null && sim.psico>=PSICO_APTO) ? 'good' : 'bad');
+      const valida = sim.psico!=null && !isNaN(sim.psico);
+      c.badge.textContent = valida ? (sim.psico>=PSICO_APTO ? 'APTO' : 'NO APTO') : '';
+      c.badge.className = 'sf-badge'+(valida ? (sim.psico>=PSICO_APTO ? ' ok' : ' ko') : '');
+      const N = totalAhora(), a = ac.inp.value, e = er.inp.value, b = bl.inp.value;
+      bl.inp.placeholder = (a!=='' && e!=='' && b==='') ? String(Math.max(0, N-Number(a)-Number(e))) : '0';
+      const suma = (Number(a)||0)+(Number(e)||0)+(Number(b)||0);
+      c.foot.textContent = suma>N
+        ? '⚠ Aciertos + errores + blancas suman '+suma+' y el total es '+N
+        : (a!=='' || e!=='' ? 'Neto '+fmtNotaEs(Math.round(((Number(a)||0)-(Number(e)||0)/3)*100)/100)+' de '+N+' preguntas' : '30 × (Aciertos − Errores/3) ÷ Total · Apto desde '+PSICO_APTO);
+      c.foot.classList.toggle('aviso', suma>N);
+    });
+    cards.appendChild(c.card);
+  }
 
-  // Total: NO APTO manda sobre cualquier suma si ortografía o gramática han suspendido;
-  // si no, es la suma de conocimientos + inglés + psicotécnico + baremo.
-  const totalField = document.createElement('div'); totalField.className='sim-field sim-total-field'; totalField.style.gridColumn='1 / -1';
-  const totalLbl = document.createElement('label'); totalLbl.textContent = 'Total simulacro';
-  totalField.appendChild(totalLbl);
-  const totalDisplay = document.createElement('div'); totalDisplay.style.cssText='font-family:var(--font-mono);font-size:13px;';
-  totalField.appendChild(totalDisplay);
+  // ---- Ortografía y gramática (apto / no apto) y baremo ----
+  const extras = el('div', 'sf-extras'); root.appendChild(extras);
+  const mkApto = (label, prop)=>{
+    const box = el('div', 'sf-apto');
+    box.appendChild(el('span', 'sf-step-l', label));
+    const seg = el('div', 'sf-seg'); seg.setAttribute('role', 'radiogroup'); seg.setAttribute('aria-label', label);
+    const btns = [['', '—', 'Sin marcar'], ['APTO', 'Apto', 'Apto'], ['NO_APTO', 'No apto', 'No apto']].map(([v, txt, aria])=>{
+      const b = el('button', 'sf-seg-b', txt); b.type = 'button'; b.setAttribute('role', 'radio'); b.setAttribute('aria-label', label+': '+aria); b.dataset.v = v;
+      b.addEventListener('click', ()=>{ sim[prop] = v || null; simPop(b); cambio(); });
+      seg.appendChild(b); return b;
+    });
+    box.appendChild(seg);
+    painters.push(()=>{
+      const cur = sim[prop] || '';
+      seg.dataset.v = cur;
+      btns.forEach(b=>{ const on = b.dataset.v===cur; b.classList.toggle('on', on); b.setAttribute('aria-checked', on ? 'true' : 'false'); });
+    });
+    return box;
+  };
+  extras.appendChild(mkApto('Ortografía', 'orto'));
+  extras.appendChild(mkApto('Gramática', 'gram'));
+  {
+    const bar = mkStep('Baremo (puntos extra)', sim.baremo, {onInput:(v)=>{ sim.baremo = v; cambio(); }, noButtons:true, decimal:true, inputStep:0.01, ph:'0', cls:'sf-baremo'});
+    const box = el('div', 'sf-apto'); box.appendChild(bar.box);
+    extras.appendChild(box);
+  }
+
+  // ---- Total: conocimientos + inglés + psicotécnico + baremo. Ortografía o gramática «No apto» ⇒ simulacro NO APTO.
+  //      Con todo apto: desde 95 puntos «apto con plaza»; por debajo «apto sin plaza». ----
+  const total = el('div', 'sf-total');
+  const hat = el('span', 'sf-hat'); hat.setAttribute('aria-hidden', 'true'); hat.innerHTML = SIM_TRICORNIO_SVG;
+  const izq = el('div', 'sf-total-left'); izq.appendChild(hat);
+  const main = el('div', 'sf-total-main');
+  main.appendChild(el('span', 'sf-total-k', 'Total simulacro'));
+  const rowN = el('div', 'sf-total-row');
+  const tNum = el('span', 'sf-total-num', '—'), tMax = el('span', 'sf-total-max', '/ 150 + baremo'), tVer = el('span', 'sf-verdict');
+  rowN.appendChild(tNum); rowN.appendChild(tMax); rowN.appendChild(tVer);
+  main.appendChild(rowN);
+  const tNota = el('div', 'sf-total-note'); main.appendChild(tNota);
+  // Camino a la plaza (solo con «apto sin plaza»): barra que sube hacia los 95 con una flecha que flota
+  const camino = el('div', 'sf-camino');
+  const cBar = el('div', 'sf-camino-bar'), cFill = el('div', 'sf-camino-fill');
+  const cFlecha = el('span', 'sf-camino-flecha'); cFlecha.appendChild(el('span', 'sf-camino-glifo', '▲'));
+  cBar.appendChild(cFill); cBar.appendChild(cFlecha); camino.appendChild(cBar);
+  cBar.appendChild(el('span', 'sf-camino-meta', 'PLAZA '+PLAZA_NOTA));
+  const cTxt = el('div', 'sf-camino-txt'); camino.appendChild(cTxt);
+  main.appendChild(camino);
+  izq.appendChild(main);
+  total.appendChild(izq);
+  const chips = el('div', 'sf-chips');
+  const mkChip = (txt)=>{ const ch = el('span', 'sf-chip'); const k = el('small', null, txt), v = el('b', null, '0'); ch.appendChild(k); ch.appendChild(v); chips.appendChild(ch); return {ch, v}; };
+  const chCon = mkChip('Conoc.'), chIng = mkChip('Inglés'), chPsi = mkChip('Psico'), chBar = mkChip('Baremo');
+  total.appendChild(chips);
   paintTotal = ()=>{
     const r = computeSimTotal(sim);
-    if(r.noApto){
-      totalDisplay.innerHTML = '<span class="nota-pill bad">NO APTO</span> <span style="color:var(--muted);">— ortografía o gramática suspendidas</span>';
-    } else if(!r.hasAny){
-      totalDisplay.innerHTML = '<span style="color:var(--muted);">— añade alguna nota para ver el total —</span>';
-    } else {
-      totalDisplay.innerHTML = '<span class="nota-pill good">'+r.total+'</span> <span style="color:var(--muted);">= '+(r.con||0)+' con. + '+(r.ing||0)+' inglés + '+(r.psi||0)+' psico. + '+(r.bar||0)+' baremo</span>';
+    const antesNo = shown.noApto, estadoAntes = shown.estado;
+    const todoApto = r.hasAny && !r.noApto && sim.orto==='APTO' && sim.gram==='APTO';
+    const plaza = todoApto && r.total >= PLAZA_NOTA;
+    const sinPlaza = todoApto && !plaza;
+    total.classList.toggle('noapto', r.noApto);
+    total.classList.toggle('vacio', !r.hasAny && !r.noApto);
+    total.classList.toggle('plaza', plaza);
+    total.classList.toggle('sinplaza', sinPlaza);
+    tVer.textContent = r.noApto ? 'NO APTO' : (plaza ? 'APTO CON PLAZA' : (sinPlaza ? 'APTO SIN PLAZA' : ''));
+    tVer.className = 'sf-verdict'+(r.noApto ? ' ko' : (plaza ? ' ok' : (sinPlaza ? ' mid' : '')));
+    simAnimNum(tNum, r.hasAny ? r.total : null, shown.total);
+    if(shown.total!==undefined && r.hasAny && shown.total!==r.total) simPop(tNum);
+    shown.total = r.hasAny ? r.total : null;
+    if(r.noApto && antesNo===false) simPop(total, 'sf-shake');
+    shown.noApto = r.noApto;
+    // entrada en «con plaza»: tricornio que cae, brillo y confeti (una sola vez al llegar, no al reabrir)
+    if(plaza && estadoAntes!==undefined && estadoAntes!=='plaza'){ simPop(hat, 'sf-hat-in'); simPop(total, 'sf-shine'); simConfetti(total); }
+    // «sin plaza»: la barra del camino sube desde cero la primera vez que se llega a ese estado
+    if(sinPlaza){
+      const pct = Math.max(0, Math.min(100, r.total/PLAZA_NOTA*100));
+      if(estadoAntes!=='sinplaza'){ cFill.style.width = '0%'; cFlecha.style.left = '0%'; }
+      setTimeout(()=>{ cFill.style.width = pct+'%'; cFlecha.style.left = pct+'%'; }, 30);
+      const falta = Math.round((PLAZA_NOTA - r.total)*100)/100, ft = fmtNotaEs(falta);
+      cTxt.textContent = falta<=5 ? '¡Lo tienes al lado! Solo '+ft+' puntos para la plaza'
+        : (falta<=15 ? 'Muy buen camino: te faltan '+ft+' puntos para la plaza'
+        : 'Ya eres apto, y aún puedes crecer: '+ft+' puntos hasta la plaza');
     }
+    shown.estado = plaza ? 'plaza' : (sinPlaza ? 'sinplaza' : (r.noApto ? 'no' : ''));
+    tNota.textContent = r.noApto ? 'Ortografía o gramática no aptas: el simulacro entero queda NO APTO.'
+      : (!r.hasAny ? 'Añade alguna nota para ver el total.'
+      : (plaza ? '¡Por encima de '+PLAZA_NOTA+'! Esa es nota de plaza.'
+      : (sinPlaza ? '' : ((sim.orto && sim.gram) ? '' : 'Ortografía y gramática pendientes de marcar.'))));
+    const f = (v)=> fmtNotaEs(v||0);
+    chCon.v.textContent = f(r.con); chIng.v.textContent = f(r.ing); chPsi.v.textContent = f(r.psi); chBar.v.textContent = '+'+f(r.bar);
+    chCon.ch.classList.toggle('off', !r.con); chIng.ch.classList.toggle('off', !r.ing); chPsi.ch.classList.toggle('off', !r.psi); chBar.ch.classList.toggle('off', !r.bar);
   };
-  paintTotal();
-  fields.appendChild(totalField);
-
-  return fields;
+  root.appendChild(total);
+  paintAll();
+  return root;
 }
 /* Tablón de "Simulacros pendientes": simulacros que ya sabes que tienes por delante (p. ej.
    "Simulacro completo mensual") sin saber todavía en qué día caerán. Vive justo debajo del
@@ -8427,12 +8586,16 @@ function devolverSimulacroAPendientes(sim){
     conFallos: sim.conFallos!=null ? sim.conFallos : null,
     conBlanco: sim.conBlanco!=null ? sim.conBlanco : null,
     ingles: sim.ingles!=null ? sim.ingles : null,
+    ingAciertos: sim.ingAciertos!=null ? sim.ingAciertos : null,
+    ingFallos: sim.ingFallos!=null ? sim.ingFallos : null,
+    ingBlanco: sim.ingBlanco!=null ? sim.ingBlanco : null,
     psico: sim.psico!=null ? sim.psico : null,
     orto: sim.orto || null,
     gram: sim.gram || null,
     baremo: sim.baremo!=null ? sim.baremo : null,
     nota: sim.nota || ''
   });
+  if(sim.psicoAEB) list[list.length-1].psicoAEB = Object.assign({}, sim.psicoAEB);
   if(sim.fecha) eliminarSimulacroPorFecha(sim.fecha);
   scheduleSave();
   renderSimulacrosPendientes();
@@ -8454,12 +8617,16 @@ function colocarSimulacroPendienteEnFecha(pendienteId, fecha){
     conFallos: p.conFallos!=null ? p.conFallos : null,
     conBlanco: p.conBlanco!=null ? p.conBlanco : null,
     ingles: p.ingles!=null ? p.ingles : null,
+    ingAciertos: p.ingAciertos!=null ? p.ingAciertos : null,
+    ingFallos: p.ingFallos!=null ? p.ingFallos : null,
+    ingBlanco: p.ingBlanco!=null ? p.ingBlanco : null,
     psico: p.psico!=null ? p.psico : null,
     orto: p.orto || null,
     gram: p.gram || null,
     baremo: p.baremo!=null ? p.baremo : null,
     nota: p.nota || ''
   };
+  if(p.psicoAEB) sim.psicoAEB = Object.assign({}, p.psicoAEB);
   state.simulacros.push(sim);
   list.splice(i,1);
   scheduleSave();
