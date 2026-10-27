@@ -8064,7 +8064,7 @@ function renderSimulacrosList(){
    editarlo todo sin tener que cambiar de pestaña. */
 /* Notas mínimas para estar apto: por debajo de cualquiera de ellas el simulacro entero es NO APTO. */
 const SIM_MIN_CON = 50, SIM_MIN_ING = 8; // el mínimo de psicotécnico es PSICO_APTO (12)
-const SIM_MIN_TOTAL = 72; // total mínimo del simulacro (fijado a mano: 72)
+const SIM_MIN_TOTAL = SIM_MIN_CON + SIM_MIN_ING + PSICO_APTO; // 70: suma de los tres mínimos (50 + 8 + 12)
 function computeConocimientosNota(sim){
   const ac = sim.conAciertos!=null ? Number(sim.conAciertos) : 0;
   const fa = sim.conFallos!=null ? Number(sim.conFallos) : 0;
