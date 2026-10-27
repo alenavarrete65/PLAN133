@@ -1671,7 +1671,7 @@ html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
 .tiempo-box-title{font-weight:700;font-size:14px;color:var(--cream);}
 .tiempo-box-sum{font-size:13px;color:var(--cream-dim);}
 .tiempo-box-sum strong{color:var(--cream);}
-.tiempo-box-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));gap:6px 8px;}
+.tiempo-box-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,160px));gap:6px 12px;}
 .tiempo-chip{display:flex;flex-direction:column;gap:2px;font-size:11px;color:var(--muted);min-width:0;}
 .tiempo-chip > span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .tiempo-chip-in{display:flex;align-items:center;gap:4px;}
@@ -1706,3 +1706,27 @@ html[data-theme="light"]{ --bc-azul:#2c5fae; --bc-morado:#7a3fb0; }
 
 /* ---- Ficha del día un poco más grande (en móvil sigue a todo el ancho) ---- */
 #dayModal .modal{max-width:880px;}
+
+/* Filas «etiqueta … [ ] min» dentro de Clases y Simulacro */
+.tiempo-fila{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:4px 0 6px;font-size:13px;}
+.tiempo-fila > span{flex:1;min-width:0;}
+.rec-dia-top .tmini{margin-left:auto;}
+
+/* ===================== Anillo del día (estudio apuntado / objetivo diario) ===================== */
+.tiempo-box-fila{display:flex;align-items:center;gap:14px;}
+.tiempo-box-cuerpo{flex:1;min-width:0;}
+.dia-anillo{position:relative;width:76px;flex-shrink:0;text-align:center;}
+.dia-anillo svg{display:block;width:64px;height:64px;margin:0 auto;overflow:visible;}
+.dia-anillo .an-fondo{fill:none;stroke:var(--line-strong);stroke-width:6;opacity:.45;}
+.dia-anillo .an-prog{fill:none;stroke:var(--sec-tiempo,#4fb3a6);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset .7s cubic-bezier(.22,.8,.3,1),stroke .3s;}
+.dia-anillo .an-pct{position:absolute;left:0;right:0;top:20px;font-family:var(--font-mono);font-size:13px;font-weight:700;color:var(--cream);line-height:1;}
+.dia-anillo .an-cap{display:block;margin-top:3px;font-size:10px;color:var(--muted);line-height:1.1;white-space:nowrap;}
+.dia-anillo.completo .an-prog{stroke:var(--amber);filter:drop-shadow(0 0 4px rgba(201,162,39,.55));}
+.dia-anillo.completo .an-pct{color:var(--amber-ink,var(--amber));font-size:17px;top:17px;}
+.dia-anillo.completo .an-cap{color:var(--amber-ink,var(--amber));font-weight:700;}
+@media (prefers-reduced-motion:no-preference){
+  .dia-anillo.cierre svg{animation:anilloCierre .9s ease-out;}
+  @keyframes anilloCierre{0%{transform:scale(1);}30%{transform:scale(1.14);filter:drop-shadow(0 0 10px rgba(201,162,39,.9));}100%{transform:scale(1);}}
+}
+@media (prefers-reduced-motion:reduce){ .dia-anillo .an-prog{transition:none;} }
+@media (max-width:420px){ .tiempo-box-fila{gap:10px;} .dia-anillo{width:62px;} .dia-anillo svg{width:54px;height:54px;} .dia-anillo .an-pct{top:16px;font-size:12px;} .dia-anillo.completo .an-pct{top:14px;font-size:15px;} }

@@ -3290,8 +3290,8 @@ function openDayModal(d, info, modo){
   if(modo){ diaModalModo = modo; _secAbiertas = {}; if(modo==='tiempos') _secAbiertas['Tareas del día'] = true; } // abrir un día desde el calendario: todo cerrado (salvo las tareas en el calendario de tiempos)
   const verTiempo = (diaModalModo==='todo' || diaModalModo==='tiempos');
   const verEstudio = (diaModalModo==='todo' || diaModalModo==='estudio');
-  const verClases = (diaModalModo==='todo');
-  const verSim = (diaModalModo==='todo');
+  const verClases = (diaModalModo==='todo' || diaModalModo==='tiempos');
+  const verSim = (diaModalModo==='todo' || diaModalModo==='tiempos');
   const [y,m] = currentMonthKey.split('-').map(Number);
   info = info || {};
   const jsDow = (info.dow===undefined || info.dow===null) ? new Date(y, m-1, d).getDay() : info.dow;
@@ -3377,7 +3377,7 @@ function openDayModal(d, info, modo){
   }
 
   /* ---------- 1b. Día de recuperación (cualquier tipo de día) ---------- */
-  if(verEstudio) try{
+  if(verEstudio || diaModalModo==='tiempos') try{
     buildDiaRecuperacion(body, fechaISO, ()=>{ renderCalendar(); renderArrastre(); });
   }catch(err){
     try{ console.error('Error pintando el día de recuperación', err); }catch(e){}
@@ -3389,6 +3389,8 @@ function openDayModal(d, info, modo){
     { const ce = (state.claseCal[currentMonthKey]||{})[d] || {}; let nCl = 0;
       ['conocimientos','ingles','psico','psicoExtra','orto','seminarios'].forEach(k=>{ if(Array.isArray(ce[k])) nCl += ce[k].length; });
       resClases(nCl ? String(nCl) : 'ninguna'); }
+    sb.appendChild(tiempoFilaDia('Duración de la clase', fechaISO, 'clase'));
+    sb.appendChild(tiempoFilaDia('Estudio dedicado a la clase', fechaISO, 'estudioClase'));
     const host = document.createElement('div');
     sb.appendChild(host);
     renderDayClasesEditor(host, d, jsDow);
@@ -3397,6 +3399,7 @@ function openDayModal(d, info, modo){
   /* ---------- 3. Simulacro ---------- */
   if(verSim){
     const {body:sb} = daySection(body, 'Simulacro');
+    sb.appendChild(tiempoFilaDia('Tiempo del test', fechaISO, 'test'));
     const refreshSimEverything = ()=>{
       renderSimCalendar();
       renderSimulacrosList();
@@ -4554,8 +4557,11 @@ function buildRecResultado(it, onRefresh){
 }
 // Sección «Día de recuperación» de la ficha de un día del calendario: solo trabaja con lo que hay en Recuperar.
 function buildDiaRecuperacion(body, fechaISO, onCambio){
-  const {body:sb} = daySection(body, 'Día de recuperación');
+  const {body:sb, setResumen:resRec} = daySection(body, 'Día de recuperación');
   const host = document.createElement('div'); sb.appendChild(host);
+  const recKey = (x)=> 'rec:'+x.key+'|'+x.vuelta+'|'+(x.slot||'g');
+  const pintarResRec = ()=>{ const m = computeTiempoDia(fechaISO, null).recuperacion; resRec(m ? fmtMin(m) : ''); };
+  pintarResRec();
   const fechaCorta = (iso)=>{ const [yy,mm,dd] = iso.split('-').map(Number); return dd+' '+MESES[mm-1].slice(0,3).toLowerCase(); };
   const nombreDe = (x)=> x.label+(x.detalle && x.label.indexOf(x.detalle)===-1 ? ' — '+x.detalle : '')+(x.slot ? ' · '+slotEtiqueta(x.slot) : '');
   const pintar = ()=>{
@@ -4568,6 +4574,10 @@ function buildDiaRecuperacion(body, fechaISO, onCambio){
       const nm = document.createElement('div'); nm.className = 'rec-nombre'; nm.textContent = nombreDe(it);
       const mt = document.createElement('div'); mt.className = 'rec-meta'; mt.textContent = it.grupo+' · Vuelta '+it.vuelta;
       info.appendChild(nm); info.appendChild(mt); top.appendChild(info);
+      { const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+        const mini = tiempoMini(dd.tareas ? dd.tareas[recKey(it)] : '', v=>{ setTiempoTarea(fechaISO, recKey(it), v); pintarResRec(); }, 'Recuperación: '+it.label);
+        mini.title = 'Tiempo estimado (min) para recuperar este tema';
+        top.appendChild(mini); }
       const lab = document.createElement('label'); lab.className = 'rec-dia-check';
       const cb = document.createElement('input'); cb.type = 'checkbox'; cb.checked = !!it.s.recuperado;
       cb.setAttribute('aria-label', 'Recuperado: '+it.label);
@@ -4582,7 +4592,7 @@ function buildDiaRecuperacion(body, fechaISO, onCambio){
         const q = document.createElement('button'); q.type = 'button'; q.className = 'btn small ghost'; q.textContent = '✕';
         q.title = 'Quitar de este día (sigue pendiente en Recuperar)';
         q.setAttribute('aria-label', 'Quitar de este día: '+it.label);
-        q.onclick = ()=>{ delete it.s.recDia; scheduleSave(); pintar(); if(onCambio) onCambio(); };
+        q.onclick = ()=>{ delete it.s.recDia; setTiempoTarea(fechaISO, recKey(it), ''); scheduleSave(); pintar(); if(onCambio) onCambio(); };
         top.appendChild(q);
       }
       row.appendChild(top);
@@ -8411,13 +8421,15 @@ function computeTiempoDia(fechaISO, info){
   if(info && info.status==='ESTUDIO' && Array.isArray(info.temasDelDia) && !(info.ticks && info.ticks.bloque)){
     info.temasDelDia.forEach(x=>{ temas += Number(tt[x.key])||0; });
   }
-  let otrasTareas = 0;
-  if(t.tareas && typeof t.tareas==='object') Object.keys(t.tareas).forEach(k=>{ otrasTareas += Number(t.tareas[k])||0; });
+  let otrasTareas = 0, recuperacion = 0;
+  if(t.tareas && typeof t.tareas==='object') Object.keys(t.tareas).forEach(k=>{
+    if(k.indexOf('rec:')===0) recuperacion += Number(t.tareas[k])||0; else otrasTareas += Number(t.tareas[k])||0;
+  });
   const clase = Number(t.clase)||0, estudioClase = Number(t.estudioClase)||0, otras = (Number(t.otras)||0) + otrasTareas;
   const test = Number(t.test)||0, arrastre = Number(t.arrastre)||0;
   const descanso = (t.descanso===undefined || t.descanso===null || t.descanso==='') ? DESCANSO_DEFECTO_MIN : (Number(t.descanso)||0);
-  const estudio = temas+clase+estudioClase+otras+test+arrastre;
-  return {temas, clase, estudioClase, otras, test, arrastre, estudio, descanso, total: estudio+descanso};
+  const estudio = temas+clase+estudioClase+otras+test+arrastre+recuperacion;
+  return {temas, clase, estudioClase, otras, test, arrastre, recuperacion, estudio, descanso, total: estudio+descanso};
 }
 function setTiempoDia(fechaISO, campo, valor){
   normalizeState();
@@ -8455,6 +8467,14 @@ function tiempoMini(valor, onSet, etiqueta){
   const u = document.createElement('em'); u.textContent='min'; w.appendChild(u);
   return w;
 }
+/* Fila «etiqueta … [ ] min» para un tiempo del día (clase, estudio de la clase, test). */
+function tiempoFilaDia(label, fechaISO, campo){
+  const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
+  const row = document.createElement('div'); row.className='tiempo-fila';
+  const sp = document.createElement('span'); sp.textContent = label; row.appendChild(sp);
+  row.appendChild(tiempoMini(d[campo], v=>setTiempoDia(fechaISO, campo, v), label));
+  return row;
+}
 /* Mini campo ya enlazado a una tarea del día (leve, inglés, examen, entreno, psico, orto). */
 function tiempoMiniTarea(fechaISO, stream, etiqueta){
   const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
@@ -8477,14 +8497,47 @@ function tiempoResumenHTML(tm){
    en un mini campo al lado de la propia tarea. El resumen se actualiza al teclear en cualquiera de los dos sitios. */
 function buildTiempoSection(body, info, fechaISO){
   const box = document.createElement('div'); box.className='tiempo-box';
+  const fila = document.createElement('div'); fila.className='tiempo-box-fila';
+  box.appendChild(fila);
+
+  /* Anillo del día: horas de estudio apuntadas frente al objetivo diario (se cambia en el calendario de tiempos). */
+  const R = 26, C = 2*Math.PI*R;
+  const anillo = document.createElement('div'); anillo.className='dia-anillo';
+  anillo.setAttribute('role','img');
+  anillo.innerHTML = '<svg viewBox="0 0 64 64" aria-hidden="true"><circle class="an-fondo" cx="32" cy="32" r="'+R+'"/>'+
+    '<circle class="an-prog" cx="32" cy="32" r="'+R+'" transform="rotate(-90 32 32)" stroke-dasharray="'+C.toFixed(2)+'" stroke-dashoffset="'+C.toFixed(2)+'"/></svg>'+
+    '<span class="an-pct"></span><span class="an-cap"></span>';
+  const prog = anillo.querySelector('.an-prog'), pctEl = anillo.querySelector('.an-pct'), capEl = anillo.querySelector('.an-cap');
+  fila.appendChild(anillo);
+
+  const cuerpo = document.createElement('div'); cuerpo.className='tiempo-box-cuerpo';
+  fila.appendChild(cuerpo);
   const head = document.createElement('div'); head.className='tiempo-box-head';
   const ttl = document.createElement('span'); ttl.className='tiempo-box-title'; ttl.textContent='⏱ Tiempo del día';
   const resumen = document.createElement('span'); resumen.className='tiempo-box-sum';
   head.appendChild(ttl); head.appendChild(resumen);
-  box.appendChild(head);
+  cuerpo.appendChild(head);
+
+  let fraccionPrev = null; // null = primera pintada (entra animando desde vacío, sin «cierre»)
   const pintarResumen = ()=>{
     const tm = computeTiempoDia(fechaISO, info);
     resumen.innerHTML = '📚 <strong>'+fmtMin(tm.estudio)+'</strong> · 😴 <strong>'+fmtMin(tm.descanso)+'</strong> · Total <strong>'+fmtMin(tm.total)+'</strong>';
+    const obj = objetivoMin();
+    const fr = obj>0 ? tm.estudio/obj : 0;
+    const completo = fr >= 1;
+    anillo.classList.toggle('completo', completo);
+    pctEl.textContent = completo ? '✓' : Math.round(fr*100)+'%';
+    capEl.textContent = completo ? 'Completo' : 'de '+fmtMin(obj);
+    anillo.setAttribute('aria-label', 'Objetivo del día: '+fmtMin(tm.estudio)+' de '+fmtMin(obj));
+    const off = C*(1-Math.min(1, fr));
+    if(fraccionPrev===null) requestAnimationFrame(()=>requestAnimationFrame(()=>{ prog.setAttribute('stroke-dashoffset', off.toFixed(2)); }));
+    else prog.setAttribute('stroke-dashoffset', off.toFixed(2));
+    if(fraccionPrev!==null && fraccionPrev<1 && completo){
+      anillo.classList.remove('cierre'); void anillo.offsetWidth; anillo.classList.add('cierre');
+      setTimeout(()=>anillo.classList.remove('cierre'), 1400);
+      if(fechaISO===hoyLocalISO()){ try{ celebrarObjetivoSiToca(); }catch(e){} }
+    }
+    fraccionPrev = fr;
   };
   _tiempoRefresh = pintarResumen;
   const grid = document.createElement('div'); grid.className='tiempo-box-grid';
@@ -8502,15 +8555,12 @@ function buildTiempoSection(body, info, fechaISO){
     c.appendChild(wrap);
     grid.appendChild(c);
   };
-  chip('Clase', dia.clase, '0', 'clase');
-  chip('Estudio de la clase', dia.estudioClase, '0', 'estudioClase');
-  chip('Test', dia.test, '0', 'test');
   chip('Otros', dia.otras, '0', 'otras');
   chip('Descanso', dia.descanso, String(DESCANSO_DEFECTO_MIN), 'descanso');
-  box.appendChild(grid);
+  cuerpo.appendChild(grid);
   const nota = document.createElement('div'); nota.className='tiempo-box-hint';
-  nota.textContent = 'El tiempo de cada tarea (test de arrastre, bloque, leve, inglés…) se apunta al lado de la propia tarea. El descanso vale 2 h si no lo cambias.';
-  box.appendChild(nota);
+  nota.textContent = 'El tiempo de cada tarea se apunta junto a ella; el de la clase, en «Clases de este día»; el del test, en «Simulacro». El descanso vale 2 h si no lo cambias.';
+  cuerpo.appendChild(nota);
   body.appendChild(box);
   pintarResumen();
 }
@@ -8693,6 +8743,7 @@ function renderTiempoCalendar(){
       if(x.tm.estudioClase) partes.push('Estudio de la clase: '+fmtMin(x.tm.estudioClase));
       if(x.tm.test) partes.push('Test: '+fmtMin(x.tm.test));
       if(x.tm.arrastre) partes.push('Test de arrastre: '+fmtMin(x.tm.arrastre));
+      if(x.tm.recuperacion) partes.push('Recuperación: '+fmtMin(x.tm.recuperacion));
       if(x.tm.otras) partes.push('Otras: '+fmtMin(x.tm.otras));
       if(partes.length){
         const det = document.createElement('div'); det.className='tiempo-list-det'; det.textContent = partes.join(' · ');
