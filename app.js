@@ -8063,7 +8063,8 @@ function renderSimulacrosList(){
    Simulacros como directamente en el modal del día del calendario de simulacros, para poder
    editarlo todo sin tener que cambiar de pestaña. */
 /* Notas mínimas para estar apto: por debajo de cualquiera de ellas el simulacro entero es NO APTO. */
-const SIM_MIN_CON = 50, SIM_MIN_ING = 12; // el mínimo de psicotécnico es PSICO_APTO (12)
+const SIM_MIN_CON = 50, SIM_MIN_ING = 8; // el mínimo de psicotécnico es PSICO_APTO (12)
+const SIM_MIN_TOTAL = 72; // total mínimo del simulacro (fijado a mano: 72)
 function computeConocimientosNota(sim){
   const ac = sim.conAciertos!=null ? Number(sim.conAciertos) : 0;
   const fa = sim.conFallos!=null ? Number(sim.conFallos) : 0;
@@ -8091,9 +8092,11 @@ function computeSimTotal(sim){
   if(psi!=null && psi < PSICO_APTO) motivos.push('psicotécnico por debajo de '+PSICO_APTO);
   if(sim.orto==='NO_APTO') motivos.push('ortografía no apta');
   if(sim.gram==='NO_APTO') motivos.push('gramática no apta');
-  const noApto = motivos.length > 0;
   const hasAny = con!=null || ing!=null || psi!=null || bar!=null;
   const total = Math.round(((con||0)+(ing||0)+(psi||0)+(bar||0))*100)/100;
+  // con las tres partes puestas, el total mínimo es la suma de los mínimos (74); si falta alguna parte no se penaliza
+  if(con!=null && ing!=null && psi!=null && total < SIM_MIN_TOTAL) motivos.push('total por debajo de '+SIM_MIN_TOTAL);
+  const noApto = motivos.length > 0;
   return {noApto, motivos, total, hasAny, con, ing, psi, bar};
 }
 /* ===================== FICHA DE NOTAS DEL SIMULACRO =====================
@@ -8344,6 +8347,8 @@ function buildSimScoreFields(sim, opts){
   const cFlecha = el('span', 'sf-camino-flecha'); cFlecha.appendChild(el('span', 'sf-camino-glifo', '▲'));
   cBar.appendChild(cFill); cBar.appendChild(cFlecha); camino.appendChild(cBar);
   cBar.appendChild(el('span', 'sf-camino-meta', 'PLAZA '+PLAZA_NOTA));
+  const cTick = el('span', 'sf-camino-tick'); cTick.style.left = (SIM_MIN_TOTAL/PLAZA_NOTA*100)+'%'; cTick.title = 'Mínimo para apto ('+SIM_MIN_TOTAL+')'; cBar.appendChild(cTick);
+  const cMin = el('span', 'sf-camino-min', 'MÍN '+SIM_MIN_TOTAL); cMin.style.left = (SIM_MIN_TOTAL/PLAZA_NOTA*100)+'%'; cBar.appendChild(cMin);
   const cTxt = el('div', 'sf-camino-txt'); camino.appendChild(cTxt);
   main.appendChild(camino);
   izq.appendChild(main);
