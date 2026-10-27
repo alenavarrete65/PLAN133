@@ -8062,6 +8062,8 @@ function renderSimulacrosList(){
    (ortografía/gramática) de un simulacro. Se usa tanto en la ficha completa de la pestaña
    Simulacros como directamente en el modal del día del calendario de simulacros, para poder
    editarlo todo sin tener que cambiar de pestaña. */
+/* Notas mínimas para estar apto: por debajo de cualquiera de ellas el simulacro entero es NO APTO. */
+const SIM_MIN_CON = 50, SIM_MIN_ING = 12; // el mínimo de psicotécnico es PSICO_APTO (12)
 function computeConocimientosNota(sim){
   const ac = sim.conAciertos!=null ? Number(sim.conAciertos) : 0;
   const fa = sim.conFallos!=null ? Number(sim.conFallos) : 0;
@@ -8078,14 +8080,21 @@ function computeInglesNota(sim){
    (sobre 30) y el baremo extra que se añada a mano. Si ortografía o gramática están marcadas
    como "No apto", el simulacro entero es NO APTO, da igual lo bien que vaya el resto. */
 function computeSimTotal(sim){
-  const noApto = sim.orto==='NO_APTO' || sim.gram==='NO_APTO';
   const con = sim.conocimientos!=null && !isNaN(sim.conocimientos) ? Number(sim.conocimientos) : null;
   const ing = sim.ingles!=null && !isNaN(sim.ingles) ? Number(sim.ingles) : null;
   const psi = sim.psico!=null && !isNaN(sim.psico) ? Number(sim.psico) : null;
   const bar = sim.baremo!=null && !isNaN(sim.baremo) ? Number(sim.baremo) : null;
+  // motivos de NO APTO: nota mínima no alcanzada en alguna parte, u ortografía / gramática no aptas
+  const motivos = [];
+  if(con!=null && con < SIM_MIN_CON) motivos.push('conocimientos por debajo de '+SIM_MIN_CON);
+  if(ing!=null && ing < SIM_MIN_ING) motivos.push('inglés por debajo de '+SIM_MIN_ING);
+  if(psi!=null && psi < PSICO_APTO) motivos.push('psicotécnico por debajo de '+PSICO_APTO);
+  if(sim.orto==='NO_APTO') motivos.push('ortografía no apta');
+  if(sim.gram==='NO_APTO') motivos.push('gramática no apta');
+  const noApto = motivos.length > 0;
   const hasAny = con!=null || ing!=null || psi!=null || bar!=null;
   const total = Math.round(((con||0)+(ing||0)+(psi||0)+(bar||0))*100)/100;
-  return {noApto, total, hasAny, con, ing, psi, bar};
+  return {noApto, motivos, total, hasAny, con, ing, psi, bar};
 }
 /* ===================== FICHA DE NOTAS DEL SIMULACRO =====================
    Tres tarjetas (conocimientos, inglés, psicotécnico) con entrada rápida de aciertos / fallos / blancas y
@@ -8206,11 +8215,17 @@ function buildSimScoreFields(sim, opts){
     c.fill.className = 'sf-bar-fill'+(valida ? ' '+(mostrarClase || notaPillClass(n, c.sobre)) : '');
     c.card.classList.toggle('vacia', !valida);
   };
+  const pintaBadge = (c, n, min)=>{
+    const valida = (n!=null && !isNaN(n));
+    c.badge.textContent = valida ? (n>=min ? 'APTO' : 'NO APTO') : '';
+    c.badge.className = 'sf-badge'+(valida ? (n>=min ? ' ok' : ' ko') : '');
+  };
   const cards = el('div', 'sf-cards'); root.appendChild(cards);
 
   // ---- Conocimientos: acierto +1, fallo −0,33, blanco 0 (sobre 100) ----
   {
-    const c = mkCard('con', 'Conocimientos', 100, 'Acierto +1 · Fallo −0,33 · En blanco 0');
+    const c = mkCard('con', 'Conocimientos', 100, 'Acierto +1 · Fallo −0,33 · En blanco 0 · Mínimo para apto: '+SIM_MIN_CON);
+    const tickC = el('span', 'sf-bar-tick'); tickC.style.left = (SIM_MIN_CON/100*100)+'%'; tickC.title = 'Mínimo para apto ('+SIM_MIN_CON+')'; c.bar.appendChild(tickC);
     const mk = (label, prop)=> mkStep(label, sim[prop], {onInput:(v)=>{
       sim[prop] = v;
       sim.conocimientos = (sim.conAciertos==null && sim.conFallos==null && sim.conBlanco==null) ? null : computeConocimientosNota(sim);
@@ -8219,7 +8234,8 @@ function buildSimScoreFields(sim, opts){
     const a = mk('Aciertos','conAciertos'), f = mk('Fallos','conFallos'), b = mk('En blanco','conBlanco');
     [a,f,b].forEach(x=> c.inputs.appendChild(x.box));
     painters.push(()=>{
-      pintaNota(c, 'con', sim.conocimientos);
+      pintaNota(c, 'con', sim.conocimientos, (sim.conocimientos!=null && sim.conocimientos<SIM_MIN_CON) ? 'bad' : null);
+      pintaBadge(c, sim.conocimientos, SIM_MIN_CON);
       const ac = a.inp.value, fa = f.inp.value;
       b.inp.placeholder = (ac!=='' && fa!=='' && b.inp.value==='') ? String(Math.max(0, 100-Number(ac)-Number(fa))) : '0';
     });
@@ -8228,7 +8244,8 @@ function buildSimScoreFields(sim, opts){
 
   // ---- Inglés: acierto +1, fallo −0,33, blanco 0 (sobre 20) ----
   {
-    const c = mkCard('ing', 'Inglés', 20, 'Acierto +1 · Fallo −0,33 · En blanco 0');
+    const c = mkCard('ing', 'Inglés', 20, 'Acierto +1 · Fallo −0,33 · En blanco 0 · Mínimo para apto: '+SIM_MIN_ING);
+    const tickI = el('span', 'sf-bar-tick'); tickI.style.left = (SIM_MIN_ING/20*100)+'%'; tickI.title = 'Mínimo para apto ('+SIM_MIN_ING+')'; c.bar.appendChild(tickI);
     const mk = (label, prop)=> mkStep(label, sim[prop], {onInput:(v)=>{
       sim[prop] = v;
       sim.ingles = (sim.ingAciertos==null && sim.ingFallos==null && sim.ingBlanco==null) ? null : computeInglesNota(sim);
@@ -8237,7 +8254,8 @@ function buildSimScoreFields(sim, opts){
     const a = mk('Aciertos','ingAciertos'), f = mk('Fallos','ingFallos'), b = mk('En blanco','ingBlanco');
     [a,f,b].forEach(x=> c.inputs.appendChild(x.box));
     painters.push(()=>{
-      pintaNota(c, 'ing', sim.ingles);
+      pintaNota(c, 'ing', sim.ingles, (sim.ingles!=null && sim.ingles<SIM_MIN_ING) ? 'bad' : null);
+      pintaBadge(c, sim.ingles, SIM_MIN_ING);
       const ac = a.inp.value, fa = f.inp.value;
       b.inp.placeholder = (ac!=='' && fa!=='' && b.inp.value==='') ? String(Math.max(0, 20-Number(ac)-Number(fa))) : '0';
     });
@@ -8364,7 +8382,7 @@ function buildSimScoreFields(sim, opts){
         : 'Ya eres apto, y aún puedes crecer: '+ft+' puntos hasta la plaza');
     }
     shown.estado = plaza ? 'plaza' : (sinPlaza ? 'sinplaza' : (r.noApto ? 'no' : ''));
-    tNota.textContent = r.noApto ? 'Ortografía o gramática no aptas: el simulacro entero queda NO APTO.'
+    tNota.textContent = r.noApto ? 'NO APTO: '+r.motivos.join(', ')+'.'
       : (!r.hasAny ? 'Añade alguna nota para ver el total.'
       : (plaza ? '¡Por encima de '+PLAZA_NOTA+'! Esa es nota de plaza.'
       : (sinPlaza ? '' : ((sim.orto && sim.gram) ? '' : 'Ortografía y gramática pendientes de marcar.'))));
@@ -10745,7 +10763,7 @@ function renderProgreso(){
         let txt = '';
         if(bestEntry) txt += '🏆 Mejor resultado: '+nombreDe(bestEntry)+' ('+bestEntry.total+' puntos).<br>';
         if(worstEntry) txt += '📉 El más complicado (entre los aptos): '+nombreDe(worstEntry)+' ('+worstEntry.total+' puntos).<br>';
-        if(noAptoCount) txt += '⚠️ '+noAptoCount+' simulacro'+(noAptoCount!==1?'s':'')+' quedaron NO APTO por ortografía o gramática.';
+        if(noAptoCount) txt += '⚠️ '+noAptoCount+' simulacro'+(noAptoCount!==1?'s':'')+' quedaron NO APTO (nota mínima no alcanzada, ortografía o gramática).';
         verdict.innerHTML = txt;
         body.appendChild(verdict);
       }
