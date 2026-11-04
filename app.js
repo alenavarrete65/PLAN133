@@ -891,7 +891,7 @@ let accessCode = null;
 let _renderAllEnCurso = false;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, agendaSeries:[], arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -1617,7 +1617,7 @@ const NOMBRES_SECCION = {
   months:'Calendario (meses y estados de día)', dayTicks:'Días marcados «NO completado»', notes:'Notas de cada tema',
   ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
   clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
-  simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
+  simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', agendaSeries:'Calendario personal (repeticiones)', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
   arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
   settings:'Ajustes'
 };
@@ -3430,10 +3430,7 @@ function openDayModal(d, info, modo){
         const chk = document.createElement('input'); chk.type='checkbox'; chk.className='ag-check'; chk.checked = !!ev.ok;
         chk.setAttribute('aria-label','Hecha: '+(ev.t||'tarea'));
         chk.onchange = ()=>{
-          const l = agendaDia(fechaISO).slice();
-          const i = l.findIndex(e=> e.id===ev.id);
-          if(i>=0) l[i] = Object.assign({}, l[i], {ok: chk.checked});
-          agendaGuardarDia(fechaISO, l);
+          agendaSetOk(ev, fechaISO, chk.checked);
           row.classList.toggle('done', chk.checked);
           pintarResumen();
           agendaCambiado();
@@ -12519,7 +12516,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, agendaSeries:[], arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
   currentMonthKey = null;
   try{ aplicarTemario(null); _ed.W = null; _ed.sucio = false; }catch(e){}
   invalidatePlan();
@@ -12725,7 +12722,72 @@ function agendaData(){
   if(!state.agenda || typeof state.agenda !== 'object' || Array.isArray(state.agenda)) state.agenda = {};
   return state.agenda;
 }
-function agendaDia(fecha){ const l = agendaData()[fecha]; return Array.isArray(l) ? l : []; }
+function agendaSeriesData(){
+  if(!Array.isArray(state.agendaSeries)) state.agendaSeries = [];
+  return state.agendaSeries;
+}
+function agendaSerieDe(id){ return agendaSeriesData().find(s=> s.id === id) || null; }
+function agendaDow(fecha){ const [y,m,d] = fecha.split('-').map(Number); return new Date(y, m-1, d).getDay(); }
+function agendaFechaMas(fecha, dias){ const [y,m,d] = fecha.split('-').map(Number); return fechaLocalISO(new Date(y, m-1, d+dias)); }
+// ¿Cae una ocurrencia de la serie ese día? (dentro del rango, día de la semana elegido y no quitada)
+function agendaSerieOcurre(s, fecha){
+  return fecha >= s.desde && (!s.hasta || fecha <= s.hasta) && s.dias.indexOf(agendaDow(fecha)) >= 0 && !s.excl[fecha];
+}
+// Tareas sueltas guardadas ese día (sin las repeticiones).
+function agendaDiaPropios(fecha){ const l = agendaData()[fecha]; return Array.isArray(l) ? l : []; }
+// Todo lo del día: tareas sueltas + ocurrencias de las series semanales (con serie:id).
+function agendaDia(fecha){
+  const out = agendaDiaPropios(fecha).slice();
+  agendaSeriesData().forEach(s=>{
+    if(agendaSerieOcurre(s, fecha)){
+      out.push({id: s.id+'@'+fecha, serie: s.id, t: s.t, h: s.h, d: s.d, u: s.u, v: s.v, ok: !!s.ok[fecha]});
+    }
+  });
+  return out;
+}
+const AGENDA_DIAS_ORDEN = [1,2,3,4,5,6,0];                       // lunes primero (getDay: 0 = domingo)
+const AGENDA_DIA_LETRA = {1:'L', 2:'M', 3:'X', 4:'J', 5:'V', 6:'S', 0:'D'};
+function agendaNombreDia(j){ return DOW[j === 0 ? 6 : j-1]; }
+function agendaFechaLarga(f){ const [y,m,d] = f.split('-').map(Number); return d+' de '+MESES[m-1].toLowerCase()+' de '+y; }
+function agendaRepeticionTexto(s){
+  const orden = AGENDA_DIAS_ORDEN.filter(j=> s.dias.indexOf(j) >= 0);
+  if(!orden.length) return '';
+  let txt;
+  if(orden.length === 7) txt = 'Todos los días';
+  else {
+    const n = orden.map(j=> agendaNombreDia(j).toLowerCase());
+    txt = 'Cada '+(n.length > 1 ? n.slice(0,-1).join(', ')+' y '+n[n.length-1] : n[0]);
+  }
+  if(s.hasta) txt += ' hasta el '+agendaFechaLarga(s.hasta);
+  return txt;
+}
+function agendaCrearSerie(base, desde, dias, hasta){
+  return {id: agendaNuevoId(), t: base.t, h: base.h, d: base.d, u: base.u, v: base.v,
+          dias: dias.slice().sort((x,y)=> x-y), desde, hasta: hasta || '', excl: {}, ok: {}};
+}
+function agendaLimpiarSerieDesde(s, fecha){
+  ['excl','ok'].forEach(k=>{ Object.keys(s[k]).forEach(f=>{ if(f >= fecha) delete s[k][f]; }); });
+}
+// Marcar hecha / no hecha una tarea suelta o una ocurrencia concreta de una serie.
+function agendaSetOk(ev, fecha, ok){
+  if(ev.serie){
+    const s = agendaSerieDe(ev.serie);
+    if(s){ if(ok) s.ok[fecha] = true; else delete s.ok[fecha]; }
+    return;
+  }
+  const l = agendaDiaPropios(fecha).slice();
+  const i = l.findIndex(e=> e.id === ev.id);
+  if(i >= 0){ l[i] = Object.assign({}, l[i], {ok: !!ok}); agendaGuardarDia(fecha, l); }
+}
+// Borrar. alcance (solo para series): 'solo' = este día · 'siguientes' = este y los siguientes · 'toda' = toda la serie.
+function agendaBorrarEv(ev, fecha, alcance){
+  if(!ev.serie){ agendaGuardarDia(fecha, agendaDiaPropios(fecha).filter(e=> e.id !== ev.id)); return; }
+  const s = agendaSerieDe(ev.serie);
+  if(!s) return;
+  if(alcance === 'solo'){ s.excl[fecha] = true; delete s.ok[fecha]; }
+  else if(alcance === 'siguientes' && fecha > s.desde){ s.hasta = agendaFechaMas(fecha, -1); agendaLimpiarSerieDesde(s, fecha); }
+  else { state.agendaSeries = agendaSeriesData().filter(x=> x !== s); }   // 'toda', o 'siguientes' desde el primer día
+}
 function agendaHoraAMin(h){
   const m = /^(\d{1,2}):(\d{2})$/.exec(String(h||'').trim());
   if(!m) return null;
@@ -12759,7 +12821,8 @@ function agendaMapsUrl(ubic){ return 'https://www.google.com/maps/dir/?api=1&des
 // Línea con 📍 ubicación (enlace a Maps) y 🚶 hora de salida; null si la tarea no tiene ninguna de las dos.
 function agendaMetaNodo(ev){
   const sal = agendaSalidaTexto(ev);
-  if(!ev.u && !sal) return null;
+  const serie = ev.serie ? agendaSerieDe(ev.serie) : null;
+  if(!ev.u && !sal && !serie) return null;
   const meta = document.createElement('div'); meta.className = 'ag-row-meta';
   if(ev.u){
     const a = document.createElement('a'); a.className = 'ag-loc'; a.href = agendaMapsUrl(ev.u);
@@ -12771,6 +12834,11 @@ function agendaMetaNodo(ev){
     const s = document.createElement('span'); s.className = 'ag-salida';
     s.textContent = '🚶 Sal a las '+sal+' · '+agendaFmtDur(ev.v)+' de trayecto';
     meta.appendChild(s);
+  }
+  if(serie){
+    const r = document.createElement('span'); r.className = 'ag-rep';
+    r.textContent = '🔁 '+agendaRepeticionTexto(serie);
+    meta.appendChild(r);
   }
   return meta;
 }
@@ -12813,6 +12881,22 @@ function normalizarAgenda(){
     const limpia = /^\d{4}-\d{2}-\d{2}$/.test(f) ? agendaLimpiarLista(a[f]) : [];
     if(limpia.length) a[f] = limpia; else delete a[f];
   });
+  normalizarAgendaSeries();
+}
+function normalizarAgendaSeries(){
+  if(!Array.isArray(state.agendaSeries)) state.agendaSeries = [];
+  const esFecha = x=> /^\d{4}-\d{2}-\d{2}$/.test(String(x || ''));
+  const mapa = o=>{
+    const r = {};
+    if(o && typeof o === 'object' && !Array.isArray(o)) Object.keys(o).forEach(k=>{ if(esFecha(k) && o[k]) r[k] = true; });
+    return r;
+  };
+  state.agendaSeries = state.agendaSeries.filter(s=> s && typeof s === 'object').map(s=>{
+    const b = agendaLimpiarLista([{id: s.id, t: s.t, h: s.h, d: s.d, u: s.u, v: s.v}])[0];
+    const dias = Array.isArray(s.dias) ? Array.from(new Set(s.dias.map(Number).filter(n=> Number.isInteger(n) && n >= 0 && n <= 6))) : [];
+    return {id: b.id, t: b.t, h: b.h, d: b.d, u: b.u, v: b.v, dias: dias.sort((x,y)=> x-y),
+            desde: esFecha(s.desde) ? s.desde : '', hasta: esFecha(s.hasta) ? s.hasta : '', excl: mapa(s.excl), ok: mapa(s.ok)};
+  }).filter(s=> s.dias.length && s.desde);
 }
 function agendaGuardarDia(fecha, lista){
   const a = agendaData();
@@ -12852,11 +12936,10 @@ function renderPersonalCalMonthBar(){
   const acciones = document.createElement('div'); acciones.className='ag-bar-actions';
   const info = document.createElement('span'); info.className='ag-bar-info';
   let total = 0, pend = 0;
-  const pref = agendaMonthKey+'-';
-  Object.keys(agendaData()).forEach(f=>{
-    if(f.indexOf(pref) !== 0) return;
-    agendaDia(f).forEach(e=>{ total++; if(!e.ok) pend++; });
-  });
+  const nDiasMes = daysInMonth(y, m);
+  for(let dd=1; dd<=nDiasMes; dd++){
+    agendaDia(agendaMonthKey+'-'+pad2(dd)).forEach(e=>{ total++; if(!e.ok) pend++; });
+  }
   info.textContent = total ? (total+(total===1?' tarea':' tareas')+' · '+pend+(pend===1?' pendiente':' pendientes')) : 'Sin tareas este mes';
   acciones.appendChild(info);
   const hoyBtn = document.createElement('button'); hoyBtn.type='button'; hoyBtn.className='btn ghost small'; hoyBtn.textContent='Hoy';
@@ -13132,6 +13215,61 @@ function openAgendaDayModal(fecha, editId, foco){
   trF.sel.addEventListener('change', ()=>{ sincronizarDur(); if(trF.sel.value === 'custom') trF.inp.focus(); });
   sincronizarDur();
 
+  // --- repetición semanal ---
+  const serieEd = (editando && editando.serie) ? agendaSerieDe(editando.serie) : null;
+  let selAlc = null;
+  if(serieEd){
+    selAlc = document.createElement('select');
+    selAlc.appendChild(new Option('Solo este día', 'solo'));
+    selAlc.appendChild(new Option('Este día y los siguientes', 'siguientes'));
+    selAlc.appendChild(new Option('Toda la serie', 'toda'));
+    form.appendChild(campo('ag-f-alcance', 'Aplicar los cambios a', 'agAlcance', selAlc));
+  }
+  const selRep = document.createElement('select');
+  selRep.appendChild(new Option('No se repite', 'no'));
+  selRep.appendChild(new Option('Se repite cada semana', 'semanal'));
+  selRep.value = serieEd ? 'semanal' : 'no';
+  if(serieEd) selRep.disabled = true;
+  const wRep = campo('ag-f-rep', 'Repetir', 'agRepite', selRep);
+  const extra = document.createElement('div'); extra.className = 'ag-rep-extra';
+  const diasSel = new Set(serieEd ? serieEd.dias : [jsDow]);
+  const diasBox = document.createElement('div'); diasBox.className = 'ag-dias';
+  diasBox.setAttribute('role','group'); diasBox.setAttribute('aria-label','Días de la semana en que se repite');
+  const resumenRep = document.createElement('div'); resumenRep.className = 'ag-rep-resumen'; resumenRep.setAttribute('aria-live','polite');
+  const inpHasta = document.createElement('input'); inpHasta.type = 'date'; inpHasta.min = fecha;
+  inpHasta.value = serieEd ? (serieEd.hasta || '') : '';
+  const pintarResumenRep = ()=>{
+    if(!diasSel.size){ resumenRep.textContent = 'Elige al menos un día de la semana.'; return; }
+    const txt = agendaRepeticionTexto({dias: Array.from(diasSel), hasta: inpHasta.value});
+    resumenRep.textContent = '🔁 '+txt+(serieEd ? '' : ' · empieza el '+agendaFechaLarga(fecha));
+  };
+  AGENDA_DIAS_ORDEN.forEach(j=>{
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'ag-dia';
+    b.textContent = AGENDA_DIA_LETRA[j]; b.title = agendaNombreDia(j); b.setAttribute('aria-label', agendaNombreDia(j));
+    b.setAttribute('aria-pressed', diasSel.has(j) ? 'true' : 'false');
+    b.onclick = ()=>{
+      if(diasSel.has(j)) diasSel.delete(j); else diasSel.add(j);
+      b.setAttribute('aria-pressed', diasSel.has(j) ? 'true' : 'false');
+      pintarResumenRep();
+    };
+    diasBox.appendChild(b);
+  });
+  inpHasta.addEventListener('input', pintarResumenRep);
+  extra.appendChild(diasBox);
+  extra.appendChild(campo('ag-f-hasta', 'Hasta el (opcional; si lo dejas vacío, no termina)', 'agHasta', inpHasta));
+  extra.appendChild(resumenRep);
+  wRep.appendChild(extra);
+  form.appendChild(wRep);
+  const actualizarRep = ()=>{
+    const solo = !!serieEd && selAlc.value === 'solo';
+    wRep.style.display = solo ? 'none' : '';
+    extra.style.display = selRep.value === 'semanal' ? '' : 'none';
+    pintarResumenRep();
+  };
+  selRep.addEventListener('change', actualizarRep);
+  if(selAlc) selAlc.addEventListener('change', actualizarRep);
+  actualizarRep();
+
   const acciones = document.createElement('div'); acciones.className = 'ag-f-actions';
   const guardar = document.createElement('button'); guardar.type='button'; guardar.className='btn';
   guardar.textContent = editando ? 'Guardar cambios' : 'Añadir tarea';
@@ -13151,19 +13289,50 @@ function openAgendaDayModal(fecha, editId, foco){
     const dur = h ? durF.valor() : 0;
     const trayecto = h ? trF.valor() : 0;
     const ubic = inpU.value.trim().slice(0,200);
-    const l = agendaDia(fecha).slice();
-    if(editando){
-      const i = l.findIndex(e=> e.id === editando.id);
-      if(i >= 0) l[i] = Object.assign({}, l[i], {t, h, d: dur, u: ubic, v: trayecto});
-    } else {
-      l.push({id: agendaNuevoId(), t, h, d: dur, u: ubic, v: trayecto, ok: false});
+    const base = {t, h, d: dur, u: ubic, v: trayecto};
+    const alcance = selAlc ? selAlc.value : '';
+    const usaRep = selRep.value === 'semanal' && alcance !== 'solo';
+    const dias = Array.from(diasSel);
+    const hasta = inpHasta.value || '';
+    if(usaRep){
+      if(!dias.length){ showToast('Elige al menos un día de la semana'); return; }
+      if(hasta && hasta < fecha){ showToast('La fecha final es anterior al día de inicio'); return; }
     }
-    agendaGuardarDia(fecha, l);
+    const propias = agendaDiaPropios(fecha).slice();
+    if(!editando){
+      if(usaRep) agendaSeriesData().push(agendaCrearSerie(base, fecha, dias, hasta));
+      else { propias.push(Object.assign({id: agendaNuevoId()}, base, {ok: false})); agendaGuardarDia(fecha, propias); }
+    } else if(serieEd){
+      if(alcance === 'solo'){
+        // Solo este día: la ocurrencia se aparta de la serie y pasa a ser una tarea suelta con los cambios.
+        const eraOk = !!serieEd.ok[fecha];
+        serieEd.excl[fecha] = true; delete serieEd.ok[fecha];
+        propias.push(Object.assign({id: agendaNuevoId()}, base, {ok: eraOk})); agendaGuardarDia(fecha, propias);
+      } else if(alcance === 'siguientes' && fecha > serieEd.desde){
+        // Este y los siguientes: la serie antigua termina el día anterior y empieza otra con los cambios.
+        const nueva = agendaCrearSerie(base, fecha, dias, hasta);
+        ['excl','ok'].forEach(k=>{ Object.keys(serieEd[k]).forEach(f=>{ if(f >= fecha){ nueva[k][f] = true; delete serieEd[k][f]; } }); });
+        serieEd.hasta = agendaFechaMas(fecha, -1);
+        agendaSeriesData().push(nueva);
+      } else {
+        Object.assign(serieEd, base, {dias: dias.slice().sort((x,y)=> x-y), hasta});   // toda la serie
+      }
+    } else if(usaRep){
+      // Una tarea suelta que ahora se repite: se convierte en serie desde este día.
+      const serie = agendaCrearSerie(base, fecha, dias, hasta);
+      if(editando.ok) serie.ok[fecha] = true;
+      agendaGuardarDia(fecha, propias.filter(e=> e.id !== editando.id));
+      agendaSeriesData().push(serie);
+    } else {
+      const i = propias.findIndex(e=> e.id === editando.id);
+      if(i >= 0) propias[i] = Object.assign({}, propias[i], base);
+      agendaGuardarDia(fecha, propias);
+    }
     agendaCambiado();
     reabrir(null, 'agTitulo');
   };
   guardar.onclick = enviar;
-  [inpT, inpH, durF.inp, inpU, trF.inp].forEach(el=> el.addEventListener('keydown', e=>{
+  [inpT, inpH, durF.inp, inpU, trF.inp, inpHasta].forEach(el=> el.addEventListener('keydown', e=>{
     if(e.key === 'Enter' && !e.isComposing){ e.preventDefault(); enviar(); }
   }));
 
@@ -13182,10 +13351,7 @@ function openAgendaDayModal(fecha, editId, foco){
     chk.setAttribute('aria-label', 'Hecha: '+(ev.t || 'tarea'));
     chk.dataset.agId = ev.id;
     chk.onchange = ()=>{
-      const l = agendaDia(fecha).slice();
-      const i = l.findIndex(e=> e.id === ev.id);
-      if(i >= 0) l[i] = Object.assign({}, l[i], {ok: chk.checked});
-      agendaGuardarDia(fecha, l);
+      agendaSetOk(ev, fecha, chk.checked);
       agendaCambiado();
       reabrir(editando ? editando.id : null, 'chk:'+ev.id);
     };
@@ -13205,12 +13371,33 @@ function openAgendaDayModal(fecha, editId, foco){
     row.appendChild(bEd);
     const bDel = document.createElement('button'); bDel.type='button'; bDel.className='ag-row-btn del';
     bDel.textContent = '×'; bDel.title = 'Borrar'; bDel.setAttribute('aria-label','Borrar: '+(ev.t||'tarea'));
-    bDel.onclick = ()=>{
-      const l = agendaDia(fecha).filter(e=> e.id !== ev.id);
-      agendaGuardarDia(fecha, l);
+    const tras = (msg)=>{
       agendaCambiado();
-      showToast('Tarea borrada');
+      showToast(msg);
       reabrir(editando && editando.id !== ev.id ? editando.id : null, 'agTitulo');
+    };
+    bDel.onclick = ()=>{
+      if(!ev.serie){ agendaBorrarEv(ev, fecha); tras('Tarea borrada'); return; }
+      // Tarea que se repite: pregunta qué borrar (sin cuadro emergente, en la propia fila).
+      row.innerHTML = ''; row.classList.add('confirmando');
+      const q = document.createElement('div'); q.className = 'ag-del-q';
+      q.textContent = '«'+(ev.t || 'Tarea')+'» se repite. ¿Qué quieres borrar?';
+      row.appendChild(q);
+      const opciones = [['solo','Solo este día','Tarea borrada solo este día'],
+                        ['siguientes','Este y los siguientes','Borrada a partir de este día'],
+                        ['toda','Toda la serie','Serie borrada']];
+      const fila = document.createElement('div'); fila.className = 'ag-del-opts';
+      opciones.forEach(([alc, txt, msg], k)=>{
+        const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'+(k ? ' danger' : ' ghost');
+        b.textContent = txt;
+        b.onclick = ()=>{ agendaBorrarEv(ev, fecha, alc); tras(msg); };
+        fila.appendChild(b);
+      });
+      const cn = document.createElement('button'); cn.type = 'button'; cn.className = 'btn small ghost'; cn.textContent = 'Cancelar';
+      cn.onclick = ()=> reabrir(editando ? editando.id : null, 'agTitulo');
+      fila.appendChild(cn);
+      row.appendChild(fila);
+      const primero = fila.querySelector('button'); if(primero) primero.focus();
     };
     row.appendChild(bDel);
     wrapLista.appendChild(row);
@@ -13272,28 +13459,46 @@ function exportarCalendarioPersonalICS(){
   const lines = icsCabecera();
   const nowStamp = icsNowStamp();
   let n = 0;
+  const horaIcs = (fecha, min)=> icsDateCompact(fecha)+'T'+agendaMinAHora(min).replace(':','')+'00';
+  // Escribe un VEVENT. `extra(s)` añade líneas de repetición (RRULE/EXDATE) para las series.
+  const evento = (ev, fecha, uid, extra)=>{
+    const s = agendaHoraAMin(ev.h);
+    n++;
+    lines.push('BEGIN:VEVENT','UID:'+uid,'DTSTAMP:'+nowStamp);
+    if(s === null){
+      lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
+    } else {
+      // Hora local "flotante" (sin zona): se importa a la hora que tú escribiste.
+      lines.push('DTSTART:'+horaIcs(fecha, s));
+      if(ev.d > 0) lines.push('DTEND:'+horaIcs(fecha, Math.min(s + ev.d, 1439)));
+    }
+    if(extra) extra(s).forEach(x=> lines.push(x));
+    lines.push('SUMMARY:'+icsEscapeText((ev.ok ? '✓ ' : '')+(ev.t || 'Tarea')));
+    if(ev.u) lines.push('LOCATION:'+icsEscapeText(ev.u));
+    if(s !== null && ev.v > 0){
+      // Aviso a la hora de salir (inicio − trayecto).
+      lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscapeText('Hora de salir: '+(ev.t || 'Tarea')),'TRIGGER:-PT'+ev.v+'M','END:VALARM');
+    }
+    lines.push('END:VEVENT');
+  };
+  // Tareas sueltas
   Object.keys(agendaData()).sort().forEach(fecha=>{
-    agendaOrdenar(agendaDia(fecha)).forEach(ev=>{
-      n++;
-      const s = agendaHoraAMin(ev.h);
-      lines.push('BEGIN:VEVENT');
-      lines.push('UID:ob-personal-'+ev.id+'@operacion-baeza');
-      lines.push('DTSTAMP:'+nowStamp);
-      if(s === null){
-        lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
-      } else {
-        // Hora local "flotante" (sin zona): se importa a la hora que tú escribiste.
-        const fin = Math.min(s + (ev.d > 0 ? ev.d : 0), 1439);
-        lines.push('DTSTART:'+icsDateCompact(fecha)+'T'+agendaMinAHora(s).replace(':','')+'00');
-        if(ev.d > 0) lines.push('DTEND:'+icsDateCompact(fecha)+'T'+agendaMinAHora(fin).replace(':','')+'00');
-      }
-      lines.push('SUMMARY:'+icsEscapeText((ev.ok ? '✓ ' : '')+(ev.t || 'Tarea')));
-      if(ev.u) lines.push('LOCATION:'+icsEscapeText(ev.u));
-      if(s !== null && ev.v > 0){
-        // Aviso a la hora de salir (inicio − trayecto).
-        lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscapeText('Hora de salir: '+(ev.t || 'Tarea')),'TRIGGER:-PT'+ev.v+'M','END:VALARM');
-      }
-      lines.push('END:VEVENT');
+    agendaOrdenar(agendaDiaPropios(fecha)).forEach(ev=> evento(ev, fecha, 'ob-personal-'+ev.id+'@operacion-baeza'));
+  });
+  // Series semanales: un solo evento con RRULE (+ EXDATE para los días quitados)
+  const BYDAY = {0:'SU', 1:'MO', 2:'TU', 3:'WE', 4:'TH', 5:'FR', 6:'SA'};
+  agendaSeriesData().forEach(s=>{
+    let primera = s.desde;
+    for(let k=0; k<7 && s.dias.indexOf(agendaDow(primera)) < 0; k++) primera = agendaFechaMas(primera, 1);
+    if(s.dias.indexOf(agendaDow(primera)) < 0 || (s.hasta && primera > s.hasta)) return;
+    const orden = AGENDA_DIAS_ORDEN.filter(j=> s.dias.indexOf(j) >= 0);
+    evento({t: s.t, h: s.h, d: s.d, u: s.u, v: s.v, ok: false}, primera, 'ob-personal-serie-'+s.id+'@operacion-baeza', (hm)=>{
+      let rr = 'RRULE:FREQ=WEEKLY;BYDAY='+orden.map(j=> BYDAY[j]).join(',');
+      if(s.hasta) rr += ';UNTIL='+icsDateCompact(s.hasta)+(hm === null ? '' : 'T235959');
+      const res = [rr];
+      const ex = Object.keys(s.excl).sort();
+      if(ex.length) res.push('EXDATE'+(hm === null ? ';VALUE=DATE' : '')+':'+ex.map(f=> hm === null ? icsDateCompact(f) : horaIcs(f, hm)).join(','));
+      return res;
     });
   });
   lines.push('END:VCALENDAR');

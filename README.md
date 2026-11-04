@@ -242,6 +242,16 @@ notas/tareas, sin relación con el plan de estudio (no cambia nada del cálculo 
   de «Todo incluido» y como tramo rayado antes del bloque en el horario del día. El trayecto se escribe a
   mano (no se consulta ningún mapa: no hay conexión con servicios de rutas ni claves). Sin hora de inicio no
   hay trayecto. El .ics incluye `LOCATION` y un aviso (`VALARM`) a la hora de salir.
+- **Repetir cada semana:** en la ficha, «Repetir → Se repite cada semana», eliges los días (L M X J V S D) y,
+  si quieres, una fecha final. Empieza el día que tienes abierto. Se guarda como **una sola serie**
+  (`state.agendaSeries`: `{id,t,h,d,u,v,dias,desde,hasta,excl,ok}`; `dias` = `getDay()` 0-6, `excl` = días
+  quitados, `ok` = días marcados como hechos), no como una tarea por día, y las ocurrencias se calculan al
+  pintar. Se marcan con 🔁 y su texto («Cada martes y jueves»). La casilla de hecha es por día.
+- **Borrar y editar una tarea que se repite:** al pulsar × pregunta en la propia fila: **solo este día**,
+  **este y los siguientes** (la serie termina el día anterior) o **toda la serie**. Al editar (✎) hay un
+  desplegable «Aplicar los cambios a» con las mismas tres opciones («este y los siguientes» crea una serie
+  nueva desde ese día con los cambios; «solo este día» la convierte en una tarea suelta). El .ics exporta cada
+  serie como un único evento con `RRULE:FREQ=WEEKLY;BYDAY=…`, `UNTIL` y `EXDATE`.
 - Vistas **rejilla / lista** del mes, navegación de mes con ‹ › y «Hoy». No depende de los meses de
   estudio: puedes ir a cualquier mes sin crearlo antes.
 - Botones de **exportar imagen / PDF / .ics** (en el .ics las tareas con hora llevan hora de inicio y
