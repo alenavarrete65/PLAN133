@@ -891,7 +891,7 @@ let accessCode = null;
 let _renderAllEnCurso = false;
 
 /* ===================== ESTADO ===================== */
-let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
+let state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
 let currentMonthKey = null;
 let saveTimer = null;
 // Última marca de tiempo (campo "updatedAt") que sabemos que hay guardada en Firebase, tal y
@@ -952,6 +952,8 @@ function normalizeState(){
   if(!state.tiempos.temas) state.tiempos.temas = {};
   if(!state.tiempos.dias) state.tiempos.dias = {};
   if(!state.claseCal) state.claseCal = {};
+  // Calendario personal (agenda de tareas con hora y duración): { 'YYYY-MM-DD': [ {id,t,h,d,ok} ] }.
+  normalizarAgenda();
   // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
   // de "disponible a partir de") y que aún no has colocado en ningún día del calendario.
   if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
@@ -1615,7 +1617,7 @@ const NOMBRES_SECCION = {
   months:'Calendario (meses y estados de día)', dayTicks:'Días marcados «NO completado»', notes:'Notas de cada tema',
   ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
   clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
-  simulacroCal:'Calendario de simulacros', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
+  simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
   arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
   settings:'Ajustes'
 };
@@ -3405,6 +3407,57 @@ function openDayModal(d, info, modo){
     buildDiaRecuperacion(body, fechaISO, ()=>{ renderCalendar(); renderArrastre(); });
   }catch(err){
     try{ console.error('Error pintando el día de recuperación', err); }catch(e){}
+  }
+
+  /* ---------- 1c. Agenda personal (solo desde «Todo incluido»): detalle de las tareas del día ---------- */
+  // En la celda del calendario solo sale el aviso 📝 con el nº de tareas; aquí se ven con todo su detalle.
+  if(diaModalModo==='todo') try{
+    const lista = agendaOrdenar(agendaDia(fechaISO));
+    if(lista.length && _secAbiertas['Agenda personal'] === undefined) _secAbiertas['Agenda personal'] = true;
+    const {body:sb, setResumen:resAg} = daySection(body, 'Agenda personal');
+    const pintarResumen = ()=>{
+      const l = agendaDia(fechaISO), pend = l.filter(e=> !e.ok).length;
+      resAg(l.length ? (l.length+(l.length===1?' tarea':' tareas')+(pend ? ' · '+pend+' pendiente'+(pend===1?'':'s') : ' · todo hecho')) : 'ninguna');
+    };
+    pintarResumen();
+    if(!lista.length){
+      const vacio = document.createElement('div'); vacio.className='ag-empty'; vacio.textContent = 'No hay tareas personales este día.';
+      sb.appendChild(vacio);
+    } else {
+      const wrap = document.createElement('div'); wrap.className='ag-list';
+      lista.forEach(ev=>{
+        const row = document.createElement('div'); row.className='ag-row'+(ev.ok ? ' done' : '');
+        const chk = document.createElement('input'); chk.type='checkbox'; chk.className='ag-check'; chk.checked = !!ev.ok;
+        chk.setAttribute('aria-label','Hecha: '+(ev.t||'tarea'));
+        chk.onchange = ()=>{
+          const l = agendaDia(fechaISO).slice();
+          const i = l.findIndex(e=> e.id===ev.id);
+          if(i>=0) l[i] = Object.assign({}, l[i], {ok: chk.checked});
+          agendaGuardarDia(fechaISO, l);
+          row.classList.toggle('done', chk.checked);
+          pintarResumen();
+          agendaCambiado();
+        };
+        row.appendChild(chk);
+        const rg = agendaRango(ev) || (ev.d>0 ? agendaFmtDur(ev.d) : '');
+        const hora = document.createElement('span'); hora.className='ag-row-h'+(rg ? '' : ' none'); hora.textContent = rg || 'Sin hora';
+        row.appendChild(hora);
+        const tit = document.createElement('span'); tit.className='ag-row-t'; tit.textContent = ev.t || '(sin título)';
+        row.appendChild(tit);
+        if(ev.d>0 && agendaHoraAMin(ev.h)!==null){
+          const du = document.createElement('span'); du.className='ag-row-d'; du.textContent = agendaFmtDur(ev.d);
+          row.appendChild(du);
+        }
+        wrap.appendChild(row);
+      });
+      sb.appendChild(wrap);
+    }
+    const btn = document.createElement('button'); btn.type='button'; btn.className='btn ghost small'; btn.style.marginTop='10px';
+    btn.textContent = lista.length ? '✎ Editar en el Calendario personal' : '＋ Apuntar tarea';
+    btn.onclick = ()=>{ document.getElementById('dayModal').classList.remove('open'); openAgendaDayModal(fechaISO); };
+    sb.appendChild(btn);
+  }catch(err){
+    try{ console.error('Error pintando la agenda personal del día', err); }catch(e){}
   }
 
   /* ---------- 2. Clases de este día ---------- */
@@ -9472,7 +9525,7 @@ function renderTodoCalMonthBar(){
   bar.appendChild(controls);
   const info = document.createElement('span');
   info.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-left:auto;';
-  info.textContent = 'Estudio + clases + simulacros';
+  info.textContent = 'Estudio + clases + simulacros + aviso personal';
   bar.appendChild(info);
 
 }
@@ -9525,6 +9578,16 @@ function buildTodoDayContent(d, info, compact){
     const pills = document.createElement('div'); pills.className='cclase-pills';
     pills.innerHTML = simCalPillsHTML(sim);
     addSub('Simulacro', pills);
+  }
+
+  // Recordatorio breve del Calendario personal: solo cuántas tareas hay ese día (el detalle
+  // —título, hora, duración— se ve y se edita únicamente en el Calendario personal).
+  const nPers = agendaDia(currentMonthKey+'-'+pad2(d)).length;
+  if(nPers){
+    const pill = document.createElement('div'); pill.className = 'todo-personal';
+    pill.textContent = compact ? ('📝 '+nPers) : ('📝 '+nPers+(nPers===1 ? ' tarea personal' : ' tareas personales'));
+    pill.title = 'Hay '+nPers+(nPers===1 ? ' tarea' : ' tareas')+' en el Calendario personal';
+    addSub('Personal', pill);
   }
 
   return frag;
@@ -12457,7 +12520,7 @@ document.getElementById('resetBtn').onclick = ()=>{
   // El PIN de acceso (si lo tienes activado) se conserva a propósito: borrar los datos
   // no debería dejar el planning sin protección.
   const keepPin = state.settings ? state.settings.pinHash : null;
-  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
+  state = { months:{}, notes:{}, ticks:{}, dayTicks:{}, ortoTests:{ortografia:[], gramatica:[]}, entrenosLog:[], marcas:{}, marcasHistory:{}, settings:{unifyFromDate:null, pinHash:keepPin}, clases:{conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]}, claseCal:{}, clasesPendientes:[], notasPendientes:[], clasesSyncPendiente:[], simulacros:[], simulacrosPendientes:[], simulacroCal:{}, agenda:{}, arrastreManual:{graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]}, arrastreTestNotas:{} };
   currentMonthKey = null;
   try{ aplicarTemario(null); _ed.W = null; _ed.sucio = false; }catch(e){}
   invalidatePlan();
@@ -12637,6 +12700,528 @@ function goToSearchResult(entry){
   });
 })();
 
+/* ===================== CALENDARIO PERSONAL =====================
+   Quinto calendario de la pestaña Calendario: una agenda aparte, solo de notas/tareas, sin
+   relación con el plan de estudio. Cada tarea lleva título, hora de inicio (opcional) y
+   duración (opcional), como un calendario convencional.
+   Datos: state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, ok}, … ] }
+     t  = título · h = hora "HH:MM" ("" = sin hora) · d = duración en minutos (0 = sin duración)
+     ok = marcada como hecha
+   Es independiente de los meses de estudio: puedes navegar a cualquier mes sin crearlo antes.
+   El calendario «Todo incluido» solo muestra un recordatorio con el nº de tareas del día. */
+let agendaMonthKey = hoyLocalISO().slice(0,7);
+let agendaViewMode = 'grid';
+try{
+  agendaViewMode = localStorage.getItem('agendaViewMode') || (window.matchMedia('(max-width:640px)').matches ? 'list' : 'grid');
+}catch(e){
+  agendaViewMode = (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 'list' : 'grid';
+}
+const AGENDA_DURACIONES = [[0,'Sin duración'],[15,'15 min'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30 min'],[120,'2 h'],[180,'3 h'],[240,'4 h']];
+const AGENDA_PX_HORA = 44;   // alto de una hora en la línea horaria del día
+
+function agendaNuevoId(){ return 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function agendaData(){
+  if(!state.agenda || typeof state.agenda !== 'object' || Array.isArray(state.agenda)) state.agenda = {};
+  return state.agenda;
+}
+function agendaDia(fecha){ const l = agendaData()[fecha]; return Array.isArray(l) ? l : []; }
+function agendaHoraAMin(h){
+  const m = /^(\d{1,2}):(\d{2})$/.exec(String(h||'').trim());
+  if(!m) return null;
+  const hh = +m[1], mm = +m[2];
+  return (hh < 24 && mm < 60) ? hh*60+mm : null;
+}
+function agendaMinAHora(v){ v = ((v % 1440) + 1440) % 1440; return pad2(Math.floor(v/60))+':'+pad2(v%60); }
+function agendaFmtDur(min){
+  if(!(min > 0)) return '';
+  const h = Math.floor(min/60), r = min % 60;
+  if(!h) return r+' min';
+  return r ? h+' h '+r+' min' : h+' h';
+}
+// "09:30–10:30" · "09:30" · "1 h" (sin hora pero con duración) · "" (nada)
+function agendaRango(ev){
+  const s = agendaHoraAMin(ev.h);
+  if(s === null) return '';
+  return ev.d > 0 ? agendaMinAHora(s)+'–'+agendaMinAHora(s+ev.d) : agendaMinAHora(s);
+}
+// Primero las tareas sin hora, luego por hora de inicio.
+function agendaOrdenar(lista){
+  return lista.slice().sort((a,b)=>{
+    const ha = agendaHoraAMin(a.h), hb = agendaHoraAMin(b.h);
+    if(ha === null && hb === null) return 0;
+    if(ha === null) return -1;
+    if(hb === null) return 1;
+    return ha - hb;
+  });
+}
+function agendaLimpiarLista(l){
+  if(!Array.isArray(l)) return [];
+  return l.filter(e=> e && typeof e === 'object').map(e=>{
+    const s = agendaHoraAMin(e.h);
+    return {
+      id: String(e.id || agendaNuevoId()),
+      t: String(e.t == null ? '' : e.t).slice(0,200),
+      h: s === null ? '' : agendaMinAHora(s),
+      d: (s !== null && Number(e.d) > 0) ? Math.min(Math.round(Number(e.d)), 1440) : 0,
+      ok: !!e.ok
+    };
+  });
+}
+// La llama normalizeState(): deja state.agenda siempre bien formado (datos antiguos o importados).
+function normalizarAgenda(){
+  const a = agendaData();
+  Object.keys(a).forEach(f=>{
+    const limpia = /^\d{4}-\d{2}-\d{2}$/.test(f) ? agendaLimpiarLista(a[f]) : [];
+    if(limpia.length) a[f] = limpia; else delete a[f];
+  });
+}
+function agendaGuardarDia(fecha, lista){
+  const a = agendaData();
+  if(lista.length) a[fecha] = lista; else delete a[fecha];
+}
+function agendaCambiado(){
+  scheduleSave();
+  try{ renderPersonalCalMonthBar(); renderPersonalCalendar(); }catch(e){ console.error(e); }
+  try{ renderTodoCalendar(); }catch(e){ console.error(e); }
+}
+
+/* ---- Barra de mes ---- */
+function agendaMoverMes(delta){
+  const [y,m] = agendaMonthKey.split('-').map(Number);
+  const dt = new Date(y, m-1+delta, 1);
+  agendaMonthKey = dt.getFullYear()+'-'+pad2(dt.getMonth()+1);
+  renderPersonalCalMonthBar();
+  renderPersonalCalendar();
+}
+function renderPersonalCalMonthBar(){
+  const bar = document.getElementById('personalCalMonthBar');
+  if(!bar) return;
+  bar.innerHTML = '';
+  const [y,m] = agendaMonthKey.split('-').map(Number);
+  const controls = document.createElement('div'); controls.className = 'month-controls';
+  const prev = document.createElement('button'); prev.type='button'; prev.className='icon-btn'; prev.textContent='‹';
+  prev.setAttribute('aria-label','Mes anterior'); prev.title='Mes anterior';
+  prev.onclick = ()=> agendaMoverMes(-1);
+  const label = document.createElement('span'); label.className='ag-month-label'; label.setAttribute('aria-live','polite');
+  label.textContent = MESES[m-1]+' '+y;
+  const next = document.createElement('button'); next.type='button'; next.className='icon-btn'; next.textContent='›';
+  next.setAttribute('aria-label','Mes siguiente'); next.title='Mes siguiente';
+  next.onclick = ()=> agendaMoverMes(1);
+  controls.appendChild(prev); controls.appendChild(label); controls.appendChild(next);
+  bar.appendChild(controls);
+
+  const acciones = document.createElement('div'); acciones.className='ag-bar-actions';
+  const info = document.createElement('span'); info.className='ag-bar-info';
+  let total = 0, pend = 0;
+  const pref = agendaMonthKey+'-';
+  Object.keys(agendaData()).forEach(f=>{
+    if(f.indexOf(pref) !== 0) return;
+    agendaDia(f).forEach(e=>{ total++; if(!e.ok) pend++; });
+  });
+  info.textContent = total ? (total+(total===1?' tarea':' tareas')+' · '+pend+(pend===1?' pendiente':' pendientes')) : 'Sin tareas este mes';
+  acciones.appendChild(info);
+  const hoyBtn = document.createElement('button'); hoyBtn.type='button'; hoyBtn.className='btn ghost small'; hoyBtn.textContent='Hoy';
+  hoyBtn.onclick = ()=>{ agendaMonthKey = hoyLocalISO().slice(0,7); renderPersonalCalMonthBar(); renderPersonalCalendar(); };
+  acciones.appendChild(hoyBtn);
+  const nueva = document.createElement('button'); nueva.type='button'; nueva.className='btn small'; nueva.textContent='＋ Apuntar tarea';
+  nueva.onclick = ()=> openAgendaDayModal(hoyLocalISO());
+  acciones.appendChild(nueva);
+  bar.appendChild(acciones);
+}
+
+/* ---- Rejilla y lista del mes ---- */
+function renderPersonalCalendar(){
+  if(agendaViewMode === 'list') renderPersonalCalList();
+  else renderPersonalCalGrid();
+}
+function agendaChip(ev, completo){
+  const chip = document.createElement('div');
+  chip.className = 'ag-chip'+(ev.ok ? ' done' : '');
+  const rango = completo ? agendaRango(ev) : (ev.h || '');
+  if(rango){
+    const h = document.createElement('span'); h.className='ag-chip-h'; h.textContent = rango;
+    chip.appendChild(h);
+  } else if(completo && ev.d > 0){
+    const h = document.createElement('span'); h.className='ag-chip-h'; h.textContent = agendaFmtDur(ev.d);
+    chip.appendChild(h);
+  }
+  const t = document.createElement('span'); t.className='ag-chip-t'; t.textContent = ev.t || '(sin título)';
+  chip.appendChild(t);
+  return chip;
+}
+function agendaCountBadge(lista){
+  if(!lista.length) return null;
+  const pend = lista.filter(e=> !e.ok).length;
+  const b = document.createElement('span');
+  b.className = 'day-status-badge '+(pend ? 'pending' : 'complete');
+  b.textContent = pend ? String(pend) : '✓';
+  b.title = pend ? (pend+(pend===1?' tarea pendiente':' tareas pendientes')) : 'Todo hecho';
+  return b;
+}
+function renderPersonalCalGrid(){
+  const host = document.getElementById('personalCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const [y,m] = agendaMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const hoy = hoyLocalISO();
+  const grid = document.createElement('div'); grid.className = 'cal-grid personal-grid';
+  DOW.forEach(n=>{ const c = document.createElement('div'); c.className='cal-dow'; c.textContent = n.slice(0,3); grid.appendChild(c); });
+  const firstDow = new Date(y, m-1, 1).getDay();
+  const blanks = (firstDow === 0) ? 6 : firstDow - 1;
+  for(let i=0;i<blanks;i++){ const b = document.createElement('div'); b.className='cal-cell blank'; grid.appendChild(b); }
+  for(let d=1; d<=nDays; d++){
+    const fecha = agendaMonthKey+'-'+pad2(d);
+    const lista = agendaOrdenar(agendaDia(fecha));
+    const cell = document.createElement('div'); cell.className = 'cal-cell personal-cell';
+    if(fecha === hoy){ cell.classList.add('today'); cell.id = 'todayPersonalCell'; }
+    const jsDow = new Date(y, m-1, d).getDay();
+    const numRow = document.createElement('div'); numRow.className='cal-daynum';
+    const left = document.createElement('span'); left.className='cal-daynum-left';
+    const dn = document.createElement('span'); dn.textContent = d; left.appendChild(dn);
+    const badge = agendaCountBadge(lista); if(badge) left.appendChild(badge);
+    numRow.appendChild(left);
+    const wd = document.createElement('span'); wd.className='wd'; wd.textContent = DOW_SHORT[(jsDow===0?6:jsDow-1)];
+    numRow.appendChild(wd);
+    cell.appendChild(numRow);
+    const MAX = 3;
+    lista.slice(0, MAX).forEach(ev=> cell.appendChild(agendaChip(ev, false)));
+    if(lista.length > MAX){
+      const mas = document.createElement('div'); mas.className='ag-more'; mas.textContent = '+'+(lista.length-MAX)+' más';
+      cell.appendChild(mas);
+    }
+    cell.style.cursor = 'pointer';
+    cell.setAttribute('aria-label', d+' de '+MESES[m-1]+': '+(lista.length ? lista.length+(lista.length===1?' tarea':' tareas') : 'sin tareas'));
+    hacerCeldaAccesible(cell, ()=> openAgendaDayModal(fecha));
+    grid.appendChild(cell);
+  }
+  host.appendChild(grid);
+}
+function renderPersonalCalList(){
+  const host = document.getElementById('personalCalHost');
+  if(!host) return;
+  host.innerHTML = '';
+  const [y,m] = agendaMonthKey.split('-').map(Number);
+  const nDays = daysInMonth(y,m);
+  const hoy = hoyLocalISO();
+  const list = document.createElement('div'); list.className = 'cal-list';
+  for(let d=1; d<=nDays; d++){
+    const fecha = agendaMonthKey+'-'+pad2(d);
+    const lista = agendaOrdenar(agendaDia(fecha));
+    const jsDow = new Date(y, m-1, d).getDay();
+    const item = document.createElement('div'); item.className = 'cal-list-item personal-list-item';
+    if(fecha === hoy){ item.classList.add('today'); item.id = 'todayPersonalListItem'; }
+    const head = document.createElement('div'); head.className='cal-list-head';
+    const dateWrap = document.createElement('div'); dateWrap.className='cal-list-date';
+    const num = document.createElement('span'); num.className='cal-list-daynum'; num.textContent = d;
+    const wd = document.createElement('span'); wd.className='cal-list-wd'; wd.textContent = DOW[(jsDow===0?6:jsDow-1)];
+    dateWrap.appendChild(num); dateWrap.appendChild(wd);
+    head.appendChild(dateWrap);
+    const right = document.createElement('div'); right.className='cal-list-head-right';
+    const badge = agendaCountBadge(lista); if(badge) right.appendChild(badge);
+    head.appendChild(right);
+    item.appendChild(head);
+    if(lista.length){
+      const box = document.createElement('div'); box.className='ag-chips-list';
+      lista.forEach(ev=> box.appendChild(agendaChip(ev, true)));
+      item.appendChild(box);
+    } else {
+      const vacio = document.createElement('div'); vacio.className='ag-empty-day'; vacio.textContent = 'Sin tareas';
+      item.appendChild(vacio);
+    }
+    item.style.cursor = 'pointer';
+    hacerCeldaAccesible(item, ()=> openAgendaDayModal(fecha));
+    list.appendChild(item);
+  }
+  host.appendChild(list);
+}
+
+/* ---- Línea horaria del día (como un calendario convencional) ---- */
+function buildAgendaTimeline(lista, fecha, onEditar){
+  const conHora = lista.filter(e=> agendaHoraAMin(e.h) !== null);
+  if(!conHora.length) return null;
+  const items = conHora.map(e=>{
+    const s = agendaHoraAMin(e.h);
+    return {e, s, en: Math.min(s + Math.max(e.d || 0, 30), 1440), col:0, cols:1};
+  });
+  const minS = Math.min.apply(null, items.map(i=> i.s));
+  const maxE = Math.max.apply(null, items.map(i=> i.en));
+  const h0 = Math.max(0, Math.min(7, Math.floor(minS/60)));
+  const h1 = Math.min(24, Math.max(20, Math.ceil(maxE/60)));
+
+  // Tareas que se solapan: se reparten en columnas lado a lado.
+  items.sort((a,b)=> a.s - b.s || b.en - a.en);
+  let grupo = [], finGrupo = -1; const finCol = [];
+  const cerrar = ()=>{ const n = Math.max.apply(null, grupo.map(i=> i.col)) + 1; grupo.forEach(i=>{ i.cols = n; }); grupo = []; };
+  items.forEach(it=>{
+    if(grupo.length && it.s >= finGrupo){ cerrar(); finCol.length = 0; finGrupo = -1; }
+    let c = finCol.findIndex(f=> f <= it.s);
+    if(c < 0){ c = finCol.length; finCol.push(it.en); } else finCol[c] = it.en;
+    it.col = c; grupo.push(it); finGrupo = Math.max(finGrupo, it.en);
+  });
+  if(grupo.length) cerrar();
+
+  const wrap = document.createElement('div'); wrap.className = 'ag-tl';
+  wrap.style.height = ((h1 - h0) * AGENDA_PX_HORA)+'px';
+  for(let h=h0; h<=h1; h++){
+    const line = document.createElement('div'); line.className='ag-tl-hour';
+    line.style.top = ((h - h0) * AGENDA_PX_HORA)+'px';
+    const lb = document.createElement('span'); lb.textContent = pad2(h % 24)+':00';
+    line.appendChild(lb);
+    wrap.appendChild(line);
+  }
+  items.forEach(it=>{
+    const btn = document.createElement('button'); btn.type='button';
+    btn.className = 'ag-tl-ev'+(it.e.ok ? ' done' : '');
+    btn.style.top = (((it.s - h0*60) / 60) * AGENDA_PX_HORA)+'px';
+    btn.style.height = Math.max(22, ((it.en - it.s) / 60) * AGENDA_PX_HORA - 2)+'px';
+    btn.style.left = 'calc(var(--ag-g) + (100% - var(--ag-g)) * '+(it.col/it.cols)+' + 2px)';
+    btn.style.width = 'calc((100% - var(--ag-g)) * '+(1/it.cols)+' - 4px)';
+    const rg = agendaRango(it.e);
+    btn.title = rg+' · '+(it.e.t || '(sin título)')+' — pulsa para editar';
+    const h = document.createElement('span'); h.className='ag-tl-ev-h'; h.textContent = rg;
+    const t = document.createElement('span'); t.className='ag-tl-ev-t'; t.textContent = it.e.t || '(sin título)';
+    btn.appendChild(h); btn.appendChild(t);
+    btn.onclick = ()=> onEditar(it.e.id);
+    wrap.appendChild(btn);
+  });
+  if(fecha === hoyLocalISO()){
+    const now = new Date(); const nm = now.getHours()*60 + now.getMinutes();
+    if(nm >= h0*60 && nm <= h1*60){
+      const ln = document.createElement('div'); ln.className='ag-tl-now';
+      ln.style.top = (((nm - h0*60) / 60) * AGENDA_PX_HORA)+'px';
+      ln.title = 'Ahora: '+agendaMinAHora(nm);
+      wrap.appendChild(ln);
+    }
+  }
+  return wrap;
+}
+
+/* ---- Ficha del día: formulario + lista + línea horaria ---- */
+function openAgendaDayModal(fecha, editId, foco){
+  const [y,m,d] = fecha.split('-').map(Number);
+  const jsDow = new Date(y, m-1, d).getDay();
+  document.getElementById('agendaDayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
+  document.getElementById('agendaDayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)] + (fecha===hoyLocalISO() ? ' · HOY' : '');
+  const body = document.getElementById('agendaDayModalBody');
+  body.innerHTML = '';
+  const lista = agendaDia(fecha);
+  const editando = editId ? lista.find(e=> e.id === editId) : null;
+  const reabrir = (eId, f)=> openAgendaDayModal(fecha, eId, f);
+
+  // --- formulario ---
+  const form = document.createElement('div'); form.className = 'ag-form'; form.setAttribute('role','group');
+  form.setAttribute('aria-label', editando ? 'Editar tarea' : 'Nueva tarea');
+  const campo = (cls, etiqueta, id, el)=>{
+    const w = document.createElement('div'); w.className = 'ag-f '+cls;
+    const l = document.createElement('label'); l.setAttribute('for', id); l.textContent = etiqueta;
+    el.id = id;
+    w.appendChild(l); w.appendChild(el);
+    return w;
+  };
+  const inpT = document.createElement('input'); inpT.type='text'; inpT.maxLength = 200; inpT.autocomplete = 'off';
+  inpT.placeholder = 'Qué tienes que hacer';
+  inpT.value = editando ? editando.t : '';
+  form.appendChild(campo('ag-f-titulo', 'Tarea o evento', 'agTitulo', inpT));
+
+  const inpH = document.createElement('input'); inpH.type='time';
+  inpH.value = editando ? editando.h : '';
+  form.appendChild(campo('ag-f-hora', 'Hora de inicio', 'agHora', inpH));
+
+  const selD = document.createElement('select');
+  AGENDA_DURACIONES.forEach(([v,t])=> selD.appendChild(new Option(t, String(v))));
+  selD.appendChild(new Option('Otra duración…', 'custom'));
+  const inpD = document.createElement('input'); inpD.type='number'; inpD.min='5'; inpD.max='1440'; inpD.step='5'; inpD.inputMode='numeric';
+  inpD.placeholder = 'Minutos';
+  inpD.setAttribute('aria-label','Duración en minutos');
+  const wDur = campo('ag-f-dur', 'Duración', 'agDur', selD);
+  wDur.appendChild(inpD);
+  form.appendChild(wDur);
+  const durIni = editando ? (editando.d || 0) : 0;
+  if(AGENDA_DURACIONES.some(([v])=> v === durIni)){ selD.value = String(durIni); inpD.style.display = 'none'; }
+  else { selD.value = 'custom'; inpD.value = String(durIni); inpD.style.display = ''; }
+  const sincronizarDur = ()=>{
+    const sinHora = !inpH.value;
+    selD.disabled = sinHora; inpD.disabled = sinHora;
+    wDur.classList.toggle('off', sinHora);
+    selD.title = sinHora ? 'Pon una hora de inicio para poder indicar la duración' : '';
+    inpD.style.display = selD.value === 'custom' ? '' : 'none';
+  };
+  inpH.addEventListener('input', sincronizarDur);
+  selD.addEventListener('change', ()=>{ sincronizarDur(); if(selD.value==='custom'){ inpD.focus(); } });
+  sincronizarDur();
+
+  const acciones = document.createElement('div'); acciones.className = 'ag-f-actions';
+  const guardar = document.createElement('button'); guardar.type='button'; guardar.className='btn';
+  guardar.textContent = editando ? 'Guardar cambios' : 'Añadir tarea';
+  acciones.appendChild(guardar);
+  if(editando){
+    const cancel = document.createElement('button'); cancel.type='button'; cancel.className='btn ghost';
+    cancel.textContent = 'Cancelar'; cancel.onclick = ()=> reabrir(null, 'agTitulo');
+    acciones.appendChild(cancel);
+  }
+  form.appendChild(acciones);
+  body.appendChild(form);
+
+  const enviar = ()=>{
+    const t = inpT.value.trim();
+    if(!t){ showToast('Escribe qué tienes que hacer'); inpT.focus(); return; }
+    const h = inpH.value || '';
+    let dur = 0;
+    if(h){
+      dur = selD.value === 'custom' ? Math.round(Number(inpD.value)) : Number(selD.value);
+      if(!(dur > 0)) dur = 0;
+      dur = Math.min(dur, 1440);
+    }
+    const l = agendaDia(fecha).slice();
+    if(editando){
+      const i = l.findIndex(e=> e.id === editando.id);
+      if(i >= 0) l[i] = Object.assign({}, l[i], {t, h, d: dur});
+    } else {
+      l.push({id: agendaNuevoId(), t, h, d: dur, ok: false});
+    }
+    agendaGuardarDia(fecha, l);
+    agendaCambiado();
+    reabrir(null, 'agTitulo');
+  };
+  guardar.onclick = enviar;
+  [inpT, inpH, inpD].forEach(el=> el.addEventListener('keydown', e=>{
+    if(e.key === 'Enter' && !e.isComposing){ e.preventDefault(); enviar(); }
+  }));
+
+  // --- lista del día ---
+  const ordenada = agendaOrdenar(lista);
+  const wrapLista = document.createElement('div'); wrapLista.className = 'ag-list';
+  if(!ordenada.length){
+    const vacio = document.createElement('div'); vacio.className = 'ag-empty';
+    vacio.textContent = 'No hay nada apuntado este día. Escribe arriba la primera tarea.';
+    wrapLista.appendChild(vacio);
+  }
+  ordenada.forEach(ev=>{
+    const row = document.createElement('div');
+    row.className = 'ag-row'+(ev.ok ? ' done' : '')+(editando && editando.id === ev.id ? ' editing' : '');
+    const chk = document.createElement('input'); chk.type='checkbox'; chk.className='ag-check'; chk.checked = !!ev.ok;
+    chk.setAttribute('aria-label', 'Hecha: '+(ev.t || 'tarea'));
+    chk.dataset.agId = ev.id;
+    chk.onchange = ()=>{
+      const l = agendaDia(fecha).slice();
+      const i = l.findIndex(e=> e.id === ev.id);
+      if(i >= 0) l[i] = Object.assign({}, l[i], {ok: chk.checked});
+      agendaGuardarDia(fecha, l);
+      agendaCambiado();
+      reabrir(editando ? editando.id : null, 'chk:'+ev.id);
+    };
+    row.appendChild(chk);
+    const rg = agendaRango(ev) || (ev.d > 0 ? agendaFmtDur(ev.d) : '');
+    const hora = document.createElement('span'); hora.className = 'ag-row-h'; hora.textContent = rg || 'Sin hora';
+    if(!rg) hora.classList.add('none');
+    row.appendChild(hora);
+    const tit = document.createElement('span'); tit.className = 'ag-row-t'; tit.textContent = ev.t || '(sin título)';
+    row.appendChild(tit);
+    if(ev.d > 0 && agendaHoraAMin(ev.h) !== null){
+      const du = document.createElement('span'); du.className = 'ag-row-d'; du.textContent = agendaFmtDur(ev.d);
+      row.appendChild(du);
+    }
+    const bEd = document.createElement('button'); bEd.type='button'; bEd.className='ag-row-btn';
+    bEd.textContent = '✎'; bEd.title = 'Editar'; bEd.setAttribute('aria-label','Editar: '+(ev.t||'tarea'));
+    bEd.onclick = ()=> reabrir(ev.id, 'agTitulo');
+    row.appendChild(bEd);
+    const bDel = document.createElement('button'); bDel.type='button'; bDel.className='ag-row-btn del';
+    bDel.textContent = '×'; bDel.title = 'Borrar'; bDel.setAttribute('aria-label','Borrar: '+(ev.t||'tarea'));
+    bDel.onclick = ()=>{
+      const l = agendaDia(fecha).filter(e=> e.id !== ev.id);
+      agendaGuardarDia(fecha, l);
+      agendaCambiado();
+      showToast('Tarea borrada');
+      reabrir(editando && editando.id !== ev.id ? editando.id : null, 'agTitulo');
+    };
+    row.appendChild(bDel);
+    wrapLista.appendChild(row);
+  });
+  body.appendChild(wrapLista);
+
+  const tl = buildAgendaTimeline(ordenada, fecha, (id)=> reabrir(id, 'agTitulo'));
+  if(tl){
+    const cab = document.createElement('div'); cab.className = 'ag-tl-title'; cab.textContent = 'Horario del día';
+    body.appendChild(cab);
+    body.appendChild(tl);
+  }
+
+  document.getElementById('agendaDayModal').classList.add('open');
+  if(foco){
+    if(foco.indexOf('chk:') === 0){
+      const el = body.querySelector('[data-ag-id="'+foco.slice(4)+'"]');
+      if(el) el.focus();
+    } else {
+      const el = document.getElementById(foco);
+      if(el){ try{ el.focus({preventScroll:true}); }catch(e){ el.focus(); } }
+    }
+  } else if(!lista.length){
+    // Día vacío: directo a escribir (el móvil abre el teclado, que es lo que se busca al apuntar algo).
+    // (con setTimeout: el gestor de foco de los modales mueve el foco al cuadro justo al abrirse)
+    setTimeout(()=>{ try{ inpT.focus({preventScroll:true}); }catch(e){} }, 0);
+  }
+}
+document.getElementById('closeAgendaDayModal').onclick = ()=> document.getElementById('agendaDayModal').classList.remove('open');
+document.getElementById('agendaDayModal').addEventListener('click', e=>{ if(e.target.id === 'agendaDayModal') e.currentTarget.classList.remove('open'); });
+
+/* ---- Vista rejilla / lista ---- */
+function syncPersonalViewToggle(){
+  document.querySelectorAll('#personalCalViewToggle .view-toggle-btn').forEach(b=> b.classList.toggle('active', b.dataset.view === agendaViewMode));
+}
+function setPersonalViewMode(mode){
+  agendaViewMode = mode;
+  try{ localStorage.setItem('agendaViewMode', mode); }catch(e){}
+  syncPersonalViewToggle();
+  renderPersonalCalendar();
+}
+document.querySelectorAll('#personalCalViewToggle .view-toggle-btn').forEach(btn=>{
+  btn.onclick = ()=> setPersonalViewMode(btn.dataset.view);
+});
+syncPersonalViewToggle();
+
+/* ---- Exportar: imagen, PDF y .ics ---- */
+// El nombre del archivo se saca del mes visible (currentMonthKey); aquí el visible es el de la agenda.
+async function conMesDeAgenda(fn){
+  const previo = currentMonthKey;
+  currentMonthKey = agendaMonthKey;
+  try{ await fn(); } finally { currentMonthKey = previo; }
+}
+document.getElementById('exportPersonalCalImageBtn').addEventListener('click', ()=>
+  conMesDeAgenda(()=> exportarComoImagen('personalCalHost', 'personal', ['exportPersonalCalImageBtn','exportPersonalCalPdfBtn'])));
+document.getElementById('exportPersonalCalPdfBtn').addEventListener('click', ()=>
+  conMesDeAgenda(()=> exportarComoPDF('personalCalHost', 'personal', ['exportPersonalCalImageBtn','exportPersonalCalPdfBtn'])));
+function exportarCalendarioPersonalICS(){
+  const lines = icsCabecera();
+  const nowStamp = icsNowStamp();
+  let n = 0;
+  Object.keys(agendaData()).sort().forEach(fecha=>{
+    agendaOrdenar(agendaDia(fecha)).forEach(ev=>{
+      n++;
+      const s = agendaHoraAMin(ev.h);
+      lines.push('BEGIN:VEVENT');
+      lines.push('UID:ob-personal-'+ev.id+'@operacion-baeza');
+      lines.push('DTSTAMP:'+nowStamp);
+      if(s === null){
+        lines.push('DTSTART;VALUE=DATE:'+icsDateCompact(fecha));
+      } else {
+        // Hora local "flotante" (sin zona): se importa a la hora que tú escribiste.
+        const fin = Math.min(s + (ev.d > 0 ? ev.d : 0), 1439);
+        lines.push('DTSTART:'+icsDateCompact(fecha)+'T'+agendaMinAHora(s).replace(':','')+'00');
+        if(ev.d > 0) lines.push('DTEND:'+icsDateCompact(fecha)+'T'+agendaMinAHora(fin).replace(':','')+'00');
+      }
+      lines.push('SUMMARY:'+icsEscapeText((ev.ok ? '✓ ' : '')+(ev.t || 'Tarea')));
+      lines.push('END:VEVENT');
+    });
+  });
+  lines.push('END:VCALENDAR');
+  if(!n){ showToast('No hay tareas en el calendario personal todavía'); return; }
+  descargarICS(lines, 'operacion-baeza-personal-'+hoyLocalISO()+'.ics');
+  showToast('Calendario personal exportado ('+n+')');
+}
+document.getElementById('exportPersonalCalIcsBtn').addEventListener('click', exportarCalendarioPersonalICS);
+
+
 /* ===================== SELECTOR: calendario principal / calendario de clases =====================
    Ambos calendarios siguen existiendo tal cual (mismo host, mismas funciones de render); esto solo
    decide cuál de los dos paneles se ve dentro de la pestaña "Calendario". */
@@ -12654,12 +13239,15 @@ function syncCalSelectorToggle(){
   if(tiempoPanel) tiempoPanel.style.display = calSelectorMode==='tiempos' ? '' : 'none';
   const todoPanel = document.getElementById('calTodoPanel');
   if(todoPanel) todoPanel.style.display = calSelectorMode==='todo' ? '' : 'none';
+  const personalPanel = document.getElementById('calPersonalPanel');
+  if(personalPanel) personalPanel.style.display = calSelectorMode==='personal' ? '' : 'none';
 }
 function setCalSelectorMode(mode){
   calSelectorMode = mode;
   try{ localStorage.setItem('calSelectorMode', mode); }catch(e){}
   syncCalSelectorToggle();
   if(mode==='tiempos'){ _animarBarras = true; try{ renderTiempoCalendar(); aplicarContadores(document); }catch(e){ console.error(e); } }
+  if(mode==='personal'){ try{ renderPersonalCalMonthBar(); renderPersonalCalendar(); }catch(e){ console.error(e); } }
 }
 document.querySelectorAll('#calSelectorToggle .view-toggle-btn').forEach(btn=>{
   btn.onclick = ()=> setCalSelectorMode(btn.dataset.cal);
@@ -13488,6 +14076,8 @@ function renderAll(){
   renderTodoCalendar();
   renderTiempoCalMonthBar();
   renderTiempoCalendar();
+  renderPersonalCalMonthBar();
+  renderPersonalCalendar();
   aplicarContadores(document);
   renderBackupReminder();
   renderVistaSimpleBox();
@@ -13516,6 +14106,7 @@ const RENDER_PESTANA = {
     renderClasesCalMonthBar(); renderClaseCalendar(); renderClasesPendientes();
     renderSimCalMonthBar(); renderSimCalendar(); renderSimulacrosPendientes();
     renderTodoCalMonthBar(); renderTodoCalLegend(); renderTodoCalendar();
+    renderPersonalCalMonthBar(); renderPersonalCalendar();
   },
   clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); renderClasesSeminarios(); },
   temario(){ renderBlocks(); renderLeves(); renderIngles(); renderIexam(); renderOexam(); renderPsico(); renderOrto(); },

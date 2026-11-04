@@ -224,6 +224,31 @@ se edita todo: estado del día, notas, clases y simulacro.
 Tiene sus propias vistas **rejilla / lista** (la lista va mejor en el móvil) y sus botones de
 **exportar imagen / PDF**, igual que los demás.
 
+## Calendario personal (agenda de tareas con hora y duración)
+
+Dentro de **Calendario** hay un botón más: **📝 Calendario personal**. Es una agenda aparte, solo de
+notas/tareas, sin relación con el plan de estudio (no cambia nada del cálculo de bloques, leves, etc.).
+
+- **Pulsa un día** (o «＋ Apuntar tarea», que abre hoy) para abrir su ficha: escribes la tarea, la
+  **hora de inicio** y la **duración** (15 min … 4 h, o «Otra duración…» en minutos). Sin hora, la
+  tarea queda como «Sin hora» arriba del día y la duración se desactiva.
+- En la ficha: lista del día con casilla de **hecha**, ✎ editar y × borrar, y debajo un **horario del
+  día** tipo calendario convencional (las tareas que se solapan se colocan lado a lado; si el día es
+  hoy, una línea roja marca la hora actual). Pulsar un bloque del horario lo abre para editarlo.
+- Vistas **rejilla / lista** del mes, navegación de mes con ‹ › y «Hoy». No depende de los meses de
+  estudio: puedes ir a cualquier mes sin crearlo antes.
+- Botones de **exportar imagen / PDF / .ics** (en el .ics las tareas con hora llevan hora de inicio y
+  fin; las que no, son eventos de todo el día).
+- **«Todo incluido»** solo muestra un aviso breve: una sección «Personal» con 📝 y el nº de tareas de
+  ese día. Al **pulsar el día** se abre su ficha y ahí aparece la sección **Agenda personal** con cada tarea
+  al detalle (hora, duración, título, casilla de hecha) y un botón para editarlas en el Calendario personal.
+- **Datos:** `state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, ok} ] }` — `t` título, `h` hora `"HH:MM"`
+  (`""` = sin hora), `d` duración en minutos (0 = sin duración), `ok` hecha. Se sincroniza, entra en las
+  copias de seguridad y aparece en «Tamaño de tus datos». `normalizarAgenda()` (llamada desde
+  `normalizeState()`) limpia datos mal formados. El código está en `app.js`, en el bloque
+  «CALENDARIO PERSONAL», justo antes del selector de calendarios; está enganchado a `RENDER_PESTANA`
+  y a `renderAll()`, así que se repinta solo al cambiar datos.
+
 ## La pestaña «Clases» ahora se rellena sola (y es solo informativa)
 
 Antes, en la pestaña **Clases** marcabas a mano los checks de cada tema. Ya no: esa pestaña

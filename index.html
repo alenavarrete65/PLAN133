@@ -125,6 +125,7 @@
       <button type="button" class="view-toggle-btn" data-cal="clases">🏫 Calendario de clases</button>
       <button type="button" class="view-toggle-btn" data-cal="simulacros">🎯 Calendario de simulacros</button>
       <button type="button" class="view-toggle-btn" data-cal="tiempos">⏱️ Calendario de tiempos</button>
+      <button type="button" class="view-toggle-btn" data-cal="personal">📝 Calendario personal</button>
     </div>
 
     <div id="calMainPanel">
@@ -204,7 +205,7 @@
     <div id="calTodoPanel" style="display:none;">
       <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Todo incluido</h3>
       <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
-        Todo lo del mes junto: las tareas de estudio del día, las clases que tocaron y los simulacros, con sus notas. Pulsa cualquier día para abrir su ficha completa y cambiar lo que quieras.
+        Todo lo del mes junto: las tareas de estudio del día, las clases que tocaron y los simulacros, con sus notas. Si ese día tienes tareas en el Calendario personal, verás un pequeño aviso 📝 con cuántas son. Pulsa cualquier día para abrir su ficha completa y cambiar lo que quieras.
       </div>
       <div class="month-bar" id="todoCalMonthBar"></div>
       <div class="legend" id="todoCalLegend"></div>
@@ -217,6 +218,26 @@
         <button type="button" class="cal-export-btn" id="exportTodoCalPdfBtn">📄 Exportar PDF</button>
       </div>
       <div id="todoCalHost"></div>
+    </div>
+
+    <!-- CALENDARIO PERSONAL: agenda aparte, solo de tareas/notas con hora y duración. No depende del
+         plan de estudio. En "Todo incluido" solo aparece un aviso con el nº de tareas de cada día. -->
+    <div id="calPersonalPanel" style="display:none;">
+      <h3 style="font-family:var(--font-display);text-transform:uppercase;color:var(--amber-ink);border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:14px;font-size:17px;letter-spacing:.03em;">Calendario personal</h3>
+      <div class="sub" style="font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:14px;">
+        Tus tareas del día, aparte del plan de estudio. Pulsa un día para apuntar qué tienes que hacer, a qué hora empieza y cuánto dura.
+      </div>
+      <div class="month-bar" id="personalCalMonthBar"></div>
+      <div class="view-toggle" id="personalCalViewToggle" role="tablist" aria-label="Vista del calendario personal">
+        <button type="button" class="view-toggle-btn" data-view="grid">▦ Rejilla</button>
+        <button type="button" class="view-toggle-btn" data-view="list">☰ Lista</button>
+      </div>
+      <div class="cal-export-bar" id="personalCalExportBar">
+        <button type="button" class="cal-export-btn" id="exportPersonalCalImageBtn">🖼️ Exportar imagen</button>
+        <button type="button" class="cal-export-btn" id="exportPersonalCalPdfBtn">📄 Exportar PDF</button>
+        <button type="button" class="cal-export-btn" id="exportPersonalCalIcsBtn">📆 Exportar .ics</button>
+      </div>
+      <div id="personalCalHost"></div>
     </div>
   </div>
 
@@ -410,6 +431,15 @@
   </div>
 </div>
 
+
+<div class="modal-backdrop" id="agendaDayModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Tareas personales del día">
+    <button class="modal-close" id="closeAgendaDayModal" aria-label="Cerrar: Tareas personales del día">✕</button>
+    <h3 id="agendaDayModalTitle">Día</h3>
+    <div class="sub" id="agendaDayModalSub"></div>
+    <div id="agendaDayModalBody"></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="arrastreAskModal">
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="arrastreAskTitle">
