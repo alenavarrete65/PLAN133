@@ -2505,6 +2505,15 @@ function renderMonthBar(){
     };
     unifyBar.appendChild(setBtn);
 
+    // «Empezar de nuevo»: reinicia TODO el planning (todas las materias desde el principio) a partir del día
+    // elegido en este mismo selector y del mes que se está viendo.
+    const restartBtn = document.createElement('button');
+    restartBtn.className = 'btn danger small';
+    restartBtn.textContent = '↺ Empezar de nuevo desde este día';
+    restartBtn.title = 'Reinicia el planning completo: todas las materias vuelven a empezar desde el principio el día elegido';
+    restartBtn.onclick = ()=> empezarPlanningDeNuevo(currentMonthKey, parseInt(daySel.value, 10));
+    unifyBar.appendChild(restartBtn);
+
     if(uf){
       const deactivateBtn = document.createElement('button');
       deactivateBtn.className = 'btn danger small';
@@ -2522,6 +2531,61 @@ function renderMonthBar(){
 
     unifyHost.appendChild(unifyBar);
   }
+}
+
+/* ===================== EMPEZAR DE NUEVO EL PLANNING DESDE UN DÍA =====================
+   El plan (qué bloque, leve, inglés, psicotécnico… toca cada día) se calcula en cadena desde el
+   primer mes guardado, con contadores que arrastran todo el histórico. Para «empezar de nuevo» el
+   día X del mes M basta con dejar el calendario así:
+     · se quitan los meses anteriores a M (el primer mes guardado pasa a ser M);
+     · los días de M anteriores a X pasan a «Sin horario» (DESCONOCIDO), que no avanza ningún contador;
+     · se borra todo el progreso (ticks, notas, marcas, vueltas, clases, simulacros, tiempos…).
+   Así, el día X cae en el contador 0 de todas las materias. No se toca el resto de la lógica del plan.
+   Se conservan: días de descanso/trabajo/recuperación desde X, entrenos, calendario personal,
+   fecha del examen, temario editado, PIN y ajustes. Antes se descarga una copia de seguridad. */
+function empezarPlanningDeNuevo(mk, d){
+  if(!mk || !state.months[mk] || !(d >= 1)){ showToast('Elige primero un mes y un día'); return; }
+  const [y,m] = mk.split('-').map(Number);
+  const fechaTxt = d+' de '+MESES[m-1]+' de '+y;
+  const val = prompt(
+    'Vas a EMPEZAR DE NUEVO el planning desde el '+fechaTxt+'.\n\n'+
+    'SE REINICIA TODO desde el principio ese día: todas las materias (bloques, leves, inglés, psicotécnicos, '+
+    'exámenes de inglés y de ortografía), los «no completado», notas, marcas y vueltas, clases, simulacros, '+
+    'repasos pendientes, tiempos y el modo repaso final.\n'+
+    'Los meses anteriores se quitan y los días previos de ese mes quedan como «Sin horario».\n\n'+
+    'SE CONSERVAN: tus días de descanso/trabajo desde esa fecha, los entrenos, el calendario personal, '+
+    'la fecha del examen, el temario editado y los ajustes.\n\n'+
+    'Antes se descargará una copia de seguridad por si cambias de idea.\n\n'+
+    'Para confirmar, escribe EMPEZAR en mayúsculas:');
+  if(val === null) return;
+  if(val.trim() !== 'EMPEZAR'){ showToast('No se ha cambiado nada (el texto no coincidía con EMPEZAR)'); return; }
+  try{ exportBackup(); }catch(err){ try{ console.error(err); }catch(e2){} }
+
+  // 1) Calendario: fuera los meses anteriores; los días previos a X, «Sin horario».
+  Object.keys(state.months).forEach(k=>{ if(k < mk) delete state.months[k]; });
+  if(!state.months[mk].days) state.months[mk].days = {};
+  for(let i=1; i<d; i++) state.months[mk].days[i] = 'DESCONOCIDO';
+
+  // 2) Progreso de TODAS las materias a cero (mismas formas que en normalizeState).
+  state.notes = {}; state.ticks = {}; state.dayTicks = {};
+  state.ortoTests = {ortografia:[], gramatica:[]};
+  state.marcas = {}; state.marcasHistory = {};
+  state.psicoEsp = {noHecho:{}};
+  state.arrastreTestHecho = {}; state.arrastreTestNotas = {};
+  state.arrastreManual = {graves:[], mgraves:[], leves:[], ingles:[], psico:[], conocimientos:[]};
+  state.clases = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:[]};
+  state.claseCal = {}; state.clasesPendientes = []; state.notasPendientes = []; state.clasesSyncPendiente = [];
+  state.simulacros = []; state.simulacrosPendientes = []; state.simulacroCal = {};
+  state.tiempos = {temas:{}, dias:{}};
+  state.settings.unifyFromDate = null;
+  delete state.settings.unifyFromKey;
+
+  // 3) Repintar todo desde el mes elegido.
+  currentMonthKey = mk;
+  invalidatePlan();
+  scheduleSave();
+  renderAll();
+  showToast('Planning reiniciado: todo empieza de nuevo el '+fechaTxt);
 }
 
 function renderLegend(){

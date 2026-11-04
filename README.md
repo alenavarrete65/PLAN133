@@ -224,9 +224,31 @@ se edita todo: estado del día, notas, clases y simulacro.
 Tiene sus propias vistas **rejilla / lista** (la lista va mejor en el móvil) y sus botones de
 **exportar imagen / PDF**, igual que los demás.
 
+## Empezar de nuevo el planning desde un día («↺ Empezar de nuevo desde este día»)
+
+En la pestaña **Calendario**, en la barra del **modo repaso final** (al lado de «Activar desde este día»),
+hay un botón rojo **↺ Empezar de nuevo desde este día**. Usa el mes que estás viendo y el día que tengas en
+el desplegable «Día N». Para confirmar hay que escribir **EMPEZAR** (como en «Borrar todos los datos»), y
+antes de tocar nada se **descarga automáticamente una copia de seguridad** (`exportBackup()`).
+
+Qué hace (`empezarPlanningDeNuevo()` en `app.js`, justo antes de `renderLegend()`):
+
+- **Reinicia todas las materias desde el principio ese día:** bloques (graves y menos graves), leves,
+  inglés, psicotécnicos (lunes y miércoles), examen de inglés y de ortografía. El plan se calcula en cadena
+  desde el primer mes guardado, así que basta con (1) **quitar los meses anteriores** al elegido y (2) dejar
+  los días previos de ese mes como **«Sin horario»** (`DESCONOCIDO`, que no avanza ningún contador). El día
+  elegido pasa a ser el «día 1» de todo. No se ha tocado la lógica de `computePlan()`.
+- **Borra el progreso:** «no completado», notas, marcas e historial de vueltas, clases (y su calendario y
+  pendientes), simulacros, test de arrastre, tiempos y el modo repaso final (queda desactivado).
+- **Conserva:** los días de descanso/trabajo/recuperación **desde esa fecha** en adelante, los entrenos
+  (`entrenosLog`), el **calendario personal**, la fecha del examen, el temario editado, el PIN y el resto de
+  ajustes.
+- Para borrar de verdad **absolutamente todo** (incluidos los descansos/trabajos de meses futuros) sigue
+  estando «Borrar todos los datos» en Ajustes.
+
 ## Calendario personal (agenda de tareas con hora y duración)
 
-Dentro de **Calendario** hay un botón más: **📝 Calendario personal**. Es una agenda aparte, solo de
+Dentro de **Calendario** hay un botón más, colocado justo a la derecha de «Calendario de estudio»: **📝 Calendario personal**. Es una agenda aparte, solo de
 notas/tareas, sin relación con el plan de estudio (no cambia nada del cálculo de bloques, leves, etc.).
 
 - **Pulsa un día** (o «＋ Apuntar tarea», que abre hoy) para abrir su ficha: escribes la tarea, la
