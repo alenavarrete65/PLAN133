@@ -235,6 +235,13 @@ notas/tareas, sin relación con el plan de estudio (no cambia nada del cálculo 
 - En la ficha: lista del día con casilla de **hecha**, ✎ editar y × borrar, y debajo un **horario del
   día** tipo calendario convencional (las tareas que se solapan se colocan lado a lado; si el día es
   hoy, una línea roja marca la hora actual). Pulsar un bloque del horario lo abre para editarlo.
+- **Ubicación y trayecto:** cada tarea puede llevar una **ubicación** (texto libre; en la ficha sale como
+  enlace que abre Google Maps con ese destino) y un **tiempo de trayecto** (5 min … 2 h, u otra cifra en
+  minutos). Con hora de inicio + trayecto, la app calcula y muestra **«🚶 Sal a las HH:MM»** (inicio −
+  trayecto), también mientras rellenas el formulario, en la lista del día, en la sección «Agenda personal»
+  de «Todo incluido» y como tramo rayado antes del bloque en el horario del día. El trayecto se escribe a
+  mano (no se consulta ningún mapa: no hay conexión con servicios de rutas ni claves). Sin hora de inicio no
+  hay trayecto. El .ics incluye `LOCATION` y un aviso (`VALARM`) a la hora de salir.
 - Vistas **rejilla / lista** del mes, navegación de mes con ‹ › y «Hoy». No depende de los meses de
   estudio: puedes ir a cualquier mes sin crearlo antes.
 - Botones de **exportar imagen / PDF / .ics** (en el .ics las tareas con hora llevan hora de inicio y
@@ -242,8 +249,8 @@ notas/tareas, sin relación con el plan de estudio (no cambia nada del cálculo 
 - **«Todo incluido»** solo muestra un aviso breve: una sección «Personal» con 📝 y el nº de tareas de
   ese día. Al **pulsar el día** se abre su ficha y ahí aparece la sección **Agenda personal** con cada tarea
   al detalle (hora, duración, título, casilla de hecha) y un botón para editarlas en el Calendario personal.
-- **Datos:** `state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, ok} ] }` — `t` título, `h` hora `"HH:MM"`
-  (`""` = sin hora), `d` duración en minutos (0 = sin duración), `ok` hecha. Se sincroniza, entra en las
+- **Datos:** `state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, u, v, ok} ] }` — `t` título, `h` hora `"HH:MM"`
+  (`""` = sin hora), `d` duración en minutos (0 = sin duración), `u` ubicación, `v` minutos de trayecto, `ok` hecha. Se sincroniza, entra en las
   copias de seguridad y aparece en «Tamaño de tus datos». `normalizarAgenda()` (llamada desde
   `normalizeState()`) limpia datos mal formados. El código está en `app.js`, en el bloque
   «CALENDARIO PERSONAL», justo antes del selector de calendarios; está enganchado a `RENDER_PESTANA`

@@ -3442,8 +3442,7 @@ function openDayModal(d, info, modo){
         const rg = agendaRango(ev) || (ev.d>0 ? agendaFmtDur(ev.d) : '');
         const hora = document.createElement('span'); hora.className='ag-row-h'+(rg ? '' : ' none'); hora.textContent = rg || 'Sin hora';
         row.appendChild(hora);
-        const tit = document.createElement('span'); tit.className='ag-row-t'; tit.textContent = ev.t || '(sin título)';
-        row.appendChild(tit);
+        row.appendChild(agendaTituloNodo(ev));
         if(ev.d>0 && agendaHoraAMin(ev.h)!==null){
           const du = document.createElement('span'); du.className='ag-row-d'; du.textContent = agendaFmtDur(ev.d);
           row.appendChild(du);
@@ -12704,8 +12703,9 @@ function goToSearchResult(entry){
    Quinto calendario de la pestaña Calendario: una agenda aparte, solo de notas/tareas, sin
    relación con el plan de estudio. Cada tarea lleva título, hora de inicio (opcional) y
    duración (opcional), como un calendario convencional.
-   Datos: state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, ok}, … ] }
+   Datos: state.agenda = { "YYYY-MM-DD": [ {id, t, h, d, u, v, ok}, … ] }
      t  = título · h = hora "HH:MM" ("" = sin hora) · d = duración en minutos (0 = sin duración)
+     u = ubicación (texto libre) · v = minutos de trayecto (0 = sin trayecto; hora de salida = h − v)
      ok = marcada como hecha
    Es independiente de los meses de estudio: puedes navegar a cualquier mes sin crearlo antes.
    El calendario «Todo incluido» solo muestra un recordatorio con el nº de tareas del día. */
@@ -12717,6 +12717,7 @@ try{
   agendaViewMode = (window.matchMedia && window.matchMedia('(max-width:640px)').matches) ? 'list' : 'grid';
 }
 const AGENDA_DURACIONES = [[0,'Sin duración'],[15,'15 min'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30 min'],[120,'2 h'],[180,'3 h'],[240,'4 h']];
+const AGENDA_TRAYECTOS = [[0,'Sin trayecto'],[5,'5 min'],[10,'10 min'],[15,'15 min'],[20,'20 min'],[30,'30 min'],[45,'45 min'],[60,'1 h'],[90,'1 h 30 min'],[120,'2 h']];
 const AGENDA_PX_HORA = 44;   // alto de una hora en la línea horaria del día
 
 function agendaNuevoId(){ return 'a'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
@@ -12744,6 +12745,42 @@ function agendaRango(ev){
   if(s === null) return '';
   return ev.d > 0 ? agendaMinAHora(s)+'–'+agendaMinAHora(s+ev.d) : agendaMinAHora(s);
 }
+// Hora de salida en minutos desde las 00:00 (puede ser negativa = día anterior), o null si no aplica.
+function agendaSalidaMin(ev){
+  const s = agendaHoraAMin(ev.h);
+  return (s !== null && ev.v > 0) ? s - ev.v : null;
+}
+function agendaSalidaTexto(ev){
+  const sal = agendaSalidaMin(ev);
+  if(sal === null) return '';
+  return agendaMinAHora(sal)+(sal < 0 ? ' (día anterior)' : '');
+}
+function agendaMapsUrl(ubic){ return 'https://www.google.com/maps/dir/?api=1&destination='+encodeURIComponent(ubic); }
+// Línea con 📍 ubicación (enlace a Maps) y 🚶 hora de salida; null si la tarea no tiene ninguna de las dos.
+function agendaMetaNodo(ev){
+  const sal = agendaSalidaTexto(ev);
+  if(!ev.u && !sal) return null;
+  const meta = document.createElement('div'); meta.className = 'ag-row-meta';
+  if(ev.u){
+    const a = document.createElement('a'); a.className = 'ag-loc'; a.href = agendaMapsUrl(ev.u);
+    a.target = '_blank'; a.rel = 'noopener noreferrer'; a.title = 'Abrir en Google Maps';
+    a.textContent = '📍 '+ev.u;
+    meta.appendChild(a);
+  }
+  if(sal){
+    const s = document.createElement('span'); s.className = 'ag-salida';
+    s.textContent = '🚶 Sal a las '+sal+' · '+agendaFmtDur(ev.v)+' de trayecto';
+    meta.appendChild(s);
+  }
+  return meta;
+}
+function agendaTituloNodo(ev){
+  const main = document.createElement('div'); main.className = 'ag-row-main';
+  const t = document.createElement('div'); t.className = 'ag-row-t'; t.textContent = ev.t || '(sin título)';
+  main.appendChild(t);
+  const meta = agendaMetaNodo(ev); if(meta) main.appendChild(meta);
+  return main;
+}
 // Primero las tareas sin hora, luego por hora de inicio.
 function agendaOrdenar(lista){
   return lista.slice().sort((a,b)=>{
@@ -12763,6 +12800,8 @@ function agendaLimpiarLista(l){
       t: String(e.t == null ? '' : e.t).slice(0,200),
       h: s === null ? '' : agendaMinAHora(s),
       d: (s !== null && Number(e.d) > 0) ? Math.min(Math.round(Number(e.d)), 1440) : 0,
+      u: String(e.u == null ? '' : e.u).slice(0,200),
+      v: (s !== null && Number(e.v) > 0) ? Math.min(Math.round(Number(e.v)), 1440) : 0,
       ok: !!e.ok
     };
   });
@@ -12847,6 +12886,10 @@ function agendaChip(ev, completo){
   }
   const t = document.createElement('span'); t.className='ag-chip-t'; t.textContent = ev.t || '(sin título)';
   chip.appendChild(t);
+  if(completo && agendaSalidaMin(ev) !== null){
+    const s = document.createElement('span'); s.className='ag-chip-s'; s.textContent = '🚶 sal '+agendaSalidaTexto(ev);
+    chip.appendChild(s);
+  }
   return chip;
 }
 function agendaCountBadge(lista){
@@ -12942,7 +12985,8 @@ function buildAgendaTimeline(lista, fecha, onEditar){
   if(!conHora.length) return null;
   const items = conHora.map(e=>{
     const s = agendaHoraAMin(e.h);
-    return {e, s, en: Math.min(s + Math.max(e.d || 0, 30), 1440), col:0, cols:1};
+    const trip = Math.min(e.v || 0, s);   // el trayecto no cruza la medianoche en el dibujo
+    return {e, start:s, trip, s: s - trip, en: Math.min(s + Math.max(e.d || 0, 30), 1440), col:0, cols:1};
   });
   const minS = Math.min.apply(null, items.map(i=> i.s));
   const maxE = Math.max.apply(null, items.map(i=> i.en));
@@ -12971,14 +13015,27 @@ function buildAgendaTimeline(lista, fecha, onEditar){
     wrap.appendChild(line);
   }
   items.forEach(it=>{
+    const izq = 'calc(var(--ag-g) + (100% - var(--ag-g)) * '+(it.col/it.cols)+' + 2px)';
+    const ancho = 'calc((100% - var(--ag-g)) * '+(1/it.cols)+' - 4px)';
+    if(it.trip > 0){
+      const tr = document.createElement('div'); tr.className = 'ag-tl-trip'+(it.e.ok ? ' done' : '');
+      tr.style.top = (((it.s - h0*60) / 60) * AGENDA_PX_HORA)+'px';
+      tr.style.height = Math.max(4, (it.trip / 60) * AGENDA_PX_HORA)+'px';
+      tr.style.left = izq; tr.style.width = ancho;
+      tr.title = 'Trayecto: '+agendaFmtDur(it.trip)+' · sal a las '+agendaMinAHora(it.s)+(it.e.u ? ' hacia '+it.e.u : '');
+      if(it.trip >= 20){ tr.textContent = '🚶 Sal '+agendaMinAHora(it.s); }
+      wrap.appendChild(tr);
+    }
     const btn = document.createElement('button'); btn.type='button';
     btn.className = 'ag-tl-ev'+(it.e.ok ? ' done' : '');
-    btn.style.top = (((it.s - h0*60) / 60) * AGENDA_PX_HORA)+'px';
-    btn.style.height = Math.max(22, ((it.en - it.s) / 60) * AGENDA_PX_HORA - 2)+'px';
-    btn.style.left = 'calc(var(--ag-g) + (100% - var(--ag-g)) * '+(it.col/it.cols)+' + 2px)';
-    btn.style.width = 'calc((100% - var(--ag-g)) * '+(1/it.cols)+' - 4px)';
+    btn.style.top = (((it.start - h0*60) / 60) * AGENDA_PX_HORA)+'px';
+    const alto = Math.max(22, ((it.en - it.start) / 60) * AGENDA_PX_HORA - 2);
+    btn.style.height = alto+'px';
+    if(alto < 36) btn.classList.add('corto');   // poco alto: hora y título en una sola línea
+    btn.style.left = izq;
+    btn.style.width = ancho;
     const rg = agendaRango(it.e);
-    btn.title = rg+' · '+(it.e.t || '(sin título)')+' — pulsa para editar';
+    btn.title = rg+' · '+(it.e.t || '(sin título)')+(it.e.u ? ' · 📍 '+it.e.u : '')+' — pulsa para editar';
     const h = document.createElement('span'); h.className='ag-tl-ev-h'; h.textContent = rg;
     const t = document.createElement('span'); t.className='ag-tl-ev-t'; t.textContent = it.e.t || '(sin título)';
     btn.appendChild(h); btn.appendChild(t);
@@ -13028,27 +13085,51 @@ function openAgendaDayModal(fecha, editId, foco){
   inpH.value = editando ? editando.h : '';
   form.appendChild(campo('ag-f-hora', 'Hora de inicio', 'agHora', inpH));
 
-  const selD = document.createElement('select');
-  AGENDA_DURACIONES.forEach(([v,t])=> selD.appendChild(new Option(t, String(v))));
-  selD.appendChild(new Option('Otra duración…', 'custom'));
-  const inpD = document.createElement('input'); inpD.type='number'; inpD.min='5'; inpD.max='1440'; inpD.step='5'; inpD.inputMode='numeric';
-  inpD.placeholder = 'Minutos';
-  inpD.setAttribute('aria-label','Duración en minutos');
-  const wDur = campo('ag-f-dur', 'Duración', 'agDur', selD);
-  wDur.appendChild(inpD);
-  form.appendChild(wDur);
-  const durIni = editando ? (editando.d || 0) : 0;
-  if(AGENDA_DURACIONES.some(([v])=> v === durIni)){ selD.value = String(durIni); inpD.style.display = 'none'; }
-  else { selD.value = 'custom'; inpD.value = String(durIni); inpD.style.display = ''; }
+  // Campo "minutos": desplegable con valores habituales + "Otra…" (minutos a mano). Lo usan duración y trayecto.
+  const campoMin = (cls, etiqueta, id, opciones, inicial, ariaMin)=>{
+    const sel = document.createElement('select');
+    opciones.forEach(([v,t])=> sel.appendChild(new Option(t, String(v))));
+    sel.appendChild(new Option('Otra…', 'custom'));
+    const inp = document.createElement('input'); inp.type='number'; inp.min='5'; inp.max='1440'; inp.step='5'; inp.inputMode='numeric';
+    inp.placeholder = 'Minutos'; inp.setAttribute('aria-label', ariaMin);
+    const w = campo(cls, etiqueta, id, sel); w.appendChild(inp);
+    if(opciones.some(([v])=> v === inicial)){ sel.value = String(inicial); inp.style.display = 'none'; }
+    else { sel.value = 'custom'; inp.value = String(inicial); }
+    return {w, sel, inp, valor: ()=>{
+      const n = sel.value === 'custom' ? Math.round(Number(inp.value)) : Number(sel.value);
+      return n > 0 ? Math.min(n, 1440) : 0;
+    }};
+  };
+  const durF = campoMin('ag-f-dur', 'Duración', 'agDur', AGENDA_DURACIONES, editando ? (editando.d || 0) : 0, 'Duración en minutos');
+  form.appendChild(durF.w);
+
+  const inpU = document.createElement('input'); inpU.type='text'; inpU.maxLength = 200; inpU.autocomplete = 'off';
+  inpU.placeholder = 'Dirección o lugar (opcional)';
+  inpU.value = editando ? (editando.u || '') : '';
+  form.appendChild(campo('ag-f-ubic', 'Ubicación', 'agUbic', inpU));
+
+  const trF = campoMin('ag-f-trayecto', 'Tiempo de trayecto', 'agTrayecto', AGENDA_TRAYECTOS, editando ? (editando.v || 0) : 0, 'Trayecto en minutos');
+  form.appendChild(trF.w);
+  const salida = document.createElement('div'); salida.className = 'ag-f ag-f-salida'; salida.setAttribute('aria-live','polite');
+  form.appendChild(salida);
+
   const sincronizarDur = ()=>{
     const sinHora = !inpH.value;
-    selD.disabled = sinHora; inpD.disabled = sinHora;
-    wDur.classList.toggle('off', sinHora);
-    selD.title = sinHora ? 'Pon una hora de inicio para poder indicar la duración' : '';
-    inpD.style.display = selD.value === 'custom' ? '' : 'none';
+    [durF, trF].forEach(f=>{
+      f.sel.disabled = sinHora; f.inp.disabled = sinHora;
+      f.w.classList.toggle('off', sinHora);
+      f.sel.title = sinHora ? 'Pon una hora de inicio primero' : '';
+      f.inp.style.display = f.sel.value === 'custom' ? '' : 'none';
+    });
+    const s = agendaHoraAMin(inpH.value), v = trF.valor();
+    if(s === null){ salida.textContent = 'Pon la hora de inicio y el trayecto para ver a qué hora salir.'; salida.classList.remove('hay'); }
+    else if(!(v > 0)){ salida.textContent = 'Sin trayecto: no hace falta salir antes.'; salida.classList.remove('hay'); }
+    else { salida.textContent = '🚶 Sal a las '+agendaMinAHora(s - v)+(s - v < 0 ? ' (día anterior)' : ''); salida.classList.add('hay'); }
   };
   inpH.addEventListener('input', sincronizarDur);
-  selD.addEventListener('change', ()=>{ sincronizarDur(); if(selD.value==='custom'){ inpD.focus(); } });
+  trF.inp.addEventListener('input', sincronizarDur);
+  durF.sel.addEventListener('change', ()=>{ sincronizarDur(); if(durF.sel.value === 'custom') durF.inp.focus(); });
+  trF.sel.addEventListener('change', ()=>{ sincronizarDur(); if(trF.sel.value === 'custom') trF.inp.focus(); });
   sincronizarDur();
 
   const acciones = document.createElement('div'); acciones.className = 'ag-f-actions';
@@ -13067,25 +13148,22 @@ function openAgendaDayModal(fecha, editId, foco){
     const t = inpT.value.trim();
     if(!t){ showToast('Escribe qué tienes que hacer'); inpT.focus(); return; }
     const h = inpH.value || '';
-    let dur = 0;
-    if(h){
-      dur = selD.value === 'custom' ? Math.round(Number(inpD.value)) : Number(selD.value);
-      if(!(dur > 0)) dur = 0;
-      dur = Math.min(dur, 1440);
-    }
+    const dur = h ? durF.valor() : 0;
+    const trayecto = h ? trF.valor() : 0;
+    const ubic = inpU.value.trim().slice(0,200);
     const l = agendaDia(fecha).slice();
     if(editando){
       const i = l.findIndex(e=> e.id === editando.id);
-      if(i >= 0) l[i] = Object.assign({}, l[i], {t, h, d: dur});
+      if(i >= 0) l[i] = Object.assign({}, l[i], {t, h, d: dur, u: ubic, v: trayecto});
     } else {
-      l.push({id: agendaNuevoId(), t, h, d: dur, ok: false});
+      l.push({id: agendaNuevoId(), t, h, d: dur, u: ubic, v: trayecto, ok: false});
     }
     agendaGuardarDia(fecha, l);
     agendaCambiado();
     reabrir(null, 'agTitulo');
   };
   guardar.onclick = enviar;
-  [inpT, inpH, inpD].forEach(el=> el.addEventListener('keydown', e=>{
+  [inpT, inpH, durF.inp, inpU, trF.inp].forEach(el=> el.addEventListener('keydown', e=>{
     if(e.key === 'Enter' && !e.isComposing){ e.preventDefault(); enviar(); }
   }));
 
@@ -13116,8 +13194,7 @@ function openAgendaDayModal(fecha, editId, foco){
     const hora = document.createElement('span'); hora.className = 'ag-row-h'; hora.textContent = rg || 'Sin hora';
     if(!rg) hora.classList.add('none');
     row.appendChild(hora);
-    const tit = document.createElement('span'); tit.className = 'ag-row-t'; tit.textContent = ev.t || '(sin título)';
-    row.appendChild(tit);
+    row.appendChild(agendaTituloNodo(ev));
     if(ev.d > 0 && agendaHoraAMin(ev.h) !== null){
       const du = document.createElement('span'); du.className = 'ag-row-d'; du.textContent = agendaFmtDur(ev.d);
       row.appendChild(du);
@@ -13211,6 +13288,11 @@ function exportarCalendarioPersonalICS(){
         if(ev.d > 0) lines.push('DTEND:'+icsDateCompact(fecha)+'T'+agendaMinAHora(fin).replace(':','')+'00');
       }
       lines.push('SUMMARY:'+icsEscapeText((ev.ok ? '✓ ' : '')+(ev.t || 'Tarea')));
+      if(ev.u) lines.push('LOCATION:'+icsEscapeText(ev.u));
+      if(s !== null && ev.v > 0){
+        // Aviso a la hora de salir (inicio − trayecto).
+        lines.push('BEGIN:VALARM','ACTION:DISPLAY','DESCRIPTION:'+icsEscapeText('Hora de salir: '+(ev.t || 'Tarea')),'TRIGGER:-PT'+ev.v+'M','END:VALARM');
+      }
       lines.push('END:VEVENT');
     });
   });
