@@ -259,7 +259,6 @@
     <section class="temario-group" id="oexamHost"></section>
     <section class="temario-group" id="psicoHost"></section>
     <section class="temario-group" id="ortoHost"></section>
-    <section class="temario-group" id="archivoHost"></section>
   </div>
 
   <!-- EDITAR TEMARIO (cambiar bloques, leves, inglés y psicotécnicos) -->
@@ -432,6 +431,54 @@
   </div>
 </div>
 
+
+<div class="modal-backdrop" id="reinicioModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Empezar de nuevo el planning">
+    <button class="modal-close" id="closeReinicioModal" aria-label="Cerrar: Empezar de nuevo">✕</button>
+    <h3>Empezar de nuevo</h3>
+    <div class="sub">Elige desde qué día y qué materias vuelven a empezar desde el principio.</div>
+    <div class="rein-form">
+      <div class="rein-f">
+        <label for="reinFecha">Desde el día</label>
+        <input type="date" id="reinFecha">
+      </div>
+      <fieldset class="rein-cats">
+        <legend>Qué reiniciar</legend>
+        <label class="rein-op rein-todo"><input type="checkbox" id="reinTodo" checked>
+          <span><b>Todo el planning</b><small>todas las materias, como empezar de cero</small></span></label>
+        <div class="rein-sep">…o solo estas materias (puedes marcar varias):</div>
+        <label class="rein-op"><input type="checkbox" data-cat="conocimientos">
+          <span><b>📚 Conocimientos</b><small>bloques graves y menos graves + leves</small></span></label>
+        <label class="rein-op"><input type="checkbox" data-cat="ingles">
+          <span><b>🇬🇧 Inglés</b><small>temas de inglés + examen de inglés</small></span></label>
+        <label class="rein-op"><input type="checkbox" data-cat="psico">
+          <span><b>🧩 Psicotécnicos</b><small>pruebas psicotécnicas (lunes y miércoles)</small></span></label>
+        <label class="rein-op"><input type="checkbox" data-cat="orto">
+          <span><b>✍️ Ortografía y gramática</b><small>examen de ortografía y sus tests</small></span></label>
+      </fieldset>
+      <div class="rein-resumen" id="reinResumen" aria-live="polite"></div>
+      <label class="rein-op"><input type="checkbox" id="reinBackup" checked>
+        <span><b>Descargar una copia de seguridad antes</b><small>recomendado: así puedes volver atrás</small></span></label>
+      <div class="rein-f">
+        <label for="reinConfirm">Para confirmar, escribe EMPEZAR</label>
+        <input type="text" id="reinConfirm" autocomplete="off" autocapitalize="characters" placeholder="EMPEZAR">
+      </div>
+      <div class="rein-actions">
+        <button type="button" class="btn danger" id="reinOk" disabled>↺ Empezar de nuevo</button>
+        <button type="button" class="btn ghost" id="reinCancel">Cancelar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-backdrop" id="archivoModal">
+  <div class="modal" role="dialog" aria-modal="true" aria-label="Archivo de reinicios">
+    <button class="modal-close" id="closeArchivoModal" aria-label="Cerrar: Archivo">✕</button>
+    <h3>📦 Archivo</h3>
+    <div class="sub">Lo que tenías antes de empezar de nuevo. Aquí se conserva (no cuenta para el planning actual).</div>
+    <div id="archivoBody"></div>
+  </div>
+</div>
 
 <div class="modal-backdrop" id="agendaDayModal">
   <div class="modal" role="dialog" aria-modal="true" aria-label="Tareas personales del día">

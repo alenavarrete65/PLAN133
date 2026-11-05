@@ -224,53 +224,45 @@ se edita todo: estado del día, notas, clases y simulacro.
 Tiene sus propias vistas **rejilla / lista** (la lista va mejor en el móvil) y sus botones de
 **exportar imagen / PDF**, igual que los demás.
 
-## Empezar de nuevo el planning desde un día («↺ Empezar de nuevo desde este día»)
+## Empezar de nuevo (todo el planning o solo algunas materias) — y 📦 Archivo
 
-En la pestaña **Calendario**, en la barra del **modo repaso final** (al lado de «Activar desde este día»),
-hay un botón rojo **↺ Empezar de nuevo desde este día**. Usa el mes que estás viendo y el día que tengas en
-el desplegable «Día N». Para confirmar hay que escribir **EMPEZAR** (como en «Borrar todos los datos»), y
-antes de tocar nada se **descarga automáticamente una copia de seguridad** (`exportBackup()`).
+En **Calendario**, en la barra del **modo repaso final** (junto a «Activar desde este día»), el botón
+**↺ Empezar de nuevo…** abre un cuadro donde eliges:
 
-Qué hace (`empezarPlanningDeNuevo()` en `app.js`, justo antes de `renderLegend()`):
+1. **Desde qué día** (por defecto, el mes que ves y el «Día N» del desplegable).
+2. **Qué reiniciar:** **Todo el planning**, o solo una o varias materias: 📚 **Conocimientos** (bloques graves
+   y menos graves + leves), 🇬🇧 **Inglés** (temas + examen de inglés), 🧩 **Psicotécnicos** y ✍️ **Ortografía y
+   gramática** (examen de ortografía y sus tests).
+3. Opcionalmente, **descargar una copia de seguridad antes** (marcada por defecto) y **escribir EMPEZAR**.
 
-- **Reinicia todas las materias desde el principio ese día:** bloques (graves y menos graves), leves,
-  inglés, psicotécnicos (lunes y miércoles), examen de inglés y de ortografía. El plan se calcula en cadena
-  desde el primer mes guardado, así que basta con (1) **quitar los meses anteriores** al elegido y (2) dejar
-  los días previos de ese mes como **«Sin horario»** (`DESCONOCIDO`, que no avanza ningún contador). El día
-  elegido pasa a ser el «día 1» de todo. No se ha tocado la lógica de `computePlan()`.
-- **Borra el progreso:** «no completado», notas, marcas e historial de vueltas, clases (y su calendario y
-  pendientes), simulacros, test de arrastre, tiempos y el modo repaso final (queda desactivado).
-- **Conserva:** los días de descanso/trabajo/recuperación **desde esa fecha** en adelante, los entrenos
-  (`entrenosLog`), el **calendario personal**, la fecha del examen, el temario editado, el PIN y el resto de
-  ajustes.
-- Para borrar de verdad **absolutamente todo** (incluidos los descansos/trabajos de meses futuros) sigue
-  estando «Borrar todos los datos» en Ajustes.
+**Nada se borra: se archiva.** La vuelta empieza de cero, pero lo que se quita se guarda en `state.archivo`
+(el más reciente primero; cada entrada: `{id, creado, fecha, todo, cats, datos}`) y se consulta en el botón
+**📦 Archivo (N)** de esa misma barra (aparece en cuanto hay algo archivado). El visor muestra, por reinicio:
+las **notas de los temas** (`state.notes`), las **vueltas** de cada tema (modo, nota, otras notas, comentario y
+fecha) con el nombre del tema, y en «Todo» también las notas de los días y un resumen de lo demás (simulacros,
+clases, tiempos, meses quitados…). Cada archivo tiene **📋 Copiar notas** y **🗑 Eliminar este archivo**
+(único modo de perderlo, con confirmación). No se crean archivos vacíos si la materia no tenía nada. Entra en
+las copias de seguridad y aparece en «Tamaño de tus datos» como «Archivo de reinicios» (los archivos de «Todo»
+ocupan más; si el medidor de tamaño se acerca al límite, elimina los que ya no necesites).
 
-### Empezar de nuevo POR CATEGORÍAS (y las notas se archivan)
+**Por materias** (`reiniciarMaterias()` en `app.js`): la fecha se guarda en
+`state.settings.reinicios = {conocimientos:[…], ingles:[…], psico:[…], orto:[…]}` (se pueden acumular varios
+reinicios). El plan se calcula en cadena con contadores; al llegar a esa fecha **solo los contadores de esa
+materia vuelven a 0**, tanto en `computePlan()` como en `computeArrastreData()` (el Arrastre también empieza de
+cero). El resto del planning no cambia ni un día. De esa materia se **archivan y se limpian**: las vueltas de sus
+temas (`state.ticks`), las notas de sus temas (`state.notes` con la clave del tema), sus «no completado» **desde
+esa fecha** (`state.dayTicks`; los días anteriores conservan su historia), lo añadido a mano a su arrastre y, en
+ortografía, `state.ortoTests`. No se tocan las notas de cada día, ni clases, simulacros o tiempos.
 
-El botón **↺ Empezar de nuevo desde este día** ahora abre un diálogo (`abrirReinicioCategorias()`): eliges
-**qué categorías** reinician y **desde qué día** (por defecto, el del selector «Día N»). Categorías
-(`REINICIO_CATS`): bloques graves, bloques menos graves, leves, inglés (temas), exámenes de inglés,
-exámenes de ortografía, psicotécnicos y los tests Apto/No apto de ortografía y gramática. Atajos:
-«Conocimientos» (graves + menos graves + leves), «Todo» y «Ninguno». Hay que escribir **EMPEZAR** y antes se
-descarga una copia de seguridad.
+**Todo el planning** (`reiniciarTodoElPlanning()`): se archiva todo lo siguiente y luego se quitan los meses
+anteriores al día elegido, los días previos de ese mes quedan como «Sin horario» (`DESCONOCIDO`, que no avanza
+ningún contador) y se limpia: «no completado», notas (de temas y de días), vueltas, clases (y su
+calendario/pendientes), simulacros, test de arrastre, tiempos de cada día, modo repaso final y reinicios por materia.
 
-- **Motor:** el plan lleva un contador por materia en `computePlan()` (y una copia paralela en
-  `computeArrastreData()`). Cada reinicio se apunta en `state.settings.reinicios = {categoría: ['YYYY-MM-DD', …]}`
-  (lista ordenada, por si se reinicia varias veces) y, al llegar a esa fecha, **solo el contador de esa categoría
-  vuelve a 0** (`aplicarReiniciosCarry()` / `resetCarryCat()`; el resto sigue donde estaba). Los días anteriores
-  del calendario no se tocan. Si la fecha cae en un día que no es de estudio, se aplica al siguiente día de estudio.
-- **Notas archivadas, no perdidas:** antes de borrar, `archivarNotasCategorias()` copia a `state.notasArchivo`
-  las notas de test, los comentarios de cada vuelta (incl. tests de inglés), el resultado Apto/No apto de los
-  exámenes de ortografía, la nota general de cada tema y los tests de ortografía/gramática. Se consultan en
-  **Temario y notas → 🗄️ Notas archivadas** (con botón «Descargar todo (.txt)»; entran también en las copias
-  JSON). Solo es consulta: no cuentan para el planning.
-- **Qué se borra de lo marcado:** vueltas y notas de esos temas (`state.ticks` / `state.notes`), los «NO completado»
-  de esa categoría **desde la fecha** en adelante y los temas añadidos a mano en Arrastre de esa categoría.
-- **Qué no se toca:** categorías sin marcar, días anteriores, clases, simulacros, tiempos, entrenos, calendario
-  personal, modo repaso final y ajustes.
-- El **reinicio completo** de siempre sigue disponible desde ese diálogo (botón de abajo) y ahora también archiva
-  las notas (incluidas las notas de los días del calendario) antes de borrar.
+**Se conserva siempre (ni se archiva ni se toca):** calendario personal, entrenos, **marcas físicas**
+(`marcas`/`marcasHistory`), **minutos por tema** (`tiempos.temas`), fecha del examen, temario editado, PIN y
+ajustes. En «Todo» se mantienen además los días de descanso/trabajo/recuperación desde esa fecha. Para borrar de
+verdad todo (incluido el archivo) sigue estando «Borrar todos los datos» en Ajustes.
 
 ## Calendario personal (agenda de tareas con hora y duración)
 
