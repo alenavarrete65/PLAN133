@@ -922,6 +922,14 @@ function normalizeState(){
   if(!state.marcasHistory) state.marcasHistory = {};
   if(!state.settings) state.settings = {unifyFromDate:null};
   if(state.settings.pinHash === undefined) state.settings.pinHash = null;
+  // Reinicios por categoría: {graves:['YYYY-MM-DD',…], leves:[…], …}. Ver REINICIO_CATS.
+  if(!state.settings.reinicios || typeof state.settings.reinicios !== 'object' || Array.isArray(state.settings.reinicios)) state.settings.reinicios = {};
+  Object.keys(state.settings.reinicios).forEach(ck=>{
+    const l = state.settings.reinicios[ck];
+    state.settings.reinicios[ck] = Array.isArray(l) ? l.filter(x=> /^\d{4}-\d{2}-\d{2}$/.test(String(x))).sort() : [];
+  });
+  // Notas archivadas al empezar de nuevo una categoría (ver archivarNotasCategorias).
+  if(!Array.isArray(state.notasArchivo)) state.notasArchivo = [];
   // Fecha del examen oficial para la cuenta atrás ("YYYY-MM-DD"). null = usa la estimada (10 de julio).
   if(state.settings.examDate === undefined) state.settings.examDate = null;
   // Objetivo de vueltas completas de todo el temario antes del examen (tarjeta «Ritmo hasta el examen»).
@@ -2219,15 +2227,58 @@ function freshPlanCarry(){
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, blockTurn, azulCount, leveAppear};
+  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, blockTurn, azulCount, leveAppear, rs:{}};
 }
 function clonePlanCarry(c){
   return {
     gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
-    leveAppear: Object.assign({}, c.leveAppear)
+    leveAppear: Object.assign({}, c.leveAppear),
+    rs: Object.assign({}, c.rs || {})
   };
+}
+
+/* ===================== REINICIO POR CATEGORÍAS =====================
+   Cada materia lleva su propio contador en computePlan() (y en la copia paralela de
+   computeArrastreData()). «Empezar de nuevo» una categoría desde un día X es, por dentro, apuntar X en
+   state.settings.reinicios[categoría] (una lista ordenada de fechas «YYYY-MM-DD», por si se reinicia
+   varias veces): al llegar a ese día, SOLO el contador de esa categoría vuelve a 0. Las demás siguen
+   donde estaban. El resto (archivar notas, limpiar vueltas…) lo hace reiniciarCategorias(). */
+const REINICIO_CATS = [
+  {key:'graves',  label:'Bloques graves (1-5)',         grupo:'conocimientos'},
+  {key:'mgraves', label:'Bloques menos graves (6-12)',  grupo:'conocimientos'},
+  {key:'leves',   label:'Leves',                        grupo:'conocimientos'},
+  {key:'ingles',  label:'Inglés (temas)',               grupo:'otras'},
+  {key:'iexam',   label:'Exámenes de inglés',           grupo:'otras'},
+  {key:'oexam',   label:'Exámenes de ortografía',       grupo:'otras'},
+  {key:'psico',   label:'Psicotécnicos',                grupo:'otras'}
+];
+function reiniciosPorCat(){
+  const r = state && state.settings && state.settings.reinicios;
+  return (r && typeof r === 'object' && !Array.isArray(r)) ? r : {};
+}
+function resetCarryCat(carry, cat){
+  if(cat === 'graves'){ carry.gIdx = 0; GRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
+  else if(cat === 'mgraves'){ carry.mgIdx = 0; MGRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
+  else if(cat === 'leves'){ carry.lIdx = 0; Object.keys(carry.leveAppear).forEach(k=>{ carry.leveAppear[k] = 0; }); }
+  else if(cat === 'ingles'){ carry.iIdx = 0; }
+  else if(cat === 'iexam'){ carry.xIdx = 0; }
+  else if(cat === 'oexam'){ carry.oIdx = 0; }
+  else if(cat === 'psico'){ carry.pIdx = 0; }
+}
+// Aplica a `carry` los reinicios cuya fecha ya ha llegado (dayKey = «YYYY-MM-DD»). Cada fecha se aplica una sola vez.
+function aplicarReiniciosCarry(dayKey, carry){
+  const r = reiniciosPorCat();
+  if(!carry.rs) carry.rs = {};
+  REINICIO_CATS.forEach(c=>{
+    const lista = r[c.key];
+    if(!Array.isArray(lista) || !lista.length) return;
+    while((carry.rs[c.key] || 0) < lista.length && dayKey >= lista[carry.rs[c.key] || 0]){
+      carry.rs[c.key] = (carry.rs[c.key] || 0) + 1;
+      resetCarryCat(carry, c.key);
+    }
+  });
 }
 function computePlan(){
   const keys = sortedMonthKeys();
@@ -2291,6 +2342,8 @@ function computePlan(){
       const jsDow = dateObj.getDay(); // 0 sun .. 6 sat
       const isTueThu = (jsDow===2 || jsDow===4);
       const isMonWed = (jsDow===1 || jsDow===3);
+      const dayKey = k + '-' + pad2(d);
+      aplicarReiniciosCarry(dayKey, carry); // reinicios por categoría que empiezan hoy (o antes)
 
       if(status !== 'ESTUDIO'){
         plan[k][d] = {status, dow:jsDow};
@@ -2306,7 +2359,6 @@ function computePlan(){
         entry.bloqueTipo = 'mgrave';
         entry.bloque = MGRAVES_ORDER[carry.mgIdx % MGRAVES_ORDER.length];
       }
-      const dayKey = k + '-' + pad2(d);
       const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
       entry.unify = unifyThisMonth;
       if(unifyThisMonth){
@@ -2505,13 +2557,13 @@ function renderMonthBar(){
     };
     unifyBar.appendChild(setBtn);
 
-    // «Empezar de nuevo»: reinicia TODO el planning (todas las materias desde el principio) a partir del día
-    // elegido en este mismo selector y del mes que se está viendo.
+    // «Empezar de nuevo»: abre el diálogo por categorías (solo se reinicia lo que marques) a partir del día
+    // elegido en este mismo selector y del mes que se está viendo. Las notas se archivan, no se pierden.
     const restartBtn = document.createElement('button');
     restartBtn.className = 'btn danger small';
     restartBtn.textContent = '↺ Empezar de nuevo desde este día';
-    restartBtn.title = 'Reinicia el planning completo: todas las materias vuelven a empezar desde el principio el día elegido';
-    restartBtn.onclick = ()=> empezarPlanningDeNuevo(currentMonthKey, parseInt(daySel.value, 10));
+    restartBtn.title = 'Elige qué categorías (conocimientos, inglés, psicotécnicos…) vuelven a empezar desde el día elegido. Tus notas se archivan.';
+    restartBtn.onclick = ()=> abrirReinicioCategorias(currentMonthKey, parseInt(daySel.value, 10));
     unifyBar.appendChild(restartBtn);
 
     if(uf){
@@ -2554,12 +2606,19 @@ function empezarPlanningDeNuevo(mk, d){
     'repasos pendientes, tiempos y el modo repaso final.\n'+
     'Los meses anteriores se quitan y los días previos de ese mes quedan como «Sin horario».\n\n'+
     'SE CONSERVAN: tus días de descanso/trabajo desde esa fecha, los entrenos, el calendario personal, '+
-    'la fecha del examen, el temario editado y los ajustes.\n\n'+
+    'la fecha del examen, el temario editado y los ajustes. Tus NOTAS (notas de test, comentarios de cada '+
+    'vuelta, notas de cada tema y notas de los días) se archivan en «Temario y notas → Notas archivadas».\n\n'+
     'Antes se descargará una copia de seguridad por si cambias de idea.\n\n'+
     'Para confirmar, escribe EMPEZAR en mayúsculas:');
   if(val === null) return;
   if(val.trim() !== 'EMPEZAR'){ showToast('No se ha cambiado nada (el texto no coincidía con EMPEZAR)'); return; }
   try{ exportBackup(); }catch(err){ try{ console.error(err); }catch(e2){} }
+
+  // 0) Antes de borrar nada, las notas se archivan (notas de test, comentarios por vuelta, notas de tema y de día).
+  try{
+    archivarNotasCategorias(REINICIO_CATS.map(c=>c.key).concat(['ortotests']), mk+'-'+pad2(d));
+    archivarNotasDeDias(mk+'-'+pad2(d));
+  }catch(err){ try{ console.error('No se pudieron archivar las notas', err); }catch(e2){} }
 
   // 1) Calendario: fuera los meses anteriores; los días previos a X, «Sin horario».
   Object.keys(state.months).forEach(k=>{ if(k < mk) delete state.months[k]; });
@@ -2579,13 +2638,375 @@ function empezarPlanningDeNuevo(mk, d){
   state.tiempos = {temas:{}, dias:{}};
   state.settings.unifyFromDate = null;
   delete state.settings.unifyFromKey;
+  state.settings.reinicios = {}; // el reinicio completo ya parte de cero: los reinicios por categoría anteriores sobran
 
   // 3) Repintar todo desde el mes elegido.
   currentMonthKey = mk;
   invalidatePlan();
   scheduleSave();
   renderAll();
-  showToast('Planning reiniciado: todo empieza de nuevo el '+fechaTxt);
+  showToast('Planning reiniciado: todo empieza de nuevo el '+fechaTxt+' (tus notas están en «Notas archivadas»)');
+}
+
+/* ===================== EMPEZAR DE NUEVO POR CATEGORÍAS (con las notas archivadas) =====================
+   El botón «↺ Empezar de nuevo desde este día» abre un diálogo donde eliges QUÉ categorías reinician
+   (bloques graves, bloques menos graves, leves, inglés, exámenes de inglés, exámenes de ortografía,
+   psicotécnicos y los tests de ortografía/gramática) y desde qué día. Solo lo marcado empieza de nuevo;
+   lo demás sigue exactamente donde estaba.
+   Para cada categoría marcada, reiniciarCategorias():
+     1) archiva sus notas (nota de test, comentarios de cada vuelta, nota general del tema) en
+        state.notasArchivo, que se ve en «Temario y notas → Notas archivadas»;
+     2) apunta la fecha en state.settings.reinicios[cat] (el motor, computePlan(), pone a 0 solo el
+        contador de esa categoría al llegar a ese día — ver REINICIO_CATS);
+     3) borra las vueltas/notas de esos temas y los «no completado» de esa categoría desde ese día. */
+function catDeClaveTemario(key){
+  key = String(key);
+  const mb = key.match(/^b(\d+)-\d+(?:-(?:armas|explosivos))?$/);
+  if(mb){
+    const n = Number(mb[1]);
+    if(GRAVES_ORDER.indexOf(n) >= 0) return 'graves';
+    if(MGRAVES_ORDER.indexOf(n) >= 0) return 'mgraves';
+    return null;
+  }
+  if(/^leve-\d+(?:-(?:l39|l40))?$/.test(key)) return 'leves';
+  if(/^ingles-\d+$/.test(key)) return 'ingles';
+  if(/^iexam-\d+$/.test(key)) return 'iexam';
+  if(/^oexam-\d+$/.test(key)) return 'oexam';
+  if(/^psico-\d+$/.test(key)) return 'psico';
+  return null;
+}
+function nombreClaveTemario(key){
+  key = String(key);
+  try{
+    let m = key.match(/^b(\d+)-(\d+)(?:-(armas|explosivos))?$/);
+    if(m){
+      const b = BLOCKS[m[1]]; const t = b && b.temas[Number(m[2])];
+      if(t){
+        const nom = t.type==='armas_explosivos' ? (m[3]==='explosivos' ? t.explosivos : t.armas) : t.nombre;
+        return 'B'+m[1]+' · '+(t.clase ? t.clase+' · ' : '')+nom;
+      }
+      return 'Bloque '+m[1]+' · tema '+(Number(m[2])+1);
+    }
+    m = key.match(/^leve-(\d+)(?:-(l39|l40))?$/);
+    if(m){
+      const t = LEVES[Number(m[1])];
+      if(t){
+        const nom = t.type==='l39_l40' ? (m[2]==='l40' ? t.l40 : t.l39) : t.nombre;
+        return 'Leve '+(Number(m[1])+1)+' · '+nom;
+      }
+    }
+    m = key.match(/^ingles-(\d+)$/); if(m) return 'Inglés · Tema '+m[1];
+    m = key.match(/^iexam-(\d+)$/); if(m && INGLES_EXAMS[Number(m[1])]) return 'Examen de inglés · '+INGLES_EXAMS[Number(m[1])];
+    m = key.match(/^oexam-(\d+)$/); if(m && ORTO_EXAMS[Number(m[1])]) return 'Examen de ortografía · '+ORTO_EXAMS[Number(m[1])];
+    m = key.match(/^psico-(\d+)$/); if(m && PSICO_ITEMS[Number(m[1])]) return 'Psicotécnico · '+PSICO_ITEMS[Number(m[1])];
+  }catch(e){}
+  return key;
+}
+// ¿Esta vuelta (o este test de inglés) lleva algo que sea «nota»? (nota de test, comentarios, resultado apto/no apto)
+function _entradaConNota(v, key){
+  if(!v || typeof v !== 'object') return false;
+  const slot = s => !!(s && typeof s === 'object' && (testsDeVuelta(s).length || notasDeVuelta(s).length));
+  if(slot(v)) return true;
+  if(v.textos && typeof v.textos === 'object' && Object.keys(v.textos).some(t=> slot(v.textos[t]))) return true;
+  if(esKeyOexam(key) && (v.mode === 'apto' || v.mode === 'no_apto')) return true;
+  return false;
+}
+// Copia a state.notasArchivo las notas de las categorías indicadas (sin borrar nada de su sitio original).
+// Devuelve cuántos temas se han archivado.
+function archivarNotasCategorias(cats, fechaISO){
+  if(!Array.isArray(state.notasArchivo)) state.notasArchivo = [];
+  const hoy = hoyLocalISO();
+  const setC = new Set(cats);
+  const claves = new Set([].concat(Object.keys(state.ticks || {}), Object.keys(state.notes || {})));
+  let n = 0;
+  const nuevoId = ()=> 'na'+Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+  Array.from(claves).sort().forEach(key=>{
+    const cat = catDeClaveTemario(key);
+    if(!cat || !setC.has(cat)) return;
+    const notaGeneral = String((state.notes || {})[key] || '').trim();
+    const vueltas = [];
+    ((state.ticks || {})[key] || []).forEach((raw, i)=>{
+      if(_entradaConNota(raw, key)) vueltas.push(Object.assign({n:i+1}, JSON.parse(JSON.stringify(raw))));
+    });
+    if(!notaGeneral && !vueltas.length) return;
+    state.notasArchivo.push({id:nuevoId(), cat, key, nombre:nombreClaveTemario(key), reinicio:fechaISO, archivado:hoy, notaGeneral, vueltas});
+    n++;
+  });
+  if(setC.has('ortotests') && state.ortoTests){
+    [['ortografia','Ortografía'],['gramatica','Gramática']].forEach(([campo, etq])=>{
+      const tests = Array.isArray(state.ortoTests[campo]) ? state.ortoTests[campo] : [];
+      if(!tests.length) return;
+      state.notasArchivo.push({id:nuevoId(), cat:'ortotests', key:campo, nombre:'Tests de '+etq.toLowerCase()+' (Apto / No apto)', reinicio:fechaISO, archivado:hoy, notaGeneral:'', vueltas:[], tests:JSON.parse(JSON.stringify(tests))});
+      n++;
+    });
+  }
+  return n;
+}
+// Notas escritas en los días del calendario («daynota-AAAA-MM-DD» y «simnota-…»): solo para el reinicio completo.
+function archivarNotasDeDias(fechaISO){
+  if(!Array.isArray(state.notasArchivo)) state.notasArchivo = [];
+  const hoy = hoyLocalISO();
+  Object.keys(state.notes || {}).sort().forEach(key=>{
+    const m = key.match(/^(daynota|simnota)-(\d{4}-\d{2}-\d{2})$/);
+    const txt = String(state.notes[key] || '').trim();
+    if(!m || !txt) return;
+    state.notasArchivo.push({id:'na'+Date.now().toString(36)+Math.random().toString(36).slice(2,7), cat:'dias', key, nombre:(m[1]==='simnota' ? 'Nota del simulacro del ' : 'Nota del día ')+formatFechaEs(m[2]), reinicio:fechaISO, archivado:hoy, notaGeneral:txt, vueltas:[]});
+  });
+}
+// Quita los «NO completado» de una categoría desde una fecha en adelante (el calendario los guarda por día y por tarea).
+function limpiarDayTicksCategoria(cat, fechaISO){
+  const stream = {graves:'bloque', mgraves:'bloque', leves:'leve', ingles:'ingles', iexam:'iexam', oexam:'oexam', psico:'psico'}[cat];
+  if(!stream) return;
+  const mkIni = fechaISO.slice(0,7), dIni = Number(fechaISO.slice(8,10));
+  Object.keys(state.dayTicks || {}).forEach(mk=>{
+    if(mk < mkIni) return;
+    const mes = state.dayTicks[mk]; if(!mes) return;
+    Object.keys(mes).forEach(ds=>{
+      const d = Number(ds);
+      if(mk === mkIni && d < dIni) return;
+      if(cat === 'graves' && d % 2 !== 1) return; // los graves tocan en días impares
+      if(cat === 'mgraves' && d % 2 !== 0) return; // los menos graves, en pares
+      if(mes[ds] && mes[ds][stream]) delete mes[ds][stream];
+    });
+  });
+}
+function reiniciarCategorias(cats, fechaISO){
+  if(!cats.length) return;
+  try{ exportBackup(); }catch(err){ try{ console.error(err); }catch(e2){} } // copia de seguridad por si cambias de idea
+  const planCats = cats.filter(c=> c !== 'ortotests');
+  const setC = new Set(cats);
+
+  // 1) Las notas se archivan ANTES de borrar nada.
+  const nArchivados = archivarNotasCategorias(cats, fechaISO);
+
+  // 2) El motor: ese día, el contador de cada categoría marcada vuelve a 0.
+  if(!state.settings.reinicios) state.settings.reinicios = {};
+  planCats.forEach(c=>{
+    const l = state.settings.reinicios[c] = Array.isArray(state.settings.reinicios[c]) ? state.settings.reinicios[c] : [];
+    if(l.indexOf(fechaISO) < 0) l.push(fechaISO);
+    l.sort();
+  });
+
+  // 3) Vueltas y notas de esos temas a cero, y fuera sus «NO completado» desde ese día.
+  Object.keys(state.ticks || {}).forEach(key=>{ const c = catDeClaveTemario(key); if(c && setC.has(c)) delete state.ticks[key]; });
+  Object.keys(state.notes || {}).forEach(key=>{ const c = catDeClaveTemario(key); if(c && setC.has(c)) delete state.notes[key]; });
+  planCats.forEach(c=> limpiarDayTicksCategoria(c, fechaISO));
+  if(state.arrastreManual) ['graves','mgraves','leves','ingles','psico'].forEach(pk=>{ if(setC.has(pk)) state.arrastreManual[pk] = []; });
+  if(setC.has('ortotests')) state.ortoTests = {ortografia:[], gramatica:[]};
+
+  invalidatePlan();
+  scheduleSave();
+  renderAll();
+  const etiquetas = cats.map(c=>{ const f = REINICIO_CATS.find(x=>x.key===c); return f ? f.label : 'Tests de ortografía y gramática'; });
+  showToast('Empieza de nuevo el '+formatFechaEs(fechaISO)+': '+etiquetas.join(', ')+(nArchivados ? ' · '+nArchivados+' tema'+(nArchivados!==1?'s':'')+' con notas archivados' : ''));
+}
+function cerrarReinicioCatModal(){
+  const el = document.getElementById('reinicioCatModal');
+  if(el) el.remove();
+}
+function abrirReinicioCategorias(mk, d){
+  if(!mk || !state.months[mk] || !(d >= 1)){ showToast('Elige primero un mes y un día'); return; }
+  cerrarReinicioCatModal();
+  const fechaIni = mk+'-'+pad2(d);
+
+  const back = document.createElement('div'); back.className = 'modal-backdrop open'; back.id = 'reinicioCatModal';
+  const modal = document.createElement('div'); modal.className = 'modal';
+  modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.setAttribute('aria-label','Empezar de nuevo por categorías');
+  back.appendChild(modal);
+  back.addEventListener('click', e=>{ if(e.target === back) cerrarReinicioCatModal(); });
+
+  const close = document.createElement('button'); close.className = 'modal-close'; close.textContent = '✕';
+  close.setAttribute('aria-label','Cerrar: Empezar de nuevo'); close.onclick = cerrarReinicioCatModal;
+  modal.appendChild(close);
+  const h = document.createElement('h3'); h.textContent = '↺ Empezar de nuevo por categorías'; modal.appendChild(h);
+  const sub = document.createElement('div'); sub.className = 'sub';
+  sub.textContent = 'Marca solo lo que quieres reiniciar. Lo que no marques sigue exactamente donde estaba.';
+  modal.appendChild(sub);
+
+  // Fecha de inicio (por defecto, la que tenías elegida en el calendario)
+  const fRow = document.createElement('div'); fRow.style.cssText = 'margin:12px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+  const fLbl = document.createElement('label'); fLbl.textContent = 'Empezar de nuevo desde el día'; fLbl.htmlFor = 'reinicioCatFecha';
+  fLbl.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.04em;';
+  const fIn = document.createElement('input'); fIn.type = 'date'; fIn.id = 'reinicioCatFecha'; fIn.value = fechaIni;
+  fIn.setAttribute('aria-label','Día desde el que empezar de nuevo');
+  fIn.style.cssText = 'padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;';
+  fRow.appendChild(fLbl); fRow.appendChild(fIn); modal.appendChild(fRow);
+
+  // Atajos
+  const atajos = document.createElement('div'); atajos.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+  const checks = {};
+  function marcar(keys){ Object.keys(checks).forEach(k=>{ checks[k].checked = keys.indexOf(k) >= 0; }); }
+  [['Conocimientos (graves + menos graves + leves)', REINICIO_CATS.filter(c=>c.grupo==='conocimientos').map(c=>c.key)],
+   ['Todo', Object.keys({graves:1,mgraves:1,leves:1,ingles:1,iexam:1,oexam:1,psico:1,ortotests:1})],
+   ['Ninguno', []]].forEach(([txt, keys])=>{
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost small'; b.textContent = txt;
+    b.onclick = ()=> marcar(keys);
+    atajos.appendChild(b);
+  });
+  modal.appendChild(atajos);
+
+  // Casillas por categoría
+  const lista = document.createElement('div'); lista.style.cssText = 'display:grid;gap:6px;margin-bottom:12px;';
+  REINICIO_CATS.concat([{key:'ortotests', label:'Tests de ortografía y gramática (Apto / No apto)'}]).forEach(c=>{
+    const lab = document.createElement('label');
+    lab.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;text-transform:none;font-family:var(--font-body);color:var(--cream);';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.style.cssText = 'width:16px;height:16px;';
+    checks[c.key] = cb;
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(c.label));
+    lista.appendChild(lab);
+  });
+  modal.appendChild(lista);
+
+  const info = document.createElement('div'); info.className = 'sub'; info.style.cssText = 'font-size:12px;line-height:1.5;margin-bottom:12px;';
+  info.innerHTML =
+    '<strong>Qué pasa con lo que marques:</strong> ese día esa categoría vuelve a empezar desde el principio (vuelta 1, primer tema), '+
+    'se borran las vueltas y los «no completado» de esos temas, y <strong>tus notas no se pierden</strong>: las notas de test, los comentarios '+
+    'de cada vuelta y la nota de cada tema se guardan en <em>Temario y notas → Notas archivadas</em>.<br>'+
+    '<strong>No se toca:</strong> los días anteriores del calendario, las categorías sin marcar, las clases, simulacros, entrenos, calendario personal y ajustes. '+
+    'Antes se descarga una copia de seguridad.';
+  modal.appendChild(info);
+
+  const conf = document.createElement('div'); conf.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;align-items:center;';
+  const txt = document.createElement('input'); txt.type = 'text'; txt.placeholder = 'Escribe EMPEZAR'; txt.autocomplete = 'off';
+  txt.setAttribute('aria-label','Escribe EMPEZAR en mayúsculas para confirmar');
+  txt.style.cssText = 'padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;width:160px;';
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn danger'; go.textContent = 'Empezar de nuevo';
+  go.onclick = ()=>{
+    const cats = Object.keys(checks).filter(k=> checks[k].checked);
+    const fecha = fIn.value;
+    if(!cats.length){ showToast('Marca al menos una categoría'); return; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)){ showToast('Elige un día válido'); return; }
+    if(txt.value.trim() !== 'EMPEZAR'){ showToast('No se ha cambiado nada (escribe EMPEZAR en mayúsculas)'); return; }
+    cerrarReinicioCatModal();
+    reiniciarCategorias(cats, fecha);
+  };
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn ghost'; cancel.textContent = 'Cancelar';
+  cancel.onclick = cerrarReinicioCatModal;
+  conf.appendChild(txt); conf.appendChild(go); conf.appendChild(cancel);
+  modal.appendChild(conf);
+
+  // Aviso para quien quiera reiniciar absolutamente TODO (calendario, clases, simulacros…): sigue existiendo.
+  const todo = document.createElement('div'); todo.style.cssText = 'margin-top:14px;padding-top:12px;border-top:1px solid var(--line);font-size:12px;';
+  const todoBtn = document.createElement('button'); todoBtn.type = 'button'; todoBtn.className = 'btn ghost small';
+  todoBtn.textContent = 'Reinicio completo del planning (clases, simulacros, tiempos…)';
+  todoBtn.title = 'Es el reinicio de siempre: borra todo el progreso y quita los meses anteriores. Tus notas se archivan igualmente.';
+  todoBtn.onclick = ()=>{ const f = fIn.value; cerrarReinicioCatModal(); const [yy,mm,dd] = (/^\d{4}-\d{2}-\d{2}$/.test(f) ? f : fechaIni).split('-'); const k2 = yy+'-'+mm; if(!state.months[k2]){ showToast('Ese día no está en ningún mes creado del calendario'); return; } empezarPlanningDeNuevo(k2, Number(dd)); };
+  todo.appendChild(todoBtn);
+  modal.appendChild(todo);
+
+  document.body.appendChild(back);
+  try{ txt.focus(); }catch(e){}
+}
+
+/* ---- Visor de «Notas archivadas» (Temario y notas) ---- */
+const ARCHIVO_CAT_ORDEN = ['graves','mgraves','leves','ingles','iexam','oexam','psico','ortotests','dias'];
+function archivoCatEtiqueta(cat){
+  if(cat === 'ortotests') return 'Tests de ortografía y gramática';
+  if(cat === 'dias') return 'Notas de los días del calendario';
+  const f = REINICIO_CATS.find(c=> c.key === cat);
+  return f ? f.label : cat;
+}
+function archivoNotaMax(cat){
+  return ({graves:GROUP_MAX_NOTA.Bloques, mgraves:GROUP_MAX_NOTA.Bloques, leves:GROUP_MAX_NOTA.Leves, ingles:GROUP_MAX_NOTA['Inglés'], iexam:GROUP_MAX_NOTA['Examen inglés'], psico:GROUP_MAX_NOTA['Psicotécnicos']})[cat] || null;
+}
+// Texto plano de todo el archivo (para descargarlo).
+function archivoComoTexto(){
+  const lista = state.notasArchivo || [];
+  const out = ['NOTAS ARCHIVADAS — Operación Baeza', 'Generado el '+formatFechaEs(hoyLocalISO()), ''];
+  ARCHIVO_CAT_ORDEN.forEach(cat=>{
+    const items = lista.filter(x=> x.cat === cat);
+    if(!items.length) return;
+    out.push('=== '+archivoCatEtiqueta(cat).toUpperCase()+' ===');
+    items.forEach(x=>{
+      out.push('', x.nombre+'  (reinicio desde el '+formatFechaEs(x.reinicio)+')');
+      if(x.notaGeneral) out.push('  Nota del tema: '+x.notaGeneral.replace(/\n/g,'\n    '));
+      (x.vueltas || []).forEach(v=> out.push(archivoVueltaTexto(x, v).map(l=>'  '+l).join('\n')));
+      if(x.tests) out.push('  '+x.tests.map((t,i)=>'Test '+(i+1)+': '+(t.resultado==='NO_APTO' ? 'No apto' : 'Apto')).join(' · '));
+    });
+    out.push('');
+  });
+  return out.join('\n');
+}
+function archivoVueltaTexto(x, v){
+  const max = archivoNotaMax(x.cat);
+  const lineas = [];
+  let cab = 'Vuelta '+v.n+(v.fecha ? ' ('+formatFechaEs(v.fecha)+')' : '');
+  const tests = testsDeVuelta(v);
+  if(tests.length) cab += ' — nota: '+tests.join(' / ')+(max ? ' (sobre '+max+')' : '');
+  else if(v.mode === 'apto') cab += ' — Apto';
+  else if(v.mode === 'no_apto') cab += ' — No apto';
+  lineas.push(cab);
+  notasDeVuelta(v).forEach(t=> lineas.push('  · '+t));
+  if(v.textos && typeof v.textos === 'object'){
+    Object.keys(v.textos).forEach(id=>{
+      const s = v.textos[id]; const ts = testsDeVuelta(s); const ns = notasDeVuelta(s);
+      if(!ts.length && !ns.length) return;
+      lineas.push('  '+slotEtiqueta(id)+(ts.length ? ': '+ts.join(' / ') : '')+(ns.length ? ' — '+ns.join(' | ') : ''));
+    });
+  }
+  return lineas;
+}
+function renderNotasArchivo(){
+  const host = document.getElementById('archivoHost');
+  if(!host) return;
+  const lista = Array.isArray(state.notasArchivo) ? state.notasArchivo : [];
+  if(!lista.length){ host.innerHTML = ''; return; }
+  renderAccordionSection(host, 'archivo', '🗄️ Notas archivadas ('+lista.length+')', (body)=>{
+    const intro = document.createElement('div'); intro.className = 'sub'; intro.style.marginBottom = '12px';
+    intro.textContent = 'Aquí quedan guardadas las notas de test, los comentarios de cada vuelta y las notas de cada tema que tenías cuando empezaste de nuevo una categoría. Es solo consulta: no cuentan para el planning.';
+    body.appendChild(intro);
+    const bar = document.createElement('div'); bar.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;';
+    const dl = document.createElement('button'); dl.type = 'button'; dl.className = 'btn ghost small'; dl.textContent = '⬇ Descargar todo (.txt)';
+    dl.onclick = ()=>{
+      const blob = new Blob([archivoComoTexto()], {type:'text/plain;charset=utf-8'});
+      const url = URL.createObjectURL(blob); const a = document.createElement('a');
+      a.href = url; a.download = 'notas-archivadas-'+hoyLocalISO()+'.txt';
+      document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 1000);
+    };
+    bar.appendChild(dl);
+    body.appendChild(bar);
+
+    ARCHIVO_CAT_ORDEN.forEach(cat=>{
+      const items = lista.filter(x=> x.cat === cat);
+      if(!items.length) return;
+      const lab = document.createElement('div'); lab.className = 'tema-group-label';
+      const sp = document.createElement('span'); sp.textContent = archivoCatEtiqueta(cat)+' ('+items.length+')'; lab.appendChild(sp);
+      body.appendChild(lab);
+      items.forEach(x=>{
+        const card = document.createElement('div'); card.className = 'flat-item'; card.style.marginBottom = '8px';
+        const head = document.createElement('div'); head.className = 'fi-head'; head.style.cssText = 'display:flex;justify-content:space-between;gap:8px;align-items:flex-start;';
+        const nm = document.createElement('span'); nm.className = 'fi-name'; nm.textContent = x.nombre; head.appendChild(nm);
+        const del = document.createElement('button'); del.type = 'button'; del.className = 'vuelta-del'; del.textContent = '✕';
+        del.title = 'Quitar estas notas archivadas'; del.setAttribute('aria-label','Quitar las notas archivadas de '+x.nombre);
+        del.onclick = ()=>{
+          if(!confirm('¿Quitar para siempre las notas archivadas de «'+x.nombre+'»?')) return;
+          const i = state.notasArchivo.findIndex(z=> z.id === x.id);
+          if(i > -1) state.notasArchivo.splice(i,1);
+          scheduleSave(); renderNotasArchivo();
+        };
+        head.appendChild(del);
+        card.appendChild(head);
+        const meta = document.createElement('div'); meta.style.cssText = 'font-family:var(--font-mono);font-size:11px;color:var(--cream-dim);margin:2px 0 6px;';
+        meta.textContent = 'Reiniciado desde el '+formatFechaEs(x.reinicio)+' · archivado el '+formatFechaEs(x.archivado);
+        card.appendChild(meta);
+        if(x.notaGeneral){
+          const ng = document.createElement('div'); ng.style.cssText = 'white-space:pre-wrap;font-size:13px;margin-bottom:6px;';
+          ng.textContent = (x.cat === 'dias' ? '' : 'Nota del tema: ')+x.notaGeneral; card.appendChild(ng);
+        }
+        (x.vueltas || []).forEach(v=>{
+          const l = archivoVueltaTexto(x, v);
+          const bx = document.createElement('div'); bx.style.cssText = 'white-space:pre-wrap;font-size:13px;margin:4px 0;padding-left:8px;border-left:2px solid var(--line);';
+          bx.textContent = l.join('\n'); card.appendChild(bx);
+        });
+        if(x.tests){
+          const t = document.createElement('div'); t.style.cssText = 'font-size:13px;';
+          t.textContent = x.tests.map((q,i)=>'Test '+(i+1)+': '+(q.resultado==='NO_APTO' ? 'No apto' : 'Apto')).join(' · ');
+          card.appendChild(t);
+        }
+        body.appendChild(card);
+      });
+    });
+  });
 }
 
 function renderLegend(){
@@ -5895,6 +6316,25 @@ function computeArrastreData(asOfDayKey, acumulado){
   const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
   const blockTurn = {}; Object.keys(BLOCKS).forEach(k=>{ blockTurn[k]=0; });
   const leveAppear = {}; LEVES.forEach((_,i)=>{ leveAppear[i]=0; });
+  // Reinicios por categoría (ver REINICIO_CATS): al llegar a la fecha, esa materia vuelve a la vuelta 1.
+  const reiniciosArr = reiniciosPorCat();
+  const reiniciosHechos = {};
+  const poolVacio = ()=>({lap:1, items:{}, seenKeys:{}, pasadas:{}});
+  function aplicarReiniciosArrastre(dayKey){
+    REINICIO_CATS.forEach(c=>{
+      const lista = reiniciosArr[c.key];
+      if(!Array.isArray(lista) || !lista.length) return;
+      while((reiniciosHechos[c.key] || 0) < lista.length && dayKey >= lista[reiniciosHechos[c.key] || 0]){
+        reiniciosHechos[c.key] = (reiniciosHechos[c.key] || 0) + 1;
+        if(c.key === 'graves'){ gIdx = 0; gUnits = 0; GRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.graves = poolVacio(); }
+        else if(c.key === 'mgraves'){ mgIdx = 0; mgUnits = 0; MGRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.mgraves = poolVacio(); }
+        else if(c.key === 'leves'){ lIdx = 0; Object.keys(leveAppear).forEach(q=>{ leveAppear[q] = 0; }); pools.leves = poolVacio(); }
+        else if(c.key === 'ingles'){ iIdx = 0; pools.ingles = poolVacio(); }
+        else if(c.key === 'psico'){ pIdx = 0; pools.psico = poolVacio(); }
+        // iexam / oexam no entran en el Arrastre
+      }
+    });
+  }
 
   function pushItem(poolKey, lap, item){
     const p = pools[poolKey];
@@ -5922,6 +6362,7 @@ function computeArrastreData(asOfDayKey, acumulado){
       // A día vencido: hasta que hoy no termina, no cuenta para el arrastre (solo días
       // ya cerrados, es decir, estrictamente anteriores a hoy).
       if(dayKey >= todayKey) break outer;
+      aplicarReiniciosArrastre(dayKey);
       const status = days[d] || 'ESTUDIO';
       if(status !== 'ESTUDIO') continue;
       const ticks = monthTicks[d] || {};
@@ -14409,6 +14850,7 @@ function renderAll(){
   renderOexam();
   renderPsico();
   renderOrto();
+  renderNotasArchivo();
   renderRecuperar();
   renderClasesConocimientos();
   renderClasesIngles();
@@ -14460,7 +14902,7 @@ const RENDER_PESTANA = {
     renderPersonalCalMonthBar(); renderPersonalCalendar();
   },
   clases(){ renderClasesConocimientos(); renderClasesIngles(); renderClasesPsico(); renderClasesOrtoGram(); renderClasesSeminarios(); },
-  temario(){ renderBlocks(); renderLeves(); renderIngles(); renderIexam(); renderOexam(); renderPsico(); renderOrto(); },
+  temario(){ renderBlocks(); renderLeves(); renderIngles(); renderIexam(); renderOexam(); renderPsico(); renderOrto(); renderNotasArchivo(); },
   simulacros(){ renderSimulacrosList(); },
   entrenos(){ renderMarcas(); renderEntrenos(); },
   progreso(){ renderCiclo(); renderRitmo(); renderFlojos(); renderProgreso(); },

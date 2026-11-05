@@ -246,6 +246,32 @@ Qué hace (`empezarPlanningDeNuevo()` en `app.js`, justo antes de `renderLegend(
 - Para borrar de verdad **absolutamente todo** (incluidos los descansos/trabajos de meses futuros) sigue
   estando «Borrar todos los datos» en Ajustes.
 
+### Empezar de nuevo POR CATEGORÍAS (y las notas se archivan)
+
+El botón **↺ Empezar de nuevo desde este día** ahora abre un diálogo (`abrirReinicioCategorias()`): eliges
+**qué categorías** reinician y **desde qué día** (por defecto, el del selector «Día N»). Categorías
+(`REINICIO_CATS`): bloques graves, bloques menos graves, leves, inglés (temas), exámenes de inglés,
+exámenes de ortografía, psicotécnicos y los tests Apto/No apto de ortografía y gramática. Atajos:
+«Conocimientos» (graves + menos graves + leves), «Todo» y «Ninguno». Hay que escribir **EMPEZAR** y antes se
+descarga una copia de seguridad.
+
+- **Motor:** el plan lleva un contador por materia en `computePlan()` (y una copia paralela en
+  `computeArrastreData()`). Cada reinicio se apunta en `state.settings.reinicios = {categoría: ['YYYY-MM-DD', …]}`
+  (lista ordenada, por si se reinicia varias veces) y, al llegar a esa fecha, **solo el contador de esa categoría
+  vuelve a 0** (`aplicarReiniciosCarry()` / `resetCarryCat()`; el resto sigue donde estaba). Los días anteriores
+  del calendario no se tocan. Si la fecha cae en un día que no es de estudio, se aplica al siguiente día de estudio.
+- **Notas archivadas, no perdidas:** antes de borrar, `archivarNotasCategorias()` copia a `state.notasArchivo`
+  las notas de test, los comentarios de cada vuelta (incl. tests de inglés), el resultado Apto/No apto de los
+  exámenes de ortografía, la nota general de cada tema y los tests de ortografía/gramática. Se consultan en
+  **Temario y notas → 🗄️ Notas archivadas** (con botón «Descargar todo (.txt)»; entran también en las copias
+  JSON). Solo es consulta: no cuentan para el planning.
+- **Qué se borra de lo marcado:** vueltas y notas de esos temas (`state.ticks` / `state.notes`), los «NO completado»
+  de esa categoría **desde la fecha** en adelante y los temas añadidos a mano en Arrastre de esa categoría.
+- **Qué no se toca:** categorías sin marcar, días anteriores, clases, simulacros, tiempos, entrenos, calendario
+  personal, modo repaso final y ajustes.
+- El **reinicio completo** de siempre sigue disponible desde ese diálogo (botón de abajo) y ahora también archiva
+  las notas (incluidas las notas de los días del calendario) antes de borrar.
+
 ## Calendario personal (agenda de tareas con hora y duración)
 
 Dentro de **Calendario** hay un botón más, colocado justo a la derecha de «Calendario de estudio»: **📝 Calendario personal**. Es una agenda aparte, solo de
