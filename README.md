@@ -272,6 +272,40 @@ descarga una copia de seguridad.
 - El **reinicio completo** de siempre sigue disponible desde ese diálogo (botón de abajo) y ahora también archiva
   las notas (incluidas las notas de los días del calendario) antes de borrar.
 
+### Empezar de nuevo las clases (por materia, sin borrar nada)
+
+En **Calendario → Calendario de clases** (botón **↺ Empezar de nuevo las clases**) y en la pestaña **Clases** (mismo
+botón en la cabecera de cada materia) se abre un diálogo (`abrirReinicioClases()`) con las materias
+`REINICIO_CLASES_CATS`: conocimientos, inglés, psicotécnicos (incluidos los escritos a mano), ortografía y gramática
+y seminarios, más el día desde el que empezar de nuevo (por defecto, hoy).
+
+- Como la pestaña Clases se calcula entera desde `state.claseCal`, **no se borra nada**: cada materia guarda su fecha en
+  `state.settings.reiniciosClases = {materia: ['YYYY-MM-DD', …]}` y `computeClasesDesdeCalendario()` /
+  `listarSeminarios()` solo cuentan las clases desde la fecha más reciente que ya haya llegado (`inicioClasesCat()`).
+  Las clases anteriores y sus notas siguen en el calendario de clases.
+- Cada materia reiniciada muestra un aviso («Empezaste de nuevo el …; las N anteriores siguen en el calendario»).
+- Los reinicios activos aparecen al final del diálogo con un botón **Quitar** para volver atrás.
+- Un reinicio con fecha futura no hace nada hasta que llega ese día.
+- El reinicio completo del planning (`empezarPlanningDeNuevo`) vacía el calendario de clases y también borra estos reinicios.
+
+### Deshacer el último «Empezar de nuevo»
+
+Antes de cada reinicio (por categorías, de clases o completo) la app guarda una foto de todos los datos en el propio
+dispositivo (`localStorage`, clave `ob-undo-reinicio-<uid>`; si no cabe, solo en memoria) con `puntoDeshacerInicio()` /
+`puntoDeshacerFin()`. Mientras exista, sale una franja fija abajo con **↩ Deshacer** (y **Ocultar**), y también el botón
+**↩ Deshacer el último reinicio** junto a «Empezar de nuevo desde este día» en el calendario. `deshacerUltimoReinicio()`
+devuelve todo a como estaba justo antes. Solo se guarda el último reinicio y caduca a los 7 días (`UNDO_REINICIO_DIAS`).
+Si después del reinicio cambiaste otras cosas, avisa de que se perderán (compara una huella de los datos al terminar el
+reinicio con la actual). Es independiente de la copia JSON que se descarga antes de reiniciar.
+
+### Psicotécnicos especiales en días de recuperación
+
+Cada día de estado «Recuperación» toca el siguiente apartado (en orden de fecha). Si marcas «NO hecho», el mismo apartado
+pasa al siguiente día de recuperación. La marca «NO hecho» solo vale mientras ese día siga siendo de recuperación: si el día
+deja de serlo, `psicoEspAsignacion()` la olvida (antes se quedaba guardada y, al volver a poner ese día como recuperación,
+reaparecía en silencio y repetía el apartado en el día siguiente). En el calendario, el resumen del día muestra
+«· NO hecho (pasa al siguiente día)» cuando la marca está puesta.
+
 ## Calendario personal (agenda de tareas con hora y duración)
 
 Dentro de **Calendario** hay un botón más, colocado justo a la derecha de «Calendario de estudio»: **📝 Calendario personal**. Es una agenda aparte, solo de

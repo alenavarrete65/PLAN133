@@ -930,6 +930,12 @@ function normalizeState(){
   });
   // Notas archivadas al empezar de nuevo una categoría (ver archivarNotasCategorias).
   if(!Array.isArray(state.notasArchivo)) state.notasArchivo = [];
+  // Reinicios de la pestaña Clases por materia: {conocimientos:['YYYY-MM-DD',…], ingles:[…], …}. Ver REINICIO_CLASES_CATS.
+  if(!state.settings.reiniciosClases || typeof state.settings.reiniciosClases !== 'object' || Array.isArray(state.settings.reiniciosClases)) state.settings.reiniciosClases = {};
+  Object.keys(state.settings.reiniciosClases).forEach(ck=>{
+    const l = state.settings.reiniciosClases[ck];
+    state.settings.reiniciosClases[ck] = Array.isArray(l) ? l.filter(x=> /^\d{4}-\d{2}-\d{2}$/.test(String(x))).sort() : [];
+  });
   // Fecha del examen oficial para la cuenta atrás ("YYYY-MM-DD"). null = usa la estimada (10 de julio).
   if(state.settings.examDate === undefined) state.settings.examDate = null;
   // Objetivo de vueltas completas de todo el temario antes del examen (tarjeta «Ritmo hasta el examen»).
@@ -2565,6 +2571,8 @@ function renderMonthBar(){
     restartBtn.title = 'Elige qué categorías (conocimientos, inglés, psicotécnicos…) vuelven a empezar desde el día elegido. Tus notas se archivan.';
     restartBtn.onclick = ()=> abrirReinicioCategorias(currentMonthKey, parseInt(daySel.value, 10));
     unifyBar.appendChild(restartBtn);
+    const undoBtn = buildBotonDeshacerReinicio();
+    if(undoBtn) unifyBar.appendChild(undoBtn);
 
     if(uf){
       const deactivateBtn = document.createElement('button');
@@ -2612,6 +2620,7 @@ function empezarPlanningDeNuevo(mk, d){
     'Para confirmar, escribe EMPEZAR en mayúsculas:');
   if(val === null) return;
   if(val.trim() !== 'EMPEZAR'){ showToast('No se ha cambiado nada (el texto no coincidía con EMPEZAR)'); return; }
+  puntoDeshacerInicio('Reinicio completo del planning desde el '+fechaTxt);
   try{ exportBackup(); }catch(err){ try{ console.error(err); }catch(e2){} }
 
   // 0) Antes de borrar nada, las notas se archivan (notas de test, comentarios por vuelta, notas de tema y de día).
@@ -2639,12 +2648,14 @@ function empezarPlanningDeNuevo(mk, d){
   state.settings.unifyFromDate = null;
   delete state.settings.unifyFromKey;
   state.settings.reinicios = {}; // el reinicio completo ya parte de cero: los reinicios por categoría anteriores sobran
+  state.settings.reiniciosClases = {}; // (y el calendario de clases queda vacío, así que sus reinicios también sobran)
 
   // 3) Repintar todo desde el mes elegido.
   currentMonthKey = mk;
   invalidatePlan();
   scheduleSave();
   renderAll();
+  puntoDeshacerFin();
   showToast('Planning reiniciado: todo empieza de nuevo el '+fechaTxt+' (tus notas están en «Notas archivadas»)');
 }
 
@@ -2659,6 +2670,100 @@ function empezarPlanningDeNuevo(mk, d){
      2) apunta la fecha en state.settings.reinicios[cat] (el motor, computePlan(), pone a 0 solo el
         contador de esa categoría al llegar a ese día — ver REINICIO_CATS);
      3) borra las vueltas/notas de esos temas y los «no completado» de esa categoría desde ese día. */
+/* ===================== DESHACER EL ÚLTIMO «EMPEZAR DE NUEVO» =====================
+   Antes de cada reinicio (por categorías, de clases o completo) se guarda una foto de TODOS los datos en este
+   dispositivo (localStorage; si no cabe, solo en memoria). El botón «↩ Deshacer» lo devuelve todo a como estaba
+   justo antes. Solo se guarda el último reinicio y caduca a los 7 días. Si después del reinicio hiciste otros
+   cambios, avisa de que se perderán (se compara una «huella» de los datos justo al terminar el reinicio). */
+const UNDO_REINICIO_DIAS = 7;
+let _undoPend = null, _undoMem = null, _undoBarOculta = false;
+function _undoClave(){
+  let uid = 'x';
+  try{ if(typeof firebase !== 'undefined' && firebase.auth && firebase.auth().currentUser) uid = firebase.auth().currentUser.uid; }catch(e){}
+  return 'ob-undo-reinicio-'+uid;
+}
+function _hashTxt(s){ let h = 5381; for(let i=0;i<s.length;i++) h = ((h<<5)+h+s.charCodeAt(i))|0; return h; }
+function puntoDeshacerInicio(titulo){
+  try{ _undoPend = {at:Date.now(), titulo, antes:JSON.stringify(state)}; }catch(e){ _undoPend = null; }
+}
+function puntoDeshacerFin(){
+  const p = _undoPend; _undoPend = null;
+  if(!p) return;
+  let u = null;
+  try{ u = {at:p.at, titulo:p.titulo, antes:p.antes, hashDespues:_hashTxt(JSON.stringify(state))}; }catch(e){ return; }
+  _undoMem = u; _undoBarOculta = false;
+  try{ localStorage.setItem(_undoClave(), JSON.stringify(u)); }catch(e){ /* sin sitio: queda solo en memoria hasta recargar */ }
+  renderUndoBar();
+}
+function leerPuntoDeshacer(){
+  let u = _undoMem;
+  if(!u){
+    try{ const raw = localStorage.getItem(_undoClave()); if(raw) u = JSON.parse(raw); }catch(e){ u = null; }
+  }
+  if(!u || !u.antes) return null;
+  if(Date.now() - u.at > UNDO_REINICIO_DIAS*86400000){ borrarPuntoDeshacer(); return null; }
+  return u;
+}
+function borrarPuntoDeshacer(){
+  _undoMem = null;
+  try{ localStorage.removeItem(_undoClave()); }catch(e){}
+}
+function deshacerUltimoReinicio(){
+  const u = leerPuntoDeshacer();
+  if(!u){ showToast('No hay ningún reinicio que deshacer'); renderUndoBar(); return; }
+  let cambiado = false;
+  try{ cambiado = _hashTxt(JSON.stringify(state)) !== u.hashDespues; }catch(e){}
+  const hora = new Date(u.at).toLocaleString('es-ES', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'});
+  const msg = '¿Deshacer «'+u.titulo+'» (hecho el '+hora+')?\n\nTodo vuelve a estar como justo antes de ese reinicio.'+
+    (cambiado ? '\n\n⚠ OJO: has cambiado cosas DESPUÉS del reinicio (notas, marcas, días…) y esos cambios se perderán.' : '');
+  if(!confirm(msg)) return;
+  try{
+    const previo = state;
+    const restaurado = JSON.parse(u.antes);
+    if(!restaurado || typeof restaurado !== 'object' || !restaurado.months) throw new Error('foto no válida');
+    state = restaurado;
+    normalizeState();
+  }catch(err){ console.error(err); showToast('No se pudo deshacer (la copia guardada no es válida)'); return; }
+  invalidatePlan();
+  invalidarClasesDerivadas();
+  borrarPuntoDeshacer();
+  const keys = sortedMonthKeys();
+  if(!currentMonthKey || !state.months[currentMonthKey]) currentMonthKey = keys.length ? keys[keys.length-1] : null;
+  scheduleSave();
+  renderAll();
+  showToast('Reinicio deshecho: todo vuelve a como estaba');
+}
+function buildBotonDeshacerReinicio(){
+  const u = leerPuntoDeshacer(); if(!u) return null;
+  const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost small';
+  b.textContent = '↩ Deshacer el último reinicio';
+  b.title = 'Deshacer: '+u.titulo;
+  b.onclick = deshacerUltimoReinicio;
+  return b;
+}
+// Franja fija abajo con «Deshacer» mientras haya un reinicio reciente que se pueda deshacer.
+function renderUndoBar(){
+  let bar = document.getElementById('undoReinicioBar');
+  const u = _undoBarOculta ? null : leerPuntoDeshacer();
+  if(!u){ if(bar) bar.remove(); return; }
+  if(!bar){
+    bar = document.createElement('div'); bar.id = 'undoReinicioBar'; bar.setAttribute('role','status');
+    bar.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);bottom:calc(var(--bottomnav-h,0px) + env(safe-area-inset-bottom,0px) + 10px);'+
+      'z-index:49;max-width:min(560px,calc(100vw - 20px));display:flex;gap:10px;align-items:center;flex-wrap:wrap;justify-content:center;'+
+      'background:var(--bg-panel);border:1px solid var(--amber-dim);border-radius:4px;padding:8px 12px;box-shadow:0 6px 20px rgba(0,0,0,.35);'+
+      'font-family:var(--font-mono);font-size:12px;color:var(--cream);';
+    document.body.appendChild(bar);
+  }
+  bar.innerHTML = '';
+  const t = document.createElement('span'); t.textContent = '↺ '+u.titulo; bar.appendChild(t);
+  const undo = document.createElement('button'); undo.type = 'button'; undo.className = 'btn small'; undo.textContent = '↩ Deshacer';
+  undo.onclick = deshacerUltimoReinicio; bar.appendChild(undo);
+  const x = document.createElement('button'); x.type = 'button'; x.className = 'btn ghost small'; x.textContent = 'Ocultar';
+  x.title = 'Ocultar esta franja (podrás deshacer igualmente desde el botón del calendario)';
+  x.onclick = ()=>{ _undoBarOculta = true; renderUndoBar(); };
+  bar.appendChild(x);
+}
+
 function catDeClaveTemario(key){
   key = String(key);
   const mb = key.match(/^b(\d+)-\d+(?:-(?:armas|explosivos))?$/);
@@ -2772,6 +2877,7 @@ function limpiarDayTicksCategoria(cat, fechaISO){
 }
 function reiniciarCategorias(cats, fechaISO){
   if(!cats.length) return;
+  puntoDeshacerInicio('Empezar de nuevo: '+cats.map(c=>{ const f = REINICIO_CATS.find(x=>x.key===c); return f ? f.label : 'Tests de ortografía y gramática'; }).join(', '));
   try{ exportBackup(); }catch(err){ try{ console.error(err); }catch(e2){} } // copia de seguridad por si cambias de idea
   const planCats = cats.filter(c=> c !== 'ortotests');
   const setC = new Set(cats);
@@ -2797,6 +2903,7 @@ function reiniciarCategorias(cats, fechaISO){
   invalidatePlan();
   scheduleSave();
   renderAll();
+  puntoDeshacerFin();
   const etiquetas = cats.map(c=>{ const f = REINICIO_CATS.find(x=>x.key===c); return f ? f.label : 'Tests de ortografía y gramática'; });
   showToast('Empieza de nuevo el '+formatFechaEs(fechaISO)+': '+etiquetas.join(', ')+(nArchivados ? ' · '+nArchivados+' tema'+(nArchivados!==1?'s':'')+' con notas archivados' : ''));
 }
@@ -5151,6 +5258,10 @@ function psicoEspFechas(){
 function psicoEspAsignacion(){
   const fechas = psicoEspFechas(), porFecha = {};
   const nh = (state.psicoEsp && state.psicoEsp.noHecho) || {};
+  // Una marca «NO hecho» solo tiene sentido mientras ese día sea de recuperación. Si el día dejó de serlo
+  // (se cambió a estudio/descanso…) la marca se olvida; si no, al volver a poner ese día como recuperación
+  // reaparecía en silencio y el mismo apartado se repetía en el día siguiente.
+  Object.keys(nh).forEach(f=>{ if(fechas.indexOf(f) < 0) delete nh[f]; });
   let p = 0;
   for(let i=0; i<fechas.length && p<PSICO_ESPECIALES.length; i++){
     porFecha[fechas[i]] = p;
@@ -5204,7 +5315,12 @@ function recDiaResumenEl(fechaISO){
   const esp = psicoEspDe(fechaISO);
   const box = document.createElement('div'); box.className = 'rec-dia-resumen';
   if(!l.length && !esp){ box.textContent = 'Nada asignado'; return box; }
-  if(esp){ const r = document.createElement('div'); r.className='rec-dia-resumen-it'; r.textContent = '★ Psico esp. '+(esp.idx+1)+'/'+PSICO_ESPECIALES.length; box.appendChild(r); }
+  if(esp){
+    const r = document.createElement('div'); r.className='rec-dia-resumen-it';
+    const noHecho = !!(state.psicoEsp && state.psicoEsp.noHecho && state.psicoEsp.noHecho[fechaISO]);
+    r.textContent = '★ Psico esp. '+(esp.idx+1)+'/'+PSICO_ESPECIALES.length+(noHecho ? ' · NO hecho (pasa al siguiente día)' : '');
+    box.appendChild(r);
+  }
   l.slice(0, esp ? 2 : 3).forEach(x=>{
     const r = document.createElement('div'); r.className = 'rec-dia-resumen-it'+(x.s.recuperado ? ' hecho' : '');
     r.textContent = (x.s.recuperado ? '✓ ' : '• ')+x.label;
@@ -6873,11 +6989,158 @@ function getClaseMateriasDef(){
    ========================================================================== */
 let _claseOccCache = null;
 function invalidarClasesDerivadas(){ _claseOccCache = null; }
+
+/* ===================== EMPEZAR DE NUEVO LAS CLASES (por materia) =====================
+   Igual que con el temario, pero para la pestaña «Clases». Como esa pestaña se calcula entera a partir del
+   calendario de clases (state.claseCal), aquí NO se borra nada: cada materia guarda una fecha de inicio en
+   state.settings.reiniciosClases[materia] (lista de fechas «YYYY-MM-DD») y computeClasesDesdeCalendario() solo
+   cuenta las clases de esa materia desde la fecha más reciente que ya haya llegado. Las clases anteriores siguen
+   en el calendario de clases con sus notas, y el reinicio se puede quitar desde el mismo diálogo para volver atrás. */
+const REINICIO_CLASES_CATS = [
+  {key:'conocimientos', label:'Conocimientos (temas 1–23)'},
+  {key:'ingles',        label:'Inglés (lessons)'},
+  {key:'psico',         label:'Psicotécnicos (incluidos los escritos a mano)'},
+  {key:'ortoGram',      label:'Ortografía y gramática'},
+  {key:'seminarios',    label:'Seminarios'}
+];
+function inicioClasesCat(cat){
+  const l = state && state.settings && state.settings.reiniciosClases && state.settings.reiniciosClases[cat];
+  if(!Array.isArray(l) || !l.length) return '';
+  const hoy = hoyLocalISO();
+  let r = '';
+  l.forEach(f=>{ if(f <= hoy && f > r) r = f; });
+  return r;
+}
+function bannerReinicioClases(cat, ocultasSeminarios){
+  const f = inicioClasesCat(cat);
+  if(!f) return null;
+  const n = cat === 'seminarios' ? (ocultasSeminarios || 0) : ((computeClasesDesdeCalendario().ocultas || {})[cat] || 0);
+  const div = document.createElement('div'); div.className = 'clase-info-total'; div.style.margin = '10px 0';
+  div.textContent = '↺ Empezaste de nuevo el '+formatFechaEs(f)+': solo cuentan las clases desde ese día.'+
+    (n ? ' Las '+n+' anterior'+(n!==1?'es':'')+' siguen en el calendario de clases, con sus notas.' : '');
+  return div;
+}
+function cerrarReinicioClasesModal(){
+  const el = document.getElementById('reinicioClasesModal');
+  if(el) el.remove();
+}
+function reiniciarClases(cats, fechaISO){
+  puntoDeshacerInicio('Empezar de nuevo las clases: '+cats.map(c=> (REINICIO_CLASES_CATS.find(x=>x.key===c) || {label:c}).label).join(', '));
+  if(!state.settings.reiniciosClases) state.settings.reiniciosClases = {};
+  cats.forEach(c=>{
+    const l = state.settings.reiniciosClases[c] = Array.isArray(state.settings.reiniciosClases[c]) ? state.settings.reiniciosClases[c] : [];
+    if(l.indexOf(fechaISO) < 0) l.push(fechaISO);
+    l.sort();
+  });
+  invalidarClasesDerivadas();
+  scheduleSave();
+  renderAll();
+  puntoDeshacerFin();
+  const etq = cats.map(c=> (REINICIO_CLASES_CATS.find(x=>x.key===c) || {label:c}).label);
+  showToast('Las clases empiezan de nuevo el '+formatFechaEs(fechaISO)+': '+etq.join(', '));
+}
+function quitarReinicioClases(cat, fechaISO){
+  const l = state.settings.reiniciosClases && state.settings.reiniciosClases[cat];
+  if(!Array.isArray(l)) return;
+  const i = l.indexOf(fechaISO);
+  if(i > -1) l.splice(i, 1);
+  if(!l.length) delete state.settings.reiniciosClases[cat];
+  invalidarClasesDerivadas();
+  scheduleSave();
+  renderAll();
+}
+function abrirReinicioClases(catPre){
+  cerrarReinicioClasesModal();
+  const back = document.createElement('div'); back.className = 'modal-backdrop open'; back.id = 'reinicioClasesModal';
+  const modal = document.createElement('div'); modal.className = 'modal';
+  modal.setAttribute('role','dialog'); modal.setAttribute('aria-modal','true'); modal.setAttribute('aria-label','Empezar de nuevo las clases');
+  back.appendChild(modal);
+  back.addEventListener('click', e=>{ if(e.target === back) cerrarReinicioClasesModal(); });
+
+  const close = document.createElement('button'); close.className = 'modal-close'; close.textContent = '✕';
+  close.setAttribute('aria-label','Cerrar: Empezar de nuevo las clases'); close.onclick = cerrarReinicioClasesModal;
+  modal.appendChild(close);
+  const h = document.createElement('h3'); h.textContent = '↺ Empezar de nuevo las clases'; modal.appendChild(h);
+  const sub = document.createElement('div'); sub.className = 'sub';
+  sub.textContent = 'Marca las materias que quieres reiniciar y desde qué día. Las demás siguen igual.';
+  modal.appendChild(sub);
+
+  const fRow = document.createElement('div'); fRow.style.cssText = 'margin:12px 0;display:flex;gap:8px;align-items:center;flex-wrap:wrap;';
+  const fLbl = document.createElement('label'); fLbl.textContent = 'Desde el día'; fLbl.htmlFor = 'reinicioClasesFecha';
+  fLbl.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.04em;';
+  const fIn = document.createElement('input'); fIn.type = 'date'; fIn.id = 'reinicioClasesFecha'; fIn.value = hoyLocalISO();
+  fIn.setAttribute('aria-label','Día desde el que empiezan de nuevo las clases');
+  fIn.style.cssText = 'padding:8px;font-family:var(--font-mono);background:var(--bg-panel-2);border:1px solid var(--line);color:var(--cream);border-radius:2px;';
+  fRow.appendChild(fLbl); fRow.appendChild(fIn); modal.appendChild(fRow);
+
+  const checks = {};
+  const atajos = document.createElement('div'); atajos.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;';
+  [['Todas', REINICIO_CLASES_CATS.map(c=>c.key)], ['Ninguna', []]].forEach(([txt, keys])=>{
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost small'; b.textContent = txt;
+    b.onclick = ()=>{ Object.keys(checks).forEach(k=>{ checks[k].checked = keys.indexOf(k) >= 0; }); };
+    atajos.appendChild(b);
+  });
+  modal.appendChild(atajos);
+  const lista = document.createElement('div'); lista.style.cssText = 'display:grid;gap:6px;margin-bottom:12px;';
+  REINICIO_CLASES_CATS.forEach(c=>{
+    const lab = document.createElement('label');
+    lab.style.cssText = 'display:flex;align-items:center;gap:8px;cursor:pointer;font-size:14px;text-transform:none;font-family:var(--font-body);color:var(--cream);';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.style.cssText = 'width:16px;height:16px;';
+    cb.checked = (c.key === catPre);
+    checks[c.key] = cb;
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(c.label));
+    lista.appendChild(lab);
+  });
+  modal.appendChild(lista);
+
+  const info = document.createElement('div'); info.className = 'sub'; info.style.cssText = 'font-size:12px;line-height:1.5;margin-bottom:12px;';
+  info.innerHTML = '<strong>Qué pasa:</strong> en la pestaña Clases, esas materias vuelven a la vuelta 1 y solo cuentan las clases desde ese día. '+
+    '<strong>No se borra nada</strong>: las clases anteriores y sus notas siguen en el calendario de clases, y puedes quitar el reinicio aquí abajo cuando quieras.';
+  modal.appendChild(info);
+
+  const go = document.createElement('button'); go.type = 'button'; go.className = 'btn danger'; go.textContent = 'Empezar de nuevo';
+  go.onclick = ()=>{
+    const cats = Object.keys(checks).filter(k=> checks[k].checked);
+    const fecha = fIn.value;
+    if(!cats.length){ showToast('Marca al menos una materia'); return; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha)){ showToast('Elige un día válido'); return; }
+    cerrarReinicioClasesModal();
+    reiniciarClases(cats, fecha);
+  };
+  const cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'btn ghost'; cancel.style.marginLeft = '8px'; cancel.textContent = 'Cancelar';
+  cancel.onclick = cerrarReinicioClasesModal;
+  modal.appendChild(go); modal.appendChild(cancel);
+
+  // Reinicios que ya hay: se pueden quitar (las clases vuelven a contar desde el principio).
+  const activos = [];
+  REINICIO_CLASES_CATS.forEach(c=>{
+    const l = state.settings.reiniciosClases && state.settings.reiniciosClases[c.key];
+    (Array.isArray(l) ? l : []).forEach(f=> activos.push({cat:c, fecha:f}));
+  });
+  if(activos.length){
+    const box = document.createElement('div'); box.style.cssText = 'margin-top:14px;padding-top:12px;border-top:1px solid var(--line);';
+    const t = document.createElement('div'); t.style.cssText = 'font-family:var(--font-mono);font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--cream-dim);margin-bottom:8px;';
+    t.textContent = 'Reinicios activos'; box.appendChild(t);
+    activos.forEach(a=>{
+      const row = document.createElement('div'); row.style.cssText = 'display:flex;gap:8px;align-items:center;justify-content:space-between;font-size:13px;margin-bottom:6px;';
+      const s = document.createElement('span'); s.textContent = a.cat.label+' · desde el '+formatFechaEs(a.fecha)+(a.fecha > hoyLocalISO() ? ' (aún no ha llegado)' : '');
+      const q = document.createElement('button'); q.type = 'button'; q.className = 'btn ghost small'; q.textContent = 'Quitar';
+      q.title = 'Quitar este reinicio: las clases anteriores vuelven a contar';
+      q.onclick = ()=>{ quitarReinicioClases(a.cat.key, a.fecha); abrirReinicioClases(catPre); };
+      row.appendChild(s); row.appendChild(q); box.appendChild(row);
+    });
+    modal.appendChild(box);
+  }
+  document.body.appendChild(back);
+}
 // Recorre todo el calendario de clases una sola vez y devuelve, por materia y tema,
 // la lista de días en los que hay clase registrada de ese tema.
 function computeClasesDesdeCalendario(){
   if(_claseOccCache) return _claseOccCache;
-  const res = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:{}, psicoExtra:{}};
+  const res = {conocimientos:{}, ingles:{}, psico:{}, ortoGram:{}, psicoExtra:{}, ocultas:{conocimientos:0, ingles:0, psico:0, ortoGram:0}};
+  // «Empezar de nuevo» una materia (ver REINICIO_CLASES_CATS): las clases ANTERIORES a su fecha de inicio no
+  // cuentan aquí (siguen en el calendario de clases, con sus notas, sin borrarse).
+  const ini = {conocimientos:inicioClasesCat('conocimientos'), ingles:inicioClasesCat('ingles'), psico:inicioClasesCat('psico'), ortoGram:inicioClasesCat('ortoGram')};
   Object.keys(state.claseCal||{}).forEach(mk=>{
     const mes = state.claseCal[mk] || {};
     Object.keys(mes).forEach(dayStr=>{
@@ -6889,6 +7152,7 @@ function computeClasesDesdeCalendario(){
       const parciales = new Set(Array.isArray(e.parciales) ? e.parciales : []);
       ['conocimientos','ingles','psico'].forEach(cat=>{
         (Array.isArray(e[cat]) ? e[cat] : []).forEach(v=>{
+          if(ini[cat] && fecha < ini[cat]){ res.ocultas[cat]++; return; }
           const id = String(v);
           if(!res[cat][id]) res[cat][id] = [];
           res[cat][id].push({fecha, parcial: parciales.has(claseParcialKey(cat, id))});
@@ -6896,12 +7160,14 @@ function computeClasesDesdeCalendario(){
       });
       (Array.isArray(e.psicoExtra) ? e.psicoExtra : []).forEach(n=>{
         const nombre = (n||'').trim(); if(!nombre) return;
+        if(ini.psico && fecha < ini.psico){ res.ocultas.psico++; return; }
         const key = nombre.toLowerCase();
         if(!res.psicoExtra[key]) res.psicoExtra[key] = {nombre, fechas:[]};
         res.psicoExtra[key].fechas.push(fecha);
       });
       [['orto','Ortografía y gramática'], ['gram','Ortografía y gramática']].forEach(([arrKey, tipoLabel])=>{
         (Array.isArray(e[arrKey]) ? e[arrKey] : []).forEach(n=>{
+          if(ini.ortoGram && fecha < ini.ortoGram){ res.ocultas.ortoGram++; return; }
           const nombre = (n||'').trim();
           const visible = nombre || 'Clase de ortografía y gramática sin nombre';
           const key = 'orto|'+visible.toLowerCase();
@@ -6970,7 +7236,7 @@ function buildClaseInfoRow(cat, id){
 }
 /* Cabecera común de las secciones de la pestaña Clases, explicando que esto es un
    resumen de solo lectura y con un botón para ir al calendario de clases. */
-function buildClasesInfoIntro(){
+function buildClasesInfoIntro(cat){
   const box = document.createElement('div'); box.className='clase-info-intro';
   const txt = document.createElement('div');
   txt.innerHTML = 'Este apartado es <strong>informativo</strong>: se rellena solo a partir del <strong>Calendario de clases</strong>. '+
@@ -6985,6 +7251,13 @@ function buildClasesInfoIntro(){
     window.scrollTo({top:0, behavior:'smooth'});
   };
   box.appendChild(btn);
+  const btnRe = document.createElement('button'); btnRe.type='button'; btnRe.className='tick-add'; btnRe.style.cssText = 'margin-top:8px;margin-left:8px;';
+  btnRe.textContent = '↺ Empezar de nuevo las clases';
+  btnRe.title = 'Elige qué materias de clase vuelven a empezar desde un día. Las clases anteriores no se borran.';
+  btnRe.onclick = ()=> abrirReinicioClases(cat);
+  box.appendChild(btnRe);
+  const ban = cat ? bannerReinicioClases(cat) : null;
+  if(ban) box.appendChild(ban);
   return box;
 }
 /* Las tres secciones de temas numerados (Conocimientos, Inglés, Psicotécnicos) se pintan
@@ -6995,7 +7268,7 @@ function renderClasesSeccionInfo(hostId, sectionKey, titulo, cat, items){
   if(!host) return;
   const hoy = hoyLocalISO();
   renderAccordionSection(host, sectionKey, titulo, (body)=>{
-    body.appendChild(buildClasesInfoIntro());
+    body.appendChild(buildClasesInfoIntro(cat));
 
     let conAlgo = 0;
     const grid = document.createElement('div'); grid.className='flat-grid';
@@ -7046,8 +7319,10 @@ function renderClasesPsico(){
    Lista de todos los seminarios del calendario de clases: fecha, de qué trataron y sus notas.
    Solo lee state.claseCal; para editar uno se abre el día con el botón «Abrir el día». */
 var _seminarioFiltro = '';
-function listarSeminarios(){
+function listarSeminarios(contarOcultos){
   const out = [];
+  const iniSem = inicioClasesCat('seminarios');
+  let ocultos = 0;
   Object.keys(state.claseCal||{}).forEach(mk=>{
     const mes = state.claseCal[mk] || {};
     Object.keys(mes).forEach(ds=>{
@@ -7055,11 +7330,13 @@ function listarSeminarios(){
       if(!e || !Array.isArray(e.seminarios)) return;
       e.seminarios.forEach(sm=>{
         if(!sm) return;
+        if(iniSem && (mk+'-'+pad2(Number(ds))) < iniSem){ ocultos++; return; }
         out.push({mk, d:Number(ds), fecha: mk+'-'+pad2(Number(ds)), titulo:String(sm.titulo||'').trim(), notas:String(sm.notas||'').trim()});
       });
     });
   });
   out.sort((a,b)=> b.fecha.localeCompare(a.fecha)); // el más reciente primero
+  out.ocultos = ocultos; // seminarios anteriores al reinicio (siguen en el calendario)
   return out;
 }
 function renderClasesSeminarios(){
@@ -7071,6 +7348,8 @@ function renderClasesSeminarios(){
     intro.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;';
     intro.textContent = 'Todos los seminarios que has registrado en el calendario de clases, con sus notas. Los añades desde el calendario (Seminario).';
     body.appendChild(intro);
+    const banSem = bannerReinicioClases('seminarios', todos.ocultos);
+    if(banSem) body.appendChild(banSem);
     if(!todos.length){
       const empty = document.createElement('div'); empty.className='empty-state';
       empty.textContent = 'Todavía no hay ningún seminario en el calendario de clases.';
@@ -7122,7 +7401,7 @@ function renderClasesOrtoGram(){
   const host = document.getElementById('clasesOrtoGramHost');
   if(!host) return;
   renderAccordionSection(host, 'clasesOrtoGram', 'Ortografía y gramática (clases)', (body)=>{
-    body.appendChild(buildClasesInfoIntro());
+    body.appendChild(buildClasesInfoIntro('ortoGram'));
 
     const hoy = hoyLocalISO();
     const derivadas = computeClasesDesdeCalendario().ortoGram;
@@ -14292,6 +14571,15 @@ function vaciarCalendarioClases(){
   alert('Calendario de clases vaciado. Ya puedes montarlo de nuevo desde cero.');
 }
 document.getElementById('vaciarClasesCalBtn').addEventListener('click', vaciarCalendarioClases);
+(function(){
+  const vaciarBtn = document.getElementById('vaciarClasesCalBtn');
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'cal-export-btn'; b.id = 'reinicioClasesCalBtn';
+  b.textContent = '↺ Empezar de nuevo las clases';
+  b.title = 'Elige qué materias de clase vuelven a empezar desde un día (no borra nada)';
+  b.addEventListener('click', ()=> abrirReinicioClases());
+  vaciarBtn.parentNode.insertBefore(b, vaciarBtn);
+})();
 function exportarTodoCalendarioComoImagen(){ return exportarComoImagen('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
 function exportarTodoCalendarioComoPDF(){ return exportarComoPDF('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
 document.getElementById('exportTodoCalImageBtn').addEventListener('click', exportarTodoCalendarioComoImagen);
@@ -14873,6 +15161,7 @@ function renderAll(){
   renderPersonalCalendar();
   aplicarContadores(document);
   renderBackupReminder();
+  renderUndoBar();
   renderVistaSimpleBox();
   renderCiclo();
   renderRitmo();
