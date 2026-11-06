@@ -3589,7 +3589,16 @@ function dayCompletionBadge(info){
    Se usa para saber si hace falta reconstruir su nodo DOM o si podemos dejarlo tal
    cual estaba (evita repintar los ~28-31 días del mes por cada tick que se marca). */
 function dayRenderSig(info, dayStatusRaw, isToday, noteTxt, fechaISO){
-  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20) + '|r' + (fechaISO ? dayRecMarca(fechaISO) : '');
+  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20) + '|r' + (fechaISO ? dayRecMarca(fechaISO) : '') + '|pe' + (fechaISO ? dayPsicoEspMarca(fechaISO) : '');
+}
+// Qué psicotécnico especial toca ese día (y si está «NO hecho»). Depende de TODOS los días de recuperación
+// anteriores, no solo de este, así que tiene que ir en la firma: si no, al marcar un día de recuperación
+// anterior las celdas posteriores se reutilizaban sin repintar y seguían mostrando el apartado antiguo.
+function dayPsicoEspMarca(fechaISO){
+  const e = psicoEspDe(fechaISO);
+  if(!e) return '';
+  const nh = (state.psicoEsp && state.psicoEsp.noHecho && state.psicoEsp.noHecho[fechaISO]) ? 1 : 0;
+  return e.idx + ':' + nh;
 }
 // Hace que una celda/fila de calendario (una <div> clicable con el ratón) también se pueda
 // abrir con teclado (Enter o Espacio) y la anuncia como activable a un lector de pantalla.
