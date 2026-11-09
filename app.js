@@ -2346,6 +2346,9 @@ function ortoSesTxt(ses, compact){
   if(compact) return 'Sesión '+ses.n;
   return 'Sesión '+ses.n+' de '+ses.total+(ses.nombre ? ' · '+ses.nombre : '')+' · Vuelta '+ses.vuelta+(ses.pasada>1 ? ' · repaso '+ses.pasada : '');
 }
+var _ortoSesSel = -1; // sesión abierta en el editor de la tarjeta «Sesión diaria»
+function ortoSesSumaDias(iso, n){ const p = iso.split('-').map(Number); return new Date(Date.UTC(p[0], p[1]-1, p[2]+n)).toISOString().slice(0,10); }
+function ortoSesDiasEntre(a, b){ const A = a.split('-').map(Number), B = b.split('-').map(Number); return Math.round((Date.UTC(B[0],B[1]-1,B[2]) - Date.UTC(A[0],A[1]-1,A[2]))/86400000); }
 function ortoSesEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
 function ortoSesDeFecha(iso){
   try{ const p = computePlan(); const e = (p[iso.slice(0,7)]||{})[Number(iso.slice(8))]; return (e && e.ortoSes) || null; }catch(err){ return null; }
@@ -7554,19 +7557,69 @@ function renderOrtoSesionesCard(body){
   const chips = document.createElement('div'); chips.className='clase-multi-chips';
   vAct.sesiones.forEach((x,i)=>{
     const chip = document.createElement('span'); chip.className='clase-multi-chip'; chip.style.cursor='pointer';
-    chip.title = 'Pulsa para poner o cambiar el nombre';
+    chip.title = 'Pulsa para cambiar el nombre o la fecha desde la que está disponible';
     const futura = x.alta > hoy;
     chip.textContent = (i+1)+(x.nombre ? ' · '+x.nombre : '')+(futura ? ' · desde '+formatFechaEs(x.alta) : '');
     if(futura) chip.style.opacity = '0.6';
-    chip.onclick = ()=>{
-      const nv = prompt('Nombre de la sesión '+(i+1)+' (vacío = sin nombre):', x.nombre||'');
-      if(nv === null) return;
-      x.nombre = ortoSesLimpiaNombre(nv);
-      ortoSesCambio();
-    };
+    if(i === _ortoSesSel){ chip.style.outline = '2px solid var(--gold, #c9a227)'; chip.style.opacity = '1'; }
+    chip.onclick = ()=>{ _ortoSesSel = (_ortoSesSel === i ? -1 : i); renderClasesOrtoGram(); };
     chips.appendChild(chip);
   });
   card.appendChild(chips);
+
+  // Editor de la sesión seleccionada: nombre y «disponible desde»
+  if(_ortoSesSel >= 0 && _ortoSesSel < vAct.sesiones.length){
+    const i = _ortoSesSel, x = vAct.sesiones[i];
+    const editable = x.alta > hoy;                       // las ya disponibles no se mueven: no se reescriben días pasados
+    const minF = hoy > vAct.desde ? hoy : vAct.desde;
+    const panel = document.createElement('div');
+    panel.style.cssText = 'margin-top:10px;padding:10px;border:1px solid var(--border, #888);border-radius:8px;display:flex;flex-direction:column;gap:8px;';
+    const th = document.createElement('div'); th.className='clase-info-total'; th.textContent = 'Sesión '+(i+1);
+    panel.appendChild(th);
+    const mini = (txt, el)=>{
+      const w = document.createElement('label'); w.style.cssText='display:flex;flex-direction:column;gap:2px;font-family:var(--font-mono);font-size:11px;color:var(--muted);';
+      w.appendChild(document.createTextNode(txt)); w.appendChild(el); return w;
+    };
+    const nIn = document.createElement('input'); nIn.type='text'; nIn.maxLength=80; nIn.value = x.nombre || ''; nIn.placeholder='Sin nombre';
+    panel.appendChild(mini('Nombre', nIn));
+    const fIn = document.createElement('input'); fIn.type='date'; fIn.value = x.alta; fIn.min = minF; fIn.disabled = !editable;
+    panel.appendChild(mini('Disponible desde', fIn));
+    let chk = null;
+    if(!editable){
+      const nota = document.createElement('div'); nota.style.cssText='font-family:var(--font-mono);font-size:11px;color:var(--muted);';
+      nota.textContent = 'Esta sesión ya está disponible desde el '+formatFechaEs(x.alta)+': su fecha no se puede cambiar para no alterar días ya pasados. El nombre sí.';
+      panel.appendChild(nota);
+    } else if(i < vAct.sesiones.length-1){
+      const lab = document.createElement('label'); lab.style.cssText='display:flex;gap:6px;align-items:center;font-size:13px;';
+      chk = document.createElement('input'); chk.type='checkbox'; chk.checked = true;
+      lab.appendChild(chk);
+      lab.appendChild(document.createTextNode('Mover también las siguientes (mantienen la separación que tienen entre ellas)'));
+      panel.appendChild(lab);
+    }
+    const bt = document.createElement('div'); bt.style.cssText='display:flex;gap:8px;flex-wrap:wrap;';
+    const ok = document.createElement('button'); ok.type='button'; ok.className='tick-add'; ok.textContent='Guardar';
+    ok.onclick = ()=>{
+      x.nombre = ortoSesLimpiaNombre(nIn.value);
+      if(editable && /^\d{4}-\d{2}-\d{2}$/.test(fIn.value) && fIn.value !== x.alta){
+        let D = fIn.value; if(D < minF) D = minF;
+        const delta = ortoSesDiasEntre(x.alta, D);
+        if(chk && chk.checked){
+          for(let j=i+1;j<vAct.sesiones.length;j++){ const y = vAct.sesiones[j]; y.alta = ortoSesSumaDias(y.alta, delta); }
+        }
+        x.alta = D;
+        // Se mantiene el orden: las siguientes nunca antes que ésta, las anteriores nunca después.
+        for(let j=i+1;j<vAct.sesiones.length;j++){ if(vAct.sesiones[j].alta < D) vAct.sesiones[j].alta = D; }
+        for(let j=0;j<i;j++){ if(vAct.sesiones[j].alta > D) vAct.sesiones[j].alta = D; }
+      }
+      _ortoSesSel = -1;
+      ortoSesCambio();
+    };
+    const cancel = document.createElement('button'); cancel.type='button'; cancel.className='cal-export-btn'; cancel.textContent='Cancelar';
+    cancel.onclick = ()=>{ _ortoSesSel = -1; renderClasesOrtoGram(); };
+    bt.appendChild(ok); bt.appendChild(cancel);
+    panel.appendChild(bt);
+    card.appendChild(panel);
+  }
 
   const acciones = document.createElement('div'); acciones.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;';
   if(vAct.sesiones.length > 1){

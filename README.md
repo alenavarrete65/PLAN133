@@ -692,3 +692,12 @@ tarjeta «Sesión diaria» de Clases → Ortografía y gramática). `quitarClase
 `state.claseCal` y borra de las notas del día las líneas con etiqueta `[Ortografía…]` / `[Gramática…]` (los comentarios guardados al añadir
 esas clases). No toca otras materias, seminarios, el resto de notas, el tablón de pendientes, la sesión diaria ni los tests Apto/No apto.
 Pide escribir BORRAR y deja punto de «↩ Deshacer» (`puntoDeshacerInicio()` / `puntoDeshacerFin()`).
+
+### Editar una sesión (nombre y «disponible desde»)
+
+En la lista de sesiones de la tarjeta «Sesión diaria», al pulsar una se abre un editor con su **nombre** y su fecha **Disponible desde**.
+- Solo se puede cambiar la fecha de sesiones que **aún no están disponibles** (`alta` posterior a hoy), y nunca a una fecha pasada: así no se
+  reescriben días ya vividos. En las ya disponibles solo se edita el nombre.
+- Casilla **«Mover también las siguientes»** (activada por defecto): las sesiones posteriores se desplazan los mismos días, manteniendo la separación entre ellas.
+- Siempre se conserva el orden de la lista: si una sesión se mueve más allá de las siguientes, éstas se empujan a su fecha; si se adelanta antes que las
+  anteriores, éstas se traen a su fecha (`ortoSesSumaDias()`, `ortoSesDiasEntre()`, `_ortoSesSel` en `app.js`).
