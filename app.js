@@ -2768,6 +2768,8 @@ function empezarPlanningDeNuevo(mk, d){
    justo antes. Solo se guarda el último reinicio y caduca a los 7 días. Si después del reinicio hiciste otros
    cambios, avisa de que se perderán (se compara una «huella» de los datos justo al terminar el reinicio). */
 const UNDO_REINICIO_DIAS = 7;
+const UNDO_BARRA_HORAS = 2; // la franja de «Deshacer» solo se ve las primeras horas; el botón del calendario sigue 7 días
+let _undoBarTimer = null;
 let _undoPend = null, _undoMem = null, _undoBarOculta = false;
 function _undoClave(){
   let uid = 'x';
@@ -2836,7 +2838,13 @@ function buildBotonDeshacerReinicio(){
 // Franja fija abajo con «Deshacer» mientras haya un reinicio reciente que se pueda deshacer.
 function renderUndoBar(){
   let bar = document.getElementById('undoReinicioBar');
-  const u = _undoBarOculta ? null : leerPuntoDeshacer();
+  let u = _undoBarOculta ? null : leerPuntoDeshacer();
+  if(_undoBarTimer){ clearTimeout(_undoBarTimer); _undoBarTimer = null; }
+  if(u){
+    const restante = u.at + UNDO_BARRA_HORAS*3600000 - Date.now();
+    if(restante <= 0) u = null; // ya pasaron las horas: la franja no vuelve a salir (se puede deshacer desde el calendario)
+    else _undoBarTimer = setTimeout(renderUndoBar, Math.min(restante + 500, 2147483000));
+  }
   if(!u){ if(bar) bar.remove(); return; }
   if(!bar){
     bar = document.createElement('div'); bar.id = 'undoReinicioBar'; bar.setAttribute('role','status');

@@ -710,3 +710,9 @@ se ven en días consecutivos (29, 30, 31…) y después se sigue por donde ibas 
 (`carry.sPos`), y las nuevas también quedan al final de la cola como cualquier otra. En la 1.ª pasada no hay excepción (entran al final de forma natural).
 La sesión excepcional lleva «★ nueva (extra)» (en la rejilla, «★»); si marcas «NO completado», se repite al día siguiente.
 Implementación: `ortoSesPaso()` + `ortoSesLlegada()`; cada sesión añadida a mano guarda `cre` (día en que se añadió) y el carry lleva `sEv` y `sCola`.
+
+### La franja «↩ Deshacer» solo se ve 2 horas
+
+Tras un reinicio o un «Quitar clases…», la franja fija de abajo se muestra como máximo `UNDO_BARRA_HORAS` (2 h) desde que se hizo, y se
+retira sola (también con la app abierta) sin volver a salir al reabrirla. Deshacer sigue disponible 7 días (`UNDO_REINICIO_DIAS`) desde el
+botón **↩ Deshacer el último reinicio** del calendario.
