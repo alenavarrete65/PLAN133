@@ -2234,11 +2234,11 @@ function freshPlanCarry(){
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, blockTurn, azulCount, leveAppear, rs:{}};
+  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, sEv:0, sCola:[], blockTurn, azulCount, leveAppear, rs:{}};
 }
 function clonePlanCarry(c){
   return {
-    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1),
+    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1), sEv:(c.sEv || 0), sCola:(Array.isArray(c.sCola) ? c.sCola.slice() : []),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
     leveAppear: Object.assign({}, c.leveAppear),
@@ -2319,23 +2319,46 @@ function ortoSesInit(){
     v.sesiones = v.sesiones.filter(x=> x && typeof x==='object').map(x=>({
       id: x.id || ortoSesNuevoId(),
       nombre: ortoSesLimpiaNombre(x.nombre),
-      alta: (typeof x.alta==='string' && /^\d{4}-\d{2}-\d{2}$/.test(x.alta)) ? x.alta : v.desde
+      alta: (typeof x.alta==='string' && /^\d{4}-\d{2}-\d{2}$/.test(x.alta)) ? x.alta : v.desde,
+      cre: (typeof x.cre==='string' && /^\d{4}-\d{2}-\d{2}$/.test(x.cre)) ? x.cre : undefined
     }));
     if(!v.sesiones.length) v.sesiones.push({id:ortoSesNuevoId(), nombre:'', alta:v.desde});
     let previa = v.desde; // una sesión nunca puede estar disponible antes que la anterior
     v.sesiones.forEach(x=>{ if(x.alta < previa) x.alta = previa; previa = x.alta; });
   });
 }
+// Día en que una sesión «llega»: desde su fecha de disponibilidad, pero nunca el mismo día en que se añadió (hoy no, mañana).
+function ortoSesLlegada(x){
+  if(x.cre && x.cre >= x.alta) return ortoSesSumaDias(x.cre, 1);
+  return x.alta;
+}
 // Devuelve la sesión que toca en `dayKey` (o null) y avanza el contador `carry` si el día se da por hecho.
+// Excepción: si al llegar una sesión nueva ya estabas en un repaso (2.ª pasada o más), se ve el primer día de estudio
+// tras añadirla, sin perder el sitio: después se sigue por donde ibas (el puntero `sPos` no se mueve ese día).
 function ortoSesPaso(vueltas, carry, dayKey, hecho){
   let vi = -1;
   for(let i=0;i<vueltas.length;i++){ if(vueltas[i].desde <= dayKey) vi = i; }
   if(vi < 0) return null;
   const v = vueltas[vi];
-  if(carry.sV !== v.desde){ carry.sV = v.desde; carry.sPos = 0; carry.sPas = 1; } // empieza la vuelta del profesor
+  if(carry.sV !== v.desde){ carry.sV = v.desde; carry.sPos = 0; carry.sPas = 1; carry.sEv = 0; carry.sCola = []; } // empieza la vuelta del profesor
   const lista = v.sesiones.filter(x=> !x.alta || x.alta <= dayKey);
   if(!lista.length) return null;
   if(carry.sPos >= lista.length){ carry.sPos = 0; carry.sPas++; }  // se acabaron: otra vez desde la 1
+  // ¿Han llegado sesiones nuevas desde el último día de estudio?
+  let k = 0;
+  while(k < v.sesiones.length && ortoSesLlegada(v.sesiones[k]) <= dayKey) k++;
+  if(carry.sEv > k) carry.sEv = k;
+  for(let i=carry.sEv; i<k; i++){
+    if(carry.sPas > 1 && v.sesiones[i].cre) carry.sCola.push(i);  // añadida a mano durante un repaso → verla ya
+  }
+  carry.sEv = k;
+  if(carry.sCola.length){
+    const idx = carry.sCola[0];
+    const x = v.sesiones[idx];
+    const res = {n:idx+1, nombre:x.nombre||'', vuelta:v.vuelta, pasada:carry.sPas, total:lista.length, extra:true};
+    if(hecho) carry.sCola.shift();                                // «NO completado»: se repite mañana
+    return res;
+  }
   const x = lista[carry.sPos];
   const res = {n:carry.sPos+1, nombre:x.nombre||'', vuelta:v.vuelta, pasada:carry.sPas, total:lista.length};
   if(hecho) carry.sPos++;
@@ -2343,8 +2366,8 @@ function ortoSesPaso(vueltas, carry, dayKey, hecho){
 }
 function ortoSesTxt(ses, compact){
   if(!ses) return '';
-  if(compact) return 'Sesión '+ses.n;
-  return 'Sesión '+ses.n+' de '+ses.total+(ses.nombre ? ' · '+ses.nombre : '')+' · Vuelta '+ses.vuelta+(ses.pasada>1 ? ' · repaso '+ses.pasada : '');
+  if(compact) return 'Sesión '+ses.n+(ses.extra ? ' ★' : '');
+  return 'Sesión '+ses.n+' de '+ses.total+(ses.nombre ? ' · '+ses.nombre : '')+' · Vuelta '+ses.vuelta+(ses.extra ? ' · ★ nueva (extra)' : (ses.pasada>1 ? ' · repaso '+ses.pasada : ''));
 }
 var _ortoSesSel = -1; // sesión abierta en el editor de la tarjeta «Sesión diaria»
 function ortoSesSumaDias(iso, n){ const p = iso.split('-').map(Number); return new Date(Date.UTC(p[0], p[1]-1, p[2]+n)).toISOString().slice(0,10); }
@@ -7496,7 +7519,7 @@ function renderOrtoSesionesCard(body){
 
   const exp = document.createElement('div'); exp.className='sub';
   exp.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:6px 0 10px;';
-  exp.textContent = 'Cada día de estudio toca una sesión, en orden. Al acabar la última se vuelve a la 1. Si marcas «NO completado» en ORT, esa sesión se repite al día siguiente. Al añadir una sesión nueva, los días ya pasados no cambian: entra al final de la cola.';
+  exp.textContent = 'Cada día de estudio toca una sesión, en orden. Al acabar la última se vuelve a la 1. Si marcas «NO completado» en ORT, esa sesión se repite al día siguiente. Al añadir una sesión nueva, los días ya pasados no cambian: entra al final de la cola. Si ya estás en un repaso (2.ª pasada o más), la nueva se ve de forma excepcional el siguiente día de estudio (mañana, no hoy) y después sigues por donde ibas.';
   card.appendChild(exp);
 
   const hoySes = ortoSesDeFecha(hoy);
@@ -7538,7 +7561,7 @@ function renderOrtoSesionesCard(body){
     let aviso = '';
     if(desde < ultima){ aviso = 'La sesión anterior ya empieza el '+formatFechaEs(ultima)+', así que las nuevas se colocan desde ese día (siguen el orden).'; desde = ultima; }
     for(let i=0;i<n;i++){
-      vAct.sesiones.push({id:ortoSesNuevoId(), nombre:(n===1 ? ortoSesLimpiaNombre(inp.value) : ''), alta:desde});
+      vAct.sesiones.push({id:ortoSesNuevoId(), nombre:(n===1 ? ortoSesLimpiaNombre(inp.value) : ''), alta:desde, cre:hoy});
     }
     if(aviso) alert(aviso);
     ortoSesCambio();

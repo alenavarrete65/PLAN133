@@ -701,3 +701,12 @@ En la lista de sesiones de la tarjeta «Sesión diaria», al pulsar una se abre 
 - Casilla **«Mover también las siguientes»** (activada por defecto): las sesiones posteriores se desplazan los mismos días, manteniendo la separación entre ellas.
 - Siempre se conserva el orden de la lista: si una sesión se mueve más allá de las siguientes, éstas se empujan a su fecha; si se adelanta antes que las
   anteriores, éstas se traen a su fecha (`ortoSesSumaDias()`, `ortoSesDiasEntre()`, `_ortoSesSel` en `app.js`).
+
+### Sesiones nuevas durante un repaso: se ven mañana de forma excepcional
+
+Si añades sesiones a mano (＋ Añadir) cuando ya estás en un **repaso** (2.ª pasada o más), la primera que te toca al llegar es la nueva: en el
+primer día de estudio **después** del día en que la añadiste (hoy no, mañana; o el día «Disponible desde» si es posterior). Si añades varias,
+se ven en días consecutivos (29, 30, 31…) y después se sigue por donde ibas (4, 5…): el puntero del ciclo no se mueve esos días
+(`carry.sPos`), y las nuevas también quedan al final de la cola como cualquier otra. En la 1.ª pasada no hay excepción (entran al final de forma natural).
+La sesión excepcional lleva «★ nueva (extra)» (en la rejilla, «★»); si marcas «NO completado», se repite al día siguiente.
+Implementación: `ortoSesPaso()` + `ortoSesLlegada()`; cada sesión añadida a mano guarda `cre` (día en que se añadió) y el carry lleva `sEv` y `sCola`.
