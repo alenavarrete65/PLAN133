@@ -684,3 +684,11 @@ admite días pasados, para no reescribir lo ya vivido) y **Cantidad** (hasta 40 
 las clases del mes). Hasta esa fecha las sesiones no tocan (salen atenuadas con «desde …»); a partir de ella entran al final de la
 cola sin saltos. Las fechas nunca bajan a lo largo de la lista: si eliges una anterior a la de la última sesión, se coloca desde la
 de la última (`ortoSesInit()` lo garantiza al cargar).
+
+### Quitar solo las clases de ortografía y gramática del calendario de clases
+
+Botón **🗑️ Quitar clases de ortografía y gramática** (Calendario → Calendario de clases, junto a «Vaciar calendario de clases», y también en la
+tarjeta «Sesión diaria» de Clases → Ortografía y gramática). `quitarClasesOrtoGramCalendario()` vacía `orto` y `gram` de cada día de
+`state.claseCal` y borra de las notas del día las líneas con etiqueta `[Ortografía…]` / `[Gramática…]` (los comentarios guardados al añadir
+esas clases). No toca otras materias, seminarios, el resto de notas, el tablón de pendientes, la sesión diaria ni los tests Apto/No apto.
+Pide escribir BORRAR y deja punto de «↩ Deshacer» (`puntoDeshacerInicio()` / `puntoDeshacerFin()`).

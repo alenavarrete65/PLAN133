@@ -7593,6 +7593,11 @@ function renderOrtoSesionesCard(body){
     ortoSesCambio();
   };
   acciones.appendChild(nv);
+  const quitarCal = document.createElement('button'); quitarCal.type='button'; quitarCal.className='vuelta-del';
+  quitarCal.textContent = '🗑️ Quitar del calendario de clases las de ortografía y gramática';
+  quitarCal.title = 'Solo ortografía y gramática; las demás materias no se tocan. Se puede deshacer.';
+  quitarCal.onclick = quitarClasesOrtoGramCalendario;
+  acciones.appendChild(quitarCal);
   card.appendChild(acciones);
 
   if(vs.length > 1){
@@ -14748,6 +14753,62 @@ function contarClasesRegistradas(){
   });
   return n;
 }
+
+/* Quita del calendario de clases SOLO las clases de ortografía y gramática (y los comentarios que se guardaron con ellas
+   en las notas del día, con etiqueta «[Ortografía y gramática — …]»). Las demás materias, seminarios, notas escritas a mano,
+   el tablón de pendientes, la sesión diaria y los tests Apto/No apto no se tocan. Deja punto de «↩ Deshacer». */
+function ortoGramLineaEtiquetada(l){
+  const t = String(l).trim();
+  return t.indexOf('[Ortografía') === 0 || t.indexOf('[Gramática') === 0;
+}
+function contarClasesOrtoGramCalendario(){
+  let clases = 0, dias = 0, comentarios = 0;
+  Object.keys(state.claseCal||{}).forEach(mk=>{
+    const mes = state.claseCal[mk] || {};
+    Object.keys(mes).forEach(d=>{
+      const e = mes[d]; if(!e) return;
+      const n = (Array.isArray(e.orto) ? e.orto.length : 0) + (Array.isArray(e.gram) ? e.gram.length : 0);
+      if(n){ clases += n; dias++; }
+      if(n && typeof e.nota === 'string') comentarios += e.nota.split('\n').filter(ortoGramLineaEtiquetada).length;
+    });
+  });
+  return {clases, dias, comentarios};
+}
+function quitarClasesOrtoGramCalendario(){
+  const c = contarClasesOrtoGramCalendario();
+  if(!c.clases){
+    alert('No hay ninguna clase de ortografía y gramática en el calendario de clases.');
+    return;
+  }
+  const msg = 'Vas a quitar del calendario de clases las '+c.clases+' clases de ortografía y gramática ('+c.dias+' días)'+
+    (c.comentarios ? ', y '+c.comentarios+' comentario'+(c.comentarios>1?'s':'')+' que se guardó con ellas en las notas del día' : '')+'.\n\n'+
+    'NO se toca: las demás materias, los seminarios, el resto de notas, el tablón de clases pendientes, la sesión diaria ni los tests Apto / No apto.\n\n'+
+    'Podrás deshacerlo con el botón «↩ Deshacer» que aparece abajo.\n\nEscribe BORRAR para confirmar:';
+  const resp = prompt(msg, '');
+  if(resp === null) return;
+  if(resp.trim().toUpperCase() !== 'BORRAR'){
+    alert('No se ha borrado nada (tenías que escribir BORRAR).');
+    return;
+  }
+  puntoDeshacerInicio('Quitar las clases de ortografía y gramática del calendario de clases');
+  Object.keys(state.claseCal||{}).forEach(mk=>{
+    const mes = state.claseCal[mk] || {};
+    Object.keys(mes).forEach(d=>{
+      const e = mes[d]; if(!e) return;
+      const tenia = (Array.isArray(e.orto) && e.orto.length) || (Array.isArray(e.gram) && e.gram.length);
+      e.orto = []; e.gram = [];
+      delete e.orto_synced; delete e.gram_synced;
+      if(tenia && typeof e.nota === 'string'){
+        e.nota = e.nota.split('\n').filter(l=> !ortoGramLineaEtiquetada(l)).join('\n');
+      }
+    });
+  });
+  invalidarClasesDerivadas();
+  scheduleSave();
+  renderAll();
+  puntoDeshacerFin();
+  alert('Hecho: quitadas '+c.clases+' clases de ortografía y gramática del calendario de clases.');
+}
 function vaciarCalendarioClases(){
   const n = contarClasesRegistradas();
   if(!n && !Object.keys(state.claseCal||{}).length){
@@ -14785,6 +14846,12 @@ document.getElementById('vaciarClasesCalBtn').addEventListener('click', vaciarCa
   b.title = 'Elige qué materias de clase vuelven a empezar desde un día (no borra nada)';
   b.addEventListener('click', ()=> abrirReinicioClases());
   vaciarBtn.parentNode.insertBefore(b, vaciarBtn);
+  const q = document.createElement('button');
+  q.type = 'button'; q.className = 'cal-export-btn'; q.id = 'quitarOrtoGramCalBtn';
+  q.textContent = '🗑️ Quitar clases de ortografía y gramática';
+  q.title = 'Quita del calendario de clases solo las de ortografía y gramática (las demás materias no se tocan). Se puede deshacer.';
+  q.addEventListener('click', quitarClasesOrtoGramCalendario);
+  vaciarBtn.parentNode.insertBefore(q, vaciarBtn);
 })();
 function exportarTodoCalendarioComoImagen(){ return exportarComoImagen('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
 function exportarTodoCalendarioComoPDF(){ return exportarComoPDF('todoCalHost', 'todo', ['exportTodoCalImageBtn', 'exportTodoCalPdfBtn']); }
