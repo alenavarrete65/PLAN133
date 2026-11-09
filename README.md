@@ -652,3 +652,35 @@ el siguiente examen oficial de ortografía del índice (51 en total, Guardias 20
 vuelta es **Apto / No apto** (`mode: 'apto' | 'no_apto' | 'pendiente'`). Va en el calendario, en el modal del día,
 en «Temario y notas», en Progreso (pastillas Apto / No apto por vuelta) y en «Editar temario». Es independiente
 de la tarea «Orto-grama» de siempre y de los tests Apto/No apto de la sección «Ortografía y gramática».
+
+
+## Sesión diaria de ortografía y gramática (una clase al día, automática)
+
+La tarea **ORT / Orto-grama** de cada día de estudio ahora dice qué sesión toca: «Orto-grama · Sesión 7 de 28 · Vuelta 1»
+(en la rejilla del calendario, en la lista, en la ficha del día y en el resumen de «Hoy»).
+
+- **Cómo avanza** (`ortoSesPaso()`, dentro de `computePlan()`): una sesión por **día de estudio** (descanso, trabajo,
+  recuperación y «sin horario» no avanzan), en orden 1, 2, 3… Al acabar la última vuelve a la 1 (se indica «repaso 2»,
+  «repaso 3»…). Si marcas «NO completado» en ORT, esa sesión se repite el siguiente día de estudio, igual que el resto de tareas.
+- **Añadir sesiones:** Clases → Ortografía y gramática → tarjeta «Sesión diaria» → **＋ Añadir sesión**. Nombre opcional;
+  pulsa una sesión de la lista para ponerle o cambiarle el nombre. «Quitar la última» es solo para deshacer un error.
+- **Lo ya vivido no cambia:** cada sesión guarda el día en que se añadió (`alta`). Un día solo ve las sesiones con `alta`
+  anterior o igual a ese día, así que añadir la sesión 29 nunca reescribe días pasados: entra al final de la cola (si la
+  añades antes de acabar la pasada, toca justo después de la 28; si ya empezó el repaso, toca al llegar al final de él).
+- **Vuelta del profesor:** cuando el profesor empiece otra vez desde la sesión 1, pulsa **↺ Empezar la vuelta 2 del
+  profesor** (eliges el día). Desde esa fecha solo cuenta la vuelta nueva (empieza con su sesión 1 y vas añadiendo el
+  resto); las anteriores se guardan, pero dejan de tocar.
+- **Inicio:** 10 de noviembre de 2026, con 28 sesiones creadas (`ORTO_SES_INICIO`, `ORTO_SES_INICIALES` en `app.js`). Si
+  el número real no es 28, añade o quita la última desde la tarjeta.
+- **Datos:** `state.ortoSesiones = {vueltas:[{vuelta, desde, sesiones:[{id, nombre, alta}]}]}`. Se sincroniza y entra en las
+  copias de seguridad. `ortoSesInit()` (desde `normalizeState()`) lo crea y sanea. El contador del ciclo vive en el carry
+  del plan (`sV`, `sPos`, `sPas`), así que se recalcula solo al cambiar datos (`invalidatePlan()`).
+- No es lo mismo que el **calendario de clases** (lo que da el profesor ese día) ni que el **examen de ortografía** (EOR).
+
+### Sesiones con «disponible desde» y alta de varias a la vez
+
+Al añadir sesiones (Clases → Ortografía y gramática → «Sesión diaria») se puede elegir **Disponible desde** (por defecto hoy; no
+admite días pasados, para no reescribir lo ya vivido) y **Cantidad** (hasta 40 de golpe, pensado para cuando el profesor manda
+las clases del mes). Hasta esa fecha las sesiones no tocan (salen atenuadas con «desde …»); a partir de ella entran al final de la
+cola sin saltos. Las fechas nunca bajan a lo largo de la lista: si eliges una anterior a la de la última sesión, se coloca desde la
+de la última (`ortoSesInit()` lo garantiza al cargar).

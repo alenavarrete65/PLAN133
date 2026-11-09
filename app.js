@@ -961,6 +961,7 @@ function normalizeState(){
   if(!state.clases.ingles) state.clases.ingles = {};
   if(!state.clases.psico) state.clases.psico = {};
   if(!state.clases.ortoGram) state.clases.ortoGram = [];
+  ortoSesInit(); // sesión diaria de ortografía y gramática
   // Tiempos: duración predeterminada por tema (minutos) y datos de tiempo por día.
   if(!state.tiempos || typeof state.tiempos!=='object' || Array.isArray(state.tiempos)) state.tiempos = {temas:{}, dias:{}};
   if(!state.tiempos.temas) state.tiempos.temas = {};
@@ -1630,7 +1631,7 @@ const NOMBRES_SECCION = {
   temario:'Temario personalizado',
   months:'Calendario (meses y estados de día)', dayTicks:'Días marcados «NO completado»', notes:'Notas de cada tema',
   ticks:'Vueltas y notas de test', clases:'Clases (Conocimientos, Inglés…)', claseCal:'Calendario de clases',
-  clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
+  ortoSesiones:'Sesiones de ortografía y gramática', clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
   simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', agendaSeries:'Calendario personal (repeticiones)', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
   arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
   settings:'Ajustes'
@@ -2233,11 +2234,11 @@ function freshPlanCarry(){
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, blockTurn, azulCount, leveAppear, rs:{}};
+  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, blockTurn, azulCount, leveAppear, rs:{}};
 }
 function clonePlanCarry(c){
   return {
-    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0),
+    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
     leveAppear: Object.assign({}, c.leveAppear),
@@ -2286,7 +2287,71 @@ function aplicarReiniciosCarry(dayKey, carry){
     }
   });
 }
+
+/* ===================== SESIÓN DIARIA DE ORTOGRAFÍA Y GRAMÁTICA =====================
+   Cada día de estudio toca UNA sesión de las clases de ortografía y gramática, en orden (1, 2, 3…).
+   Al llegar a la última se vuelve a la primera. Las sesiones se añaden desde Clases → Ortografía y
+   gramática cada vez que el profesor da una nueva.
+   Datos: state.ortoSesiones = { vueltas:[ {vuelta:1, desde:'YYYY-MM-DD', sesiones:[{id, nombre, alta:'YYYY-MM-DD'}]} ] }
+   - «vuelta» = vuelta del PROFESOR. Al empezar la siguiente, solo cuenta la nueva (las anteriores se guardan).
+   - «alta» = día en que se añadió la sesión. Un día solo ve las sesiones con alta <= ese día, así que
+     añadir una sesión nueva NUNCA cambia lo que ya tocó en días pasados: se coloca al final de la cola.
+   - El avance se calcula en computePlan() con el mismo criterio que el resto de tareas: si marcas
+     «NO completado» en ORT, esa sesión se repite el siguiente día de estudio. */
+const ORTO_SES_INICIO = '2026-11-10';
+const ORTO_SES_INICIALES = 28;
+function ortoSesLimpiaNombre(n){ return String(n==null?'':n).replace(/[<>"`]/g,'').trim().slice(0,80); }
+function ortoSesNuevoId(){ return 'os'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function ortoSesInit(){
+  const o = state.ortoSesiones;
+  if(!o || typeof o !== 'object' || !Array.isArray(o.vueltas) || !o.vueltas.length){
+    const ses = [];
+    for(let i=1;i<=ORTO_SES_INICIALES;i++) ses.push({id:'os-ini-'+i, nombre:'', alta:ORTO_SES_INICIO});
+    state.ortoSesiones = {vueltas:[{vuelta:1, desde:ORTO_SES_INICIO, sesiones:ses}]};
+    return;
+  }
+  o.vueltas = o.vueltas.filter(v=> v && typeof v.desde==='string' && /^\d{4}-\d{2}-\d{2}$/.test(v.desde));
+  if(!o.vueltas.length){ state.ortoSesiones = null; ortoSesInit(); return; }
+  o.vueltas.sort((a,b)=> a.desde.localeCompare(b.desde));
+  o.vueltas.forEach((v,i)=>{
+    v.vuelta = i+1;
+    if(!Array.isArray(v.sesiones)) v.sesiones = [];
+    v.sesiones = v.sesiones.filter(x=> x && typeof x==='object').map(x=>({
+      id: x.id || ortoSesNuevoId(),
+      nombre: ortoSesLimpiaNombre(x.nombre),
+      alta: (typeof x.alta==='string' && /^\d{4}-\d{2}-\d{2}$/.test(x.alta)) ? x.alta : v.desde
+    }));
+    if(!v.sesiones.length) v.sesiones.push({id:ortoSesNuevoId(), nombre:'', alta:v.desde});
+    let previa = v.desde; // una sesión nunca puede estar disponible antes que la anterior
+    v.sesiones.forEach(x=>{ if(x.alta < previa) x.alta = previa; previa = x.alta; });
+  });
+}
+// Devuelve la sesión que toca en `dayKey` (o null) y avanza el contador `carry` si el día se da por hecho.
+function ortoSesPaso(vueltas, carry, dayKey, hecho){
+  let vi = -1;
+  for(let i=0;i<vueltas.length;i++){ if(vueltas[i].desde <= dayKey) vi = i; }
+  if(vi < 0) return null;
+  const v = vueltas[vi];
+  if(carry.sV !== v.desde){ carry.sV = v.desde; carry.sPos = 0; carry.sPas = 1; } // empieza la vuelta del profesor
+  const lista = v.sesiones.filter(x=> !x.alta || x.alta <= dayKey);
+  if(!lista.length) return null;
+  if(carry.sPos >= lista.length){ carry.sPos = 0; carry.sPas++; }  // se acabaron: otra vez desde la 1
+  const x = lista[carry.sPos];
+  const res = {n:carry.sPos+1, nombre:x.nombre||'', vuelta:v.vuelta, pasada:carry.sPas, total:lista.length};
+  if(hecho) carry.sPos++;
+  return res;
+}
+function ortoSesTxt(ses, compact){
+  if(!ses) return '';
+  if(compact) return 'Sesión '+ses.n;
+  return 'Sesión '+ses.n+' de '+ses.total+(ses.nombre ? ' · '+ses.nombre : '')+' · Vuelta '+ses.vuelta+(ses.pasada>1 ? ' · repaso '+ses.pasada : '');
+}
+function ortoSesEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;'); }
+function ortoSesDeFecha(iso){
+  try{ const p = computePlan(); const e = (p[iso.slice(0,7)]||{})[Number(iso.slice(8))]; return (e && e.ortoSes) || null; }catch(err){ return null; }
+}
 function computePlan(){
+  const ortoVueltas = (state.ortoSesiones && Array.isArray(state.ortoSesiones.vueltas)) ? state.ortoSesiones.vueltas : [];
   const keys = sortedMonthKeys();
   const keysSig = keys.join('|');
   const cacheReusable = !!(_planCache && _planCache.keysSig === keysSig);
@@ -2410,6 +2475,7 @@ function computePlan(){
       if(!ticks.oexam){ carry.oIdx++; }
 
       entry.orto = true;
+      entry.ortoSes = ortoSesPaso(ortoVueltas, carry, dayKey, !ticks.orto);
       if(isTueThu){
         entry.entreno = true;
       } else if(isMonWed){
@@ -3302,7 +3368,7 @@ function buildTasksBlock(d, info, compact){
   if(info.oexam) tasks.appendChild(taskRow('EOR', info.oexam, 'tag-oexam', {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}));
   if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
   if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
-  tasks.appendChild(taskRow('ORT', 'Orto-grama', 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
+  tasks.appendChild(taskRow('ORT', 'Orto-grama'+(info.ortoSes ? ' · '+ortoSesEsc(ortoSesTxt(info.ortoSes, compact)) : ''), 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
   // Test de arrastre: no tiene "tarea pendiente" (no sigue el sistema de vueltas ni el de
   // "marcar como NO completado"), así que solo se muestra como aviso cuando ya hay una nota
   // guardada ese día — igual que la vista previa de la nota de texto, justo debajo.
@@ -3409,7 +3475,7 @@ function renderHomeDash(){
     if(todayInfo.oexam) parts.push('Examen de ortografía: '+todayInfo.oexam);
     if(todayInfo.entreno){ parts.push('Entreno físico'); entrenoHoy = true; }
     if(todayInfo.psico) parts.push('Psicotécnico: '+todayInfo.psico);
-    parts.push('Orto-grama');
+    parts.push('Orto-grama'+(todayInfo.ortoSes ? ' · '+ortoSesTxt(todayInfo.ortoSes) : ''));
     const comp = dayCompletionInfo(todayInfo);
     const doneTxt = comp ? (comp.pending===0 ? 'Día completo ✓' : comp.pending+' tarea'+(comp.pending>1?'s':'')+' pendiente'+(comp.pending>1?'s':'')) : '';
     resumenHtml = '<ul class="home-today-list">'+parts.map(p=>'<li>'+p.replace(/</g,'&lt;')+'</li>').join('')+'</ul>'+
@@ -3992,7 +4058,7 @@ function openDayModal(d, info, modo){
       if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO, 'oexam');
       if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}, null, fechaISO, 'entreno');
       if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, 'psico');
-      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}, fechaISO);
+      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}, fechaISO, info.ortoSes);
     }catch(err){
       // Pase lo que pase con las tareas del día, las notas siguen funcionando: el aviso es
       // solo para saber que ahí ha fallado algo.
@@ -4599,13 +4665,13 @@ function addModalRow(body, tagClass, tag, txt, tickInfo, vueltaInfo, fechaISO, t
    añadir un test de cada uno directamente desde el día, sin ir a esa pestaña; escribe en el
    mismo sitio (state.ortoTests), así que la cuenta de aptos/no aptos ya sale actualizada
    también en «Ortografía y gramática». */
-function addOrtoGramRow(body, tickInfo, fechaISO){
+function addOrtoGramRow(body, tickInfo, fechaISO, ses){
   const row = document.createElement('div'); row.className='modal-row'; row.style.flexWrap='wrap';
   const headWrap = document.createElement('div');
   headWrap.style.cssText = 'display:flex;align-items:center;gap:8px;flex:1;min-width:0;';
   const tagEl = document.createElement('span'); tagEl.className='tag tag-orto'; tagEl.style.marginTop='2px'; tagEl.textContent='ORTO-GRAMA';
   headWrap.appendChild(tagEl);
-  const txtEl = document.createElement('span'); txtEl.style.cssText='font-size:13px;flex:1;'; txtEl.textContent='Ortografía y gramática diaria';
+  const txtEl = document.createElement('span'); txtEl.style.cssText='font-size:13px;flex:1;'; txtEl.textContent='Ortografía y gramática diaria'+(ses ? ' · '+ortoSesTxt(ses) : '');
   headWrap.appendChild(txtEl);
   row.appendChild(headWrap);
   if(fechaISO) row.appendChild(tiempoMiniTarea(fechaISO, 'orto', 'Ortografía y gramática'));
@@ -7406,10 +7472,141 @@ function renderClasesSeminarios(){
   });
 }
 
+
+/* Tarjeta «Sesión diaria»: qué sesión toca hoy y los próximos días, y botón para añadir sesiones. */
+function ortoSesCambio(){
+  invalidatePlan();
+  scheduleSave();
+  renderAll();
+}
+function renderOrtoSesionesCard(body){
+  ortoSesInit();
+  const vs = state.ortoSesiones.vueltas;
+  const vAct = vs[vs.length-1];
+  const hoy = hoyLocalISO();
+  const card = document.createElement('div'); card.className='clase-info-intro'; card.style.marginBottom='14px';
+
+  const tit = document.createElement('div'); tit.className='clase-info-total';
+  const disp = vAct.sesiones.filter(x=> x.alta <= hoy).length;
+  tit.textContent = 'Sesión diaria · Vuelta '+vAct.vuelta+' del profesor · '+disp+' disponibles'+(disp < vAct.sesiones.length ? ' (+'+(vAct.sesiones.length-disp)+' con fecha futura)' : '');
+  card.appendChild(tit);
+
+  const exp = document.createElement('div'); exp.className='sub';
+  exp.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--muted);margin:6px 0 10px;';
+  exp.textContent = 'Cada día de estudio toca una sesión, en orden. Al acabar la última se vuelve a la 1. Si marcas «NO completado» en ORT, esa sesión se repite al día siguiente. Al añadir una sesión nueva, los días ya pasados no cambian: entra al final de la cola.';
+  card.appendChild(exp);
+
+  const hoySes = ortoSesDeFecha(hoy);
+  const lineaHoy = document.createElement('div'); lineaHoy.style.cssText='font-size:14px;margin-bottom:6px;';
+  lineaHoy.innerHTML = '<strong>Hoy:</strong> ' + (hoySes ? ortoSesEsc(ortoSesTxt(hoySes)) : 'sin sesión (hoy no es día de estudio o la sesión diaria todavía no ha empezado).');
+  card.appendChild(lineaHoy);
+  const prox = [];
+  const d0 = new Date();
+  for(let i=1; i<=21 && prox.length<6; i++){
+    const iso = fechaLocalISO(new Date(d0.getFullYear(), d0.getMonth(), d0.getDate()+i));
+    const ses = ortoSesDeFecha(iso);
+    if(ses) prox.push(formatFechaEs(iso)+': Sesión '+ses.n);
+  }
+  if(prox.length){
+    const lp = document.createElement('div'); lp.style.cssText='font-family:var(--font-mono);font-size:12px;color:var(--muted);margin-bottom:10px;';
+    lp.textContent = 'Próximos días: '+prox.join(' · ');
+    card.appendChild(lp);
+  }
+
+  const add = document.createElement('div'); add.style.cssText='display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin:8px 0;';
+  const campo = (txt, el)=>{
+    const w = document.createElement('label'); w.style.cssText='display:flex;flex-direction:column;gap:2px;font-family:var(--font-mono);font-size:11px;color:var(--muted);';
+    w.appendChild(document.createTextNode(txt)); w.appendChild(el); return w;
+  };
+  const inp = document.createElement('input'); inp.type='text'; inp.maxLength=80; inp.placeholder='Nombre (opcional)';
+  inp.setAttribute('aria-label','Nombre de la nueva sesión'); inp.style.cssText='min-width:160px;';
+  const fechaIn = document.createElement('input'); fechaIn.type='date'; fechaIn.value = hoy; fechaIn.min = hoy;
+  fechaIn.setAttribute('aria-label','Disponible desde');
+  const cantIn = document.createElement('input'); cantIn.type='number'; cantIn.min='1'; cantIn.max='40'; cantIn.value='1'; cantIn.style.width='64px';
+  cantIn.setAttribute('aria-label','Cuántas sesiones añadir');
+  const btn = document.createElement('button'); btn.type='button'; btn.className='tick-add';
+  btn.textContent = '＋ Añadir';
+  const anadir = ()=>{
+    let n = parseInt(cantIn.value, 10); if(!(n >= 1)) n = 1; if(n > 40) n = 40;
+    let desde = /^\d{4}-\d{2}-\d{2}$/.test(fechaIn.value) ? fechaIn.value : hoy;
+    if(desde < hoy) desde = hoy;                       // el pasado no se toca
+    if(desde < vAct.desde) desde = vAct.desde;
+    const ultima = vAct.sesiones[vAct.sesiones.length-1].alta;
+    let aviso = '';
+    if(desde < ultima){ aviso = 'La sesión anterior ya empieza el '+formatFechaEs(ultima)+', así que las nuevas se colocan desde ese día (siguen el orden).'; desde = ultima; }
+    for(let i=0;i<n;i++){
+      vAct.sesiones.push({id:ortoSesNuevoId(), nombre:(n===1 ? ortoSesLimpiaNombre(inp.value) : ''), alta:desde});
+    }
+    if(aviso) alert(aviso);
+    ortoSesCambio();
+  };
+  btn.onclick = anadir;
+  inp.onkeydown = (e)=>{ if(e.key==='Enter'){ e.preventDefault(); anadir(); } };
+  add.appendChild(campo('Nombre', inp));
+  add.appendChild(campo('Disponible desde', fechaIn));
+  add.appendChild(campo('Cantidad', cantIn));
+  add.appendChild(btn);
+  card.appendChild(add);
+  const ayuda = document.createElement('div'); ayuda.style.cssText='font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-bottom:6px;';
+  ayuda.textContent = 'Si el profesor te manda las clases del mes, pon la fecha desde la que empiezan y cuántas son: hasta ese día no tocan.';
+  card.appendChild(ayuda);
+
+  const chips = document.createElement('div'); chips.className='clase-multi-chips';
+  vAct.sesiones.forEach((x,i)=>{
+    const chip = document.createElement('span'); chip.className='clase-multi-chip'; chip.style.cursor='pointer';
+    chip.title = 'Pulsa para poner o cambiar el nombre';
+    const futura = x.alta > hoy;
+    chip.textContent = (i+1)+(x.nombre ? ' · '+x.nombre : '')+(futura ? ' · desde '+formatFechaEs(x.alta) : '');
+    if(futura) chip.style.opacity = '0.6';
+    chip.onclick = ()=>{
+      const nv = prompt('Nombre de la sesión '+(i+1)+' (vacío = sin nombre):', x.nombre||'');
+      if(nv === null) return;
+      x.nombre = ortoSesLimpiaNombre(nv);
+      ortoSesCambio();
+    };
+    chips.appendChild(chip);
+  });
+  card.appendChild(chips);
+
+  const acciones = document.createElement('div'); acciones.style.cssText='display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;';
+  if(vAct.sesiones.length > 1){
+    const del = document.createElement('button'); del.type='button'; del.className='vuelta-del';
+    del.textContent = '✕ Quitar la última (sesión '+vAct.sesiones.length+')';
+    del.onclick = ()=>{
+      if(!confirm('¿Quitar la sesión '+vAct.sesiones.length+'? Solo úsalo si la añadiste por error.')) return;
+      vAct.sesiones.pop();
+      ortoSesCambio();
+    };
+    acciones.appendChild(del);
+  }
+  const nv = document.createElement('button'); nv.type='button'; nv.className='tick-add';
+  nv.textContent = '↺ Empezar la vuelta '+(vAct.vuelta+1)+' del profesor';
+  nv.title = 'Cuando el profesor empiece otra vez desde la sesión 1: solo se verá la nueva vuelta.';
+  nv.onclick = ()=>{
+    const f = prompt('¿Desde qué día empieza la vuelta '+(vAct.vuelta+1)+'? (AAAA-MM-DD)', hoy);
+    if(f === null) return;
+    const fecha = f.trim();
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fecha) || isNaN(new Date(fecha+'T00:00:00').getTime())){ alert('Fecha no válida. Usa el formato AAAA-MM-DD.'); return; }
+    if(fecha <= vAct.desde){ alert('Tiene que ser posterior al inicio de la vuelta actual ('+vAct.desde+').'); return; }
+    if(!confirm('Desde el '+formatFechaEs(fecha)+' solo contará la vuelta '+(vAct.vuelta+1)+', empezando por su sesión 1. Las sesiones de la vuelta '+vAct.vuelta+' se guardan pero dejan de tocar. ¿Seguro?')) return;
+    vs.push({vuelta:vAct.vuelta+1, desde:fecha, sesiones:[{id:ortoSesNuevoId(), nombre:'', alta:fecha}]});
+    ortoSesCambio();
+  };
+  acciones.appendChild(nv);
+  card.appendChild(acciones);
+
+  if(vs.length > 1){
+    const ant = document.createElement('div'); ant.style.cssText='font-family:var(--font-mono);font-size:11px;color:var(--muted);margin-top:8px;';
+    ant.textContent = 'Vueltas anteriores guardadas: '+vs.slice(0,-1).map(v=> 'Vuelta '+v.vuelta+' ('+v.sesiones.length+' sesiones, desde '+formatFechaEs(v.desde)+')').join(' · ');
+    card.appendChild(ant);
+  }
+  body.appendChild(card);
+}
 function renderClasesOrtoGram(){
   const host = document.getElementById('clasesOrtoGramHost');
   if(!host) return;
   renderAccordionSection(host, 'clasesOrtoGram', 'Ortografía y gramática (clases)', (body)=>{
+    renderOrtoSesionesCard(body);
     body.appendChild(buildClasesInfoIntro('ortoGram'));
 
     const hoy = hoyLocalISO();
