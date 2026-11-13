@@ -969,6 +969,8 @@ function normalizeState(){
   if(!state.claseCal) state.claseCal = {};
   // Calendario personal (agenda de tareas con hora y duración): { 'YYYY-MM-DD': [ {id,t,h,d,ok} ] }.
   normalizarAgenda();
+  // Días de baremo: { 'YYYY-MM-DD': [ {id, materia, tema, nota} ] }.
+  normalizarBaremo();
   // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
   // de "disponible a partir de") y que aún no has colocado en ningún día del calendario.
   if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
@@ -1634,6 +1636,7 @@ const NOMBRES_SECCION = {
   ortoSesiones:'Sesiones de ortografía y gramática', clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
   simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', agendaSeries:'Calendario personal (repeticiones)', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
   arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
+  baremo:'Estudio de baremo',
   settings:'Ajustes'
 };
 function computeDataSize(){
@@ -1750,6 +1753,7 @@ function exportarCalendarioEstudioICS(){
       if(info.status === 'DESCANSO') summary = 'Descanso';
       else if(info.status === 'TRABAJO') summary = 'Trabajo';
       else if(info.status === 'RECUPERACION'){ summary = 'Recuperación'; desc = (psicoEspDe(fecha) ? ['Psico especial: '+psicoEspDe(fecha).nombre] : []).concat(recuperarDelDia(fecha).map(x=> x.label)).join('\n'); }
+      else if(info.status === 'BAREMO'){ summary = 'Baremo'; desc = baremoDia(fecha).map(e=> [e.materia, e.tema, e.nota].filter(Boolean).join(' · ')).join('\n'); }
       else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
       else {
         summary = 'Estudio: Bloque '+info.bloque+' ('+info.color+')';
@@ -3216,6 +3220,155 @@ function renderNotasArchivo(){
   });
 }
 
+/* ===================== DÍAS DE BAREMO =====================
+   Estado de día «Baremo»: se dedica a materias extra que puntúan en el baremo de la oposición
+   (autoescuela, inglés Cambridge…). No avanza ningún contador del plan (igual que descanso/trabajo)
+   y no genera tareas: solo apuntas, A MANO, lo que estudias.
+   Datos: state.baremo = { 'YYYY-MM-DD': [ {id, materia, tema, nota} ] }  (los tres textos son libres;
+   hace falta al menos uno). Se sincroniza y entra en las copias de seguridad. */
+const BAREMO_SUGERIDAS = ['Autoescuela', 'Inglés Cambridge'];
+function statusLabel(s){
+  return s==='ESTUDIO' ? 'Estudio' : s==='DESCANSO' ? 'Descanso' : s==='TRABAJO' ? 'Trabajo'
+    : s==='RECUPERACION' ? 'Recuperación' : s==='BAREMO' ? 'Baremo' : 'Sin horario';
+}
+function baremoData(){
+  if(!state.baremo || typeof state.baremo !== 'object' || Array.isArray(state.baremo)) state.baremo = {};
+  return state.baremo;
+}
+function baremoNuevoId(){ return 'b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); }
+function baremoTxt(v, max){ return String(v == null ? '' : v).slice(0, max); }
+function normalizarBaremo(){
+  const b = baremoData();
+  Object.keys(b).forEach(f=>{
+    const l = (/^\d{4}-\d{2}-\d{2}$/.test(f) && Array.isArray(b[f])) ? b[f] : [];
+    const limpia = l.filter(e=> e && typeof e === 'object').map(e=>({
+      id: String(e.id || baremoNuevoId()),
+      materia: baremoTxt(e.materia, 80),
+      tema: baremoTxt(e.tema, 160),
+      nota: baremoTxt(e.nota, 3000)
+    })).filter(e=> e.materia.trim() || e.tema.trim() || e.nota.trim());
+    if(limpia.length) b[f] = limpia; else delete b[f];
+  });
+}
+function baremoDia(fecha){ const l = baremoData()[fecha]; return Array.isArray(l) ? l : []; }
+function baremoMarca(fecha){ const l = baremoDia(fecha); return l.length ? JSON.stringify(l) : ''; }
+function baremoGuardarDia(fecha, lista){
+  const b = baremoData();
+  if(lista.length) b[fecha] = lista; else delete b[fecha];
+}
+// Materias ya usadas (las más frecuentes primero) + las sugeridas, para elegirlas con un toque.
+function baremoMaterias(){
+  const cuenta = {};
+  Object.values(baremoData()).forEach(l=> (l||[]).forEach(e=>{
+    const m = (e.materia || '').trim(); if(m) cuenta[m] = (cuenta[m]||0) + 1;
+  }));
+  const usadas = Object.keys(cuenta).sort((a,b)=> cuenta[b]-cuenta[a] || a.localeCompare(b));
+  BAREMO_SUGERIDAS.forEach(s=>{ if(!usadas.some(u=> u.toLowerCase()===s.toLowerCase())) usadas.push(s); });
+  return usadas.slice(0, 10);
+}
+function baremoResumenTxt(fecha){
+  const l = baremoDia(fecha);
+  if(!l.length) return '';
+  const mats = [];
+  l.forEach(e=>{ const m = (e.materia||'').trim(); if(m && mats.indexOf(m)===-1) mats.push(m); });
+  return mats.length ? mats.join(' · ') : (l.length+(l.length===1?' nota':' notas'));
+}
+function baremoResumenEl(fecha){
+  const t = baremoResumenTxt(fecha);
+  if(!t) return null;
+  const el = document.createElement('div'); el.className = 'baremo-resumen';
+  el.textContent = '🎯 '+t;
+  return el;
+}
+function buildDiaBaremo(body, fechaISO, onCambio){
+  const {body:sb, setResumen} = daySection(body, 'Estudio de baremo');
+  const intro = document.createElement('div'); intro.className = 'tick-help'; intro.style.marginBottom = '10px';
+  intro.textContent = 'Día para materias que puntúan en el baremo. No se estudia temario: apunta aquí la materia, un tema concreto o una nota, lo que quieras.';
+  sb.appendChild(intro);
+  const host = document.createElement('div'); sb.appendChild(host);
+  let materiaForm = '';
+  const resumen = ()=>{ const n = baremoDia(fechaISO).length; setResumen(n ? n+(n===1?' apunte':' apuntes') : 'vacío'); };
+
+  const borrar = (id)=>{
+    baremoGuardarDia(fechaISO, baremoDia(fechaISO).filter(e=> e.id !== id));
+    scheduleSave(); pintar(); if(onCambio) onCambio();
+  };
+  const campoTexto = (valor, ph, max, aria)=>{
+    const i = document.createElement('input'); i.type = 'text'; i.className = 'baremo-in';
+    i.value = valor || ''; i.placeholder = ph; i.maxLength = max; i.setAttribute('aria-label', aria);
+    return i;
+  };
+  const campoNota = (valor, ph, aria)=>{
+    const t = document.createElement('textarea'); t.className = 'note-inline baremo-nota';
+    t.value = valor || ''; t.placeholder = ph; t.maxLength = 3000; t.rows = 2; t.setAttribute('aria-label', aria);
+    return t;
+  };
+
+  function pintar(){
+    host.innerHTML = '';
+    resumen();
+    const dl = document.createElement('datalist'); dl.id = 'baremoMateriasDL';
+    baremoMaterias().forEach(m=> dl.appendChild(new Option(m)));
+    host.appendChild(dl);
+
+    const lista = baremoDia(fechaISO);
+    if(!lista.length){
+      const v = document.createElement('div'); v.className = 'ag-empty'; v.textContent = 'Todavía no has apuntado nada este día.';
+      host.appendChild(v);
+    }
+    lista.forEach(e=>{
+      const card = document.createElement('div'); card.className = 'baremo-item';
+      const top = document.createElement('div'); top.className = 'baremo-item-top';
+      const mat = campoTexto(e.materia, 'Materia', 80, 'Materia'); mat.classList.add('baremo-mat'); mat.setAttribute('list', 'baremoMateriasDL');
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕';
+      del.title = 'Quitar este apunte'; del.setAttribute('aria-label', 'Quitar apunte de baremo');
+      del.onclick = ()=> borrar(e.id);
+      top.appendChild(mat); top.appendChild(del);
+      const tema = campoTexto(e.tema, 'Tema concreto (opcional)', 160, 'Tema');
+      const nota = campoNota(e.nota, 'Nota (opcional)…', 'Nota');
+      const guardar = ()=>{ e.materia = mat.value; e.tema = tema.value; e.nota = nota.value; scheduleSave(); };
+      const alSalir = ()=>{
+        guardar();
+        if(!e.materia.trim() && !e.tema.trim() && !e.nota.trim()){ borrar(e.id); return; }
+        resumen(); if(onCambio) onCambio();
+      };
+      [mat, tema, nota].forEach(c=>{ c.oninput = guardar; c.onblur = alSalir; });
+      card.appendChild(top); card.appendChild(tema); card.appendChild(nota);
+      host.appendChild(card);
+    });
+
+    // Formulario para añadir un apunte nuevo
+    const form = document.createElement('div'); form.className = 'baremo-form';
+    const ft = document.createElement('div'); ft.className = 'baremo-form-title'; ft.textContent = 'Añadir apunte';
+    form.appendChild(ft);
+    const mat = campoTexto(materiaForm, 'Materia (la que quieras)', 80, 'Materia nueva'); mat.setAttribute('list', 'baremoMateriasDL');
+    const tema = campoTexto('', 'Tema concreto (opcional)', 160, 'Tema nuevo');
+    const nota = campoNota('', 'Nota (opcional)…', 'Nota nueva');
+    const chips = document.createElement('div'); chips.className = 'baremo-chips';
+    baremoMaterias().forEach(m=>{
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'day-mini-btn'; b.textContent = m;
+      b.onclick = ()=>{ mat.value = m; materiaForm = m; tema.focus(); };
+      chips.appendChild(b);
+    });
+    form.appendChild(chips); form.appendChild(mat); form.appendChild(tema); form.appendChild(nota);
+    const msg = document.createElement('div'); msg.className = 'baremo-msg'; msg.setAttribute('role', 'status');
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = '＋ Añadir';
+    const anadir = ()=>{
+      const e = {id: baremoNuevoId(), materia: mat.value.trim(), tema: tema.value.trim(), nota: nota.value.trim()};
+      if(!e.materia && !e.tema && !e.nota){ msg.textContent = 'Escribe al menos la materia, un tema o una nota.'; return; }
+      materiaForm = e.materia; // por si vas a apuntar varios temas seguidos de la misma materia
+      baremoGuardarDia(fechaISO, baremoDia(fechaISO).concat([e]));
+      scheduleSave(); pintar(); if(onCambio) onCambio();
+    };
+    add.onclick = anadir;
+    [mat, tema].forEach(c=> c.onkeydown = (ev)=>{ if(ev.key === 'Enter'){ ev.preventDefault(); anadir(); } });
+    mat.oninput = ()=>{ materiaForm = mat.value; msg.textContent = ''; };
+    form.appendChild(add); form.appendChild(msg);
+    host.appendChild(form);
+  }
+  pintar();
+}
+
 function renderLegend(){
   const el = document.getElementById('legend');
   el.innerHTML = `
@@ -3516,8 +3669,9 @@ function renderHomeDash(){
       (doneTxt ? '<div class="home-today-status">'+doneTxt+'</div>' : '')+
       (entrenoHoy ? '<button class="btn small ghost" id="homeEntrenoBtn" style="margin-top:8px;">Ver entreno sugerido →</button>' : '');
   } else if(todayInfo){
-    const lbl = todayInfo.status==='DESCANSO' ? 'Descanso' : todayInfo.status==='TRABAJO' ? 'Trabajo' : todayInfo.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
-    resumenHtml = '<div class="home-today-status">Hoy: '+lbl+'</div>';
+    const lbl = statusLabel(todayInfo.status);
+    const bzHoy = (todayInfo.status === 'BAREMO') ? baremoResumenTxt(hoyLocalISO()) : '';
+    resumenHtml = '<div class="home-today-status">Hoy: '+lbl+(bzHoy ? ' · '+bzHoy.replace(/</g,'&lt;') : '')+'</div>';
   } else {
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
   }
@@ -3689,7 +3843,7 @@ function dayCompletionBadge(info){
    Se usa para saber si hace falta reconstruir su nodo DOM o si podemos dejarlo tal
    cual estaba (evita repintar los ~28-31 días del mes por cada tick que se marca). */
 function dayRenderSig(info, dayStatusRaw, isToday, noteTxt, fechaISO){
-  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20) + '|r' + (fechaISO ? dayRecMarca(fechaISO) : '') + '|pe' + (fechaISO ? dayPsicoEspMarca(fechaISO) : '');
+  return JSON.stringify(info) + '|' + dayStatusRaw + '|' + (isToday?1:0) + '|' + (noteTxt||'').length + ':' + (noteTxt||'').slice(0,20) + '|r' + (fechaISO ? dayRecMarca(fechaISO) : '') + '|pe' + (fechaISO ? dayPsicoEspMarca(fechaISO) : '') + '|bm' + (fechaISO ? baremoMarca(fechaISO) : '');
 }
 // Qué psicotécnico especial toca ese día (y si está «NO hecho»). Depende de TODOS los días de recuperación
 // anteriores, no solo de este, así que tiene que ir en la firma: si no, al marcar un día de recuperación
@@ -3740,9 +3894,9 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','BAREMO','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
-    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : opt==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+    o.textContent = statusLabel(opt);
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
     statusSel.appendChild(o);
   });
@@ -3763,9 +3917,10 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   } else {
     const lbl = document.createElement('div');
     lbl.className = 'off-label';
-    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+    lbl.textContent = statusLabel(info.status);
     cell.appendChild(lbl);
     if(info.status === 'RECUPERACION') cell.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
+    { const bz = baremoResumenEl(y+'-'+pad2(m)+'-'+pad2(d)); if(bz) cell.appendChild(bz); }
   }
   // Se abre el día entero, sea del tipo que sea: también en descanso, trabajo o sin
   // horario, para poder ponerles notas, clases o simulacro como a cualquier otro día.
@@ -3846,9 +4001,9 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select cal-list-status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','BAREMO','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
-    o.textContent = opt==='ESTUDIO' ? 'Estudio' : opt==='DESCANSO' ? 'Descanso' : opt==='TRABAJO' ? 'Trabajo' : opt==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+    o.textContent = statusLabel(opt);
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
     statusSel.appendChild(o);
   });
@@ -3872,9 +4027,10 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
     const lbl = document.createElement('div');
     lbl.className = 'off-label';
     lbl.style.margin = '2px 0 0';
-    lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+    lbl.textContent = statusLabel(info.status);
     item.appendChild(lbl);
     if(info.status === 'RECUPERACION') item.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
+    { const bz = baremoResumenEl(y+'-'+pad2(m)+'-'+pad2(d)); if(bz) item.appendChild(bz); }
   }
   // Igual que en la rejilla: cualquier día se abre, sea de estudio o no.
   item.style.cursor = 'pointer';
@@ -3960,6 +4116,7 @@ var _secAbiertas = {};
 try{ localStorage.removeItem('diaSecAbiertas'); }catch(e){} // se borra el estado guardado de versiones anteriores
 // Color e icono de cada sección de la ficha del día (igual en todos los calendarios).
 function _tonoSeccion(titulo){
+  if(/baremo/i.test(titulo)) return {k:'baremo', ico:'🎯'};
   if(/tiempo/i.test(titulo)) return {k:'tiempo', ico:''};
   if(/tareas/i.test(titulo)) return {k:'tareas', ico:'📚'};
   if(/clases?/i.test(titulo)) return {k:'clases', ico:'🎓'};
@@ -4027,7 +4184,7 @@ function openDayModal(d, info, modo){
   const esHoy = (fechaISO === hoyLocalISO());
 
   document.getElementById('dayModalTitle').textContent = d+' de '+MESES[m-1]+' '+y;
-  const statusTxt = status==='ESTUDIO' ? 'Día de estudio' : status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+  const statusTxt = status==='ESTUDIO' ? 'Día de estudio' : status==='BAREMO' ? 'Día de baremo' : statusLabel(status);
   document.getElementById('dayModalSub').textContent = DOW[(jsDow===0?6:jsDow-1)] + ' · ' + statusTxt + (esHoy ? ' · HOY' : '');
   const body = document.getElementById('dayModalBody');
   body.innerHTML = '';
@@ -4108,6 +4265,16 @@ function openDayModal(d, info, modo){
     buildDiaRecuperacion(body, fechaISO, ()=>{ renderCalendar(); renderArrastre(); });
   }catch(err){
     try{ console.error('Error pintando el día de recuperación', err); }catch(e){}
+  }
+
+  /* ---------- 1b-bis. Estudio de baremo (materias extra: autoescuela, inglés Cambridge…) ---------- */
+  if(verEstudio) try{
+    if(status === 'BAREMO' || baremoDia(fechaISO).length){
+      if(_secAbiertas['Estudio de baremo'] === undefined) _secAbiertas['Estudio de baremo'] = true;
+      buildDiaBaremo(body, fechaISO, ()=>{ renderCalendar(); });
+    }
+  }catch(err){
+    try{ console.error('Error pintando el estudio de baremo', err); }catch(e){}
   }
 
   /* ---------- 1c. Agenda personal (solo desde «Todo incluido»): detalle de las tareas del día ---------- */
@@ -8211,7 +8378,7 @@ function renderClaseCalendarGrid(){
 
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(status);
       cell.appendChild(lbl);
     }
 
@@ -8258,7 +8425,7 @@ function renderClaseCalendarList(){
     head.appendChild(dateWrap);
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(status);
       head.appendChild(lbl);
     }
     item.appendChild(head);
@@ -9840,7 +10007,7 @@ function renderSimCalendarGrid(){
 
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(status);
       cell.appendChild(lbl);
     }
 
@@ -9886,7 +10053,7 @@ function renderSimCalendarList(){
     head.appendChild(dateWrap);
     if(status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = status==='DESCANSO' ? 'Descanso' : status==='TRABAJO' ? 'Trabajo' : status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(status);
       head.appendChild(lbl);
     }
     item.appendChild(head);
@@ -10226,7 +10393,7 @@ function renderTiempoCalendar(){
       if(est>=obj){ const ck = document.createElement('span'); ck.className='tiempo-check'; ck.textContent='🎯 Objetivo'; right.appendChild(ck); }
       if(x.info.status !== 'ESTUDIO'){
         const lbl = document.createElement('span'); lbl.className='off-label';
-        lbl.textContent = x.info.status==='DESCANSO' ? 'Descanso' : x.info.status==='TRABAJO' ? 'Trabajo' : x.info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+        lbl.textContent = statusLabel(x.info.status);
         right.appendChild(lbl);
       }
       head.appendChild(right);
@@ -10622,6 +10789,7 @@ function buildTodoDayContent(d, info, compact){
   } else {
     // En los días que no son de estudio, la nota del día la pintamos aquí (en los de
     // estudio ya la incluye buildTasksBlock al final de las tareas).
+    { const bz = baremoResumenEl(currentMonthKey+'-'+pad2(d)); if(bz) addSub('Baremo', bz); }
     const noteTxt = state.notes[dayNoteKey(currentMonthKey, d)];
     if(noteTxt){
       const noteRow = document.createElement('div');
@@ -10718,7 +10886,7 @@ function renderTodoCalendarGrid(){
 
     if(info.status !== 'ESTUDIO'){
       const lbl = document.createElement('div'); lbl.className='off-label'; lbl.style.fontSize='9px';
-      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(info.status);
       cell.appendChild(lbl);
     }
     cell.appendChild(buildTodoDayContent(d, info, true));
@@ -10761,7 +10929,7 @@ function renderTodoCalendarList(){
     if(badge) headRight.appendChild(badge);
     if(info.status !== 'ESTUDIO'){
       const lbl = document.createElement('span'); lbl.className='off-label';
-      lbl.textContent = info.status==='DESCANSO' ? 'Descanso' : info.status==='TRABAJO' ? 'Trabajo' : info.status==='RECUPERACION' ? 'Recuperación' : 'Sin horario';
+      lbl.textContent = statusLabel(info.status);
       headRight.appendChild(lbl);
     }
     head.appendChild(headRight);
@@ -12863,7 +13031,7 @@ function renderEntrenos(){
 function renderAjustes(){
   const host = document.getElementById('statGrid');
   const keys = sortedMonthKeys();
-  let studyDays=0, restDays=0, workDays=0, recupDays=0, unknownDays=0;
+  let studyDays=0, restDays=0, workDays=0, recupDays=0, baremoDays=0, unknownDays=0;
   const plan = computePlan();
   keys.forEach(k=>{
     Object.values(plan[k]).forEach(v=>{
@@ -12871,6 +13039,7 @@ function renderAjustes(){
       else if(v.status==='DESCANSO') restDays++;
       else if(v.status==='TRABAJO') workDays++;
       else if(v.status==='RECUPERACION') recupDays++;
+      else if(v.status==='BAREMO') baremoDays++;
       else unknownDays++;
     });
   });
@@ -12880,6 +13049,7 @@ function renderAjustes(){
     ['Días de descanso', restDays],
     ['Días de trabajo', workDays],
     ['Días de recuperación', recupDays],
+    ['Días de baremo', baremoDays],
     ['Días sin horario', unknownDays],
   ];
   host.innerHTML = '';

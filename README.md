@@ -716,3 +716,24 @@ Implementación: `ortoSesPaso()` + `ortoSesLlegada()`; cada sesión añadida a m
 Tras un reinicio o un «Quitar clases…», la franja fija de abajo se muestra como máximo `UNDO_BARRA_HORAS` (2 h) desde que se hizo, y se
 retira sola (también con la app abierta) sin volver a salir al reabrirla. Deshacer sigue disponible 7 días (`UNDO_REINICIO_DIAS`) desde el
 botón **↩ Deshacer el último reinicio** del calendario.
+
+
+## Día de «Baremo» (materias extra: autoescuela, inglés Cambridge…)
+
+Nuevo estado de día, junto a Estudio / Descanso / Trabajo / Recuperación / Sin horario: **Baremo** (clave interna
+`BAREMO`). Se elige en el desplegable de estado de cada día del Calendario (rejilla y lista).
+
+- **No estudias temario:** funciona como un descanso para el plan (no avanza ningún contador de bloques, leves,
+  inglés, psicotécnicos…; `computePlan()` no se ha tocado, trata cualquier estado distinto de `ESTUDIO` igual).
+- **Apuntes a mano:** al pulsar el día se abre la sección **🎯 Estudio de baremo**. Cada apunte tiene **materia**
+  (texto libre, con atajos a las que ya has usado + «Autoescuela» e «Inglés Cambridge»), **tema** (opcional) y **nota**
+  (opcional); basta con rellenar uno de los tres. Los apuntes se editan en el sitio y se borran con ✕.
+- **Se ve en:** celda del calendario principal (materias del día), «Todo incluido», la tarjeta «Hoy», el .ics
+  (evento «Baremo») y Ajustes (contador «Días de baremo»). Los apuntes se conservan aunque cambies el estado del
+  día (la sección sigue apareciendo mientras haya apuntes).
+- **Datos:** `state.baremo = { "YYYY-MM-DD": [ {id, materia, tema, nota} ] }`. Se sincroniza, entra en las copias
+  de seguridad y aparece en «Tamaño de tus datos». `normalizarBaremo()` (desde `normalizeState()`) lo sanea.
+  El código está en `app.js`, bloque «DÍAS DE BAREMO», justo antes de `renderLegend()`; `statusLabel()` centraliza
+  los nombres de estado.
+- Los reinicios («Empezar de nuevo…») no tocan los apuntes de baremo, y los días de baremo no reciben temas de
+  Recuperar (solo los de recuperación/descanso).

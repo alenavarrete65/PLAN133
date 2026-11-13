@@ -29,6 +29,7 @@
     --status-descanso-bg:#25261f; --status-descanso-line:#4a4a3a;
     --status-trabajo-bg:#1c2733; --status-trabajo-line:#33465a;
     --status-desconocido-alt:#25332b;
+    --status-baremo-bg:#2a2236; --status-baremo-line:#52406e;
     --shadow-soft: 0 1px 3px rgba(0,0,0,0.35);
   }
   /* ---- MODO CLARO ---- */
@@ -59,6 +60,7 @@
     --status-descanso-bg:#efe9d6; --status-descanso-line:#cabf98;
     --status-trabajo-bg:#dfe6ee; --status-trabajo-line:#a9bdd1;
     --status-desconocido-alt:#e5ddc7;
+    --status-baremo-bg:#ebe2f3; --status-baremo-line:#bba4d1;
     --shadow-soft: 0 1px 3px rgba(43,38,32,0.15);
   }
   /* Botón .btn usa texto oscuro fijo sobre ámbar en ambos modos: con un fondo ámbar de tono
@@ -1652,11 +1654,11 @@ html[data-simple="1"] .motivation-strip{display:none;}
 :root{
   --tc-grave:var(--red); --tc-mgrave:var(--amber); --tc-leve:var(--green); --tc-ing:var(--blue); --tc-psico:#9b7fc0;
   --tc-orto:#8d968a; --tc-sem:#4f8a8b; --tc-entreno:#c9692b;
-  --sec-tiempo:#4fb3a6; --sec-tareas:#c3bda3; --sec-clases:#e0883e; --sec-sim:#d86a96; --sec-notas:#a39b8b; --sec-recu:#7c8cde;
+  --sec-tiempo:#4fb3a6; --sec-tareas:#c3bda3; --sec-clases:#e0883e; --sec-sim:#d86a96; --sec-notas:#a39b8b; --sec-recu:#7c8cde; --sec-baremo:#a98bd6;
 }
 html[data-theme="light"]{
   --tc-psico:#7a5c9c; --tc-orto:#6b7368; --tc-entreno:#a9531d;
-  --sec-tiempo:#2a8579; --sec-tareas:#7d7660; --sec-clases:#b8601a; --sec-sim:#b03f6e; --sec-notas:#7a7261; --sec-recu:#4f5fb8;
+  --sec-tiempo:#2a8579; --sec-tareas:#7d7660; --sec-clases:#b8601a; --sec-sim:#b03f6e; --sec-notas:#7a7261; --sec-recu:#4f5fb8; --sec-baremo:#7a55b0;
 }
 /* Tarjeta de sección (Tiempo, Tareas, Clases, Simulacro, Notas, Recuperación) */
 .dia-color .day-section,.dia-card{
@@ -2023,3 +2025,17 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
 .ag-del-q{font-size:14px;color:var(--cream);}
 .ag-del-opts{display:flex;gap:8px;flex-wrap:wrap;}
 @media (max-width:640px){ .ag-dia{width:42px;height:42px;} }
+
+/* ---- Día de baremo (materias extra: autoescuela, inglés Cambridge…) ---- */
+.cal-cell.status-BAREMO,.cal-list-item.status-BAREMO,.cclase-cell.status-BAREMO{background:var(--status-baremo-bg);border-color:var(--status-baremo-line);}
+.ds-tono-baremo{--tono:var(--sec-baremo);}
+.baremo-resumen{margin-top:4px;font-family:var(--font-sans);font-size:11px;line-height:1.35;color:var(--cream);text-align:center;overflow-wrap:anywhere;}
+.baremo-item{margin:8px 0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);}
+.baremo-item-top{display:flex;gap:6px;align-items:center;margin-bottom:6px;}
+.baremo-in{width:100%;box-sizing:border-box;margin-bottom:6px;padding:8px 10px;font:inherit;font-size:14px;color:var(--cream);background:var(--bg-panel-2);border:1px solid var(--line-strong);border-radius:6px;}
+.baremo-item-top .baremo-in{margin-bottom:0;flex:1;min-width:0;font-weight:700;}
+.baremo-nota{width:100%;box-sizing:border-box;min-height:54px;}
+.baremo-form{margin-top:12px;padding-top:10px;border-top:1px dashed var(--line);}
+.baremo-form-title{font-weight:700;font-size:13px;color:var(--cream);margin-bottom:6px;}
+.baremo-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
+.baremo-msg{min-height:16px;margin-top:6px;font-size:12px;color:var(--amber-ink);}
