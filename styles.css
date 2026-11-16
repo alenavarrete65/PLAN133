@@ -2039,3 +2039,11 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
 .baremo-form-title{font-weight:700;font-size:13px;color:var(--cream);margin-bottom:6px;}
 .baremo-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:8px;}
 .baremo-msg{min-height:16px;margin-top:6px;font-size:12px;color:var(--amber-ink);}
+
+
+/* Carpeta «Exámenes oficiales» (lunes, miércoles y viernes) */
+.exam-folder{margin:4px 0;border:1px dashed var(--amber,#b8892b);border-radius:6px;background:rgba(184,137,43,.07);padding:2px 4px 4px;}
+.exam-folder-head{font-family:var(--font-mono,monospace);font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:var(--amber-ink,#6b4e10);padding:3px 4px;cursor:pointer;list-style:none;}
+.exam-folder.compact .exam-folder-head{cursor:default;font-size:10px;padding:1px 2px;}
+.exam-folder-head::-webkit-details-marker{display:none;}
+.exam-folder-body{display:flex;flex-direction:column;gap:2px;padding-left:6px;}

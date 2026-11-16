@@ -737,3 +737,13 @@ Nuevo estado de día, junto a Estudio / Descanso / Trabajo / Recuperación / Sin
   los nombres de estado.
 - Los reinicios («Empezar de nuevo…») no tocan los apuntes de baremo, y los días de baremo no reciben temas de
   Recuperar (solo los de recuperación/descanso).
+
+
+## Plan por días de la semana (desde el 16-11-2026)
+
+Desde `PLAN_SEMANAL_DESDE` (constante en `app.js`, justo antes de `computePlan()`) cada tarea sale solo en sus días:
+
+- **Lunes, miércoles y viernes:** bloque + leve + carpeta **Exámenes oficiales** (examen psicotécnico, examen de inglés y examen de ortografía). No hay inglés-temario ni Orto-grama.
+- **Martes, jueves, sábado y domingo:** bloque + leve + Inglés (temario) + Orto-grama (sesión del día con sus tests Apto / No apto). Sin carpetas.
+
+Cada materia avanza solo los días en que le toca (los contadores no se mueven los demás días). Los días anteriores a esa fecha se calculan como antes, así que el historial no cambia. El entreno sigue martes y jueves.

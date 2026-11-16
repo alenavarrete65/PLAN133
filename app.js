@@ -2380,6 +2380,16 @@ function ortoSesEsc(t){ return String(t).replace(/&/g,'&amp;').replace(/</g,'&lt
 function ortoSesDeFecha(iso){
   try{ const p = computePlan(); const e = (p[iso.slice(0,7)]||{})[Number(iso.slice(8))]; return (e && e.ortoSes) || null; }catch(err){ return null; }
 }
+/* ===================== DÍAS CONCRETOS DE LA SEMANA =====================
+   Desde PLAN_SEMANAL_DESDE cada tarea de materia sale solo en sus días (antes era a diario):
+   · Lunes, miércoles y viernes: bloque + leve + EXAMEN PSICOTÉCNICO + EXAMEN INGLÉS + EXAMEN ORTOGRAFÍA
+     (los tres exámenes van juntos en la carpeta «Exámenes oficiales»).
+   · Martes, jueves, sábado y domingo: bloque + leve + INGLÉS (temario) + ORTO-GRAMA (sesión + sus tests).
+   Los días anteriores a esa fecha se calculan como siempre, para no mover nada del historial. */
+const PLAN_SEMANAL_DESDE = '2026-11-16';
+function planSemanalActivo(dayKey){ return dayKey >= PLAN_SEMANAL_DESDE; }
+function diaExamenes(dayKey, jsDow){ return planSemanalActivo(dayKey) && (jsDow===1 || jsDow===3 || jsDow===5); }
+function diaMaterias(dayKey, jsDow){ return planSemanalActivo(dayKey) && !(jsDow===1 || jsDow===3 || jsDow===5); }
 function computePlan(){
   const ortoVueltas = (state.ortoSesiones && Array.isArray(state.ortoSesiones.vueltas)) ? state.ortoSesiones.vueltas : [];
   const keys = sortedMonthKeys();
@@ -2491,24 +2501,38 @@ function computePlan(){
       entry.leveInfo = resolveLeve(leveIdx);
       if(!ticks.leve){ carry.leveAppear[leveIdx]++; carry.lIdx++; }
 
-      entry.inglesNum = (carry.iIdx % INGLES_TOTAL) + 1;
-      if(!ticks.ingles){ carry.iIdx++; }
+      const nuevoPlan = planSemanalActivo(dayKey);
+      const hoyExamenes = diaExamenes(dayKey, jsDow);
+      const hoyMaterias = diaMaterias(dayKey, jsDow);
+      entry.diaTipo = !nuevoPlan ? 'diario' : (hoyExamenes ? 'examenes' : 'materias');
 
-      // Examen de inglés: uno cada día de estudio, en el orden del índice (mismo criterio de «NO completado»).
-      entry.iexamIdx = carry.xIdx % INGLES_EXAMS.length;
-      entry.iexam = INGLES_EXAMS[entry.iexamIdx];
-      if(!ticks.iexam){ carry.xIdx++; }
+      // Inglés (temario): a diario antes del cambio; después solo martes, jueves, sábado y domingo.
+      if(!nuevoPlan || hoyMaterias){
+        entry.inglesNum = (carry.iIdx % INGLES_TOTAL) + 1;
+        if(!ticks.ingles){ carry.iIdx++; }
+      }
 
-      // Examen de ortografía: uno cada día de estudio (resultado Apto / No apto).
-      entry.oexamIdx = carry.oIdx % ORTO_EXAMS.length;
-      entry.oexam = ORTO_EXAMS[entry.oexamIdx];
-      if(!ticks.oexam){ carry.oIdx++; }
+      // Exámenes de inglés y de ortografía: a diario antes del cambio; después solo lunes, miércoles y viernes.
+      if(!nuevoPlan || hoyExamenes){
+        entry.iexamIdx = carry.xIdx % INGLES_EXAMS.length;
+        entry.iexam = INGLES_EXAMS[entry.iexamIdx];
+        if(!ticks.iexam){ carry.xIdx++; }
 
-      entry.orto = true;
-      entry.ortoSes = ortoSesPaso(ortoVueltas, carry, dayKey, !ticks.orto);
+        entry.oexamIdx = carry.oIdx % ORTO_EXAMS.length;
+        entry.oexam = ORTO_EXAMS[entry.oexamIdx];
+        if(!ticks.oexam){ carry.oIdx++; }
+      }
+
+      // Orto-grama (sesión del día + sus tests): a diario antes del cambio; después solo martes, jueves, sábado y domingo.
+      if(!nuevoPlan || hoyMaterias){
+        entry.orto = true;
+        entry.ortoSes = ortoSesPaso(ortoVueltas, carry, dayKey, !ticks.orto);
+      }
       if(isTueThu){
         entry.entreno = true;
-      } else if(isMonWed){
+      }
+      // Examen psicotécnico: lunes y miércoles antes del cambio; después lunes, miércoles y viernes.
+      if(nuevoPlan ? hoyExamenes : (isMonWed && !isTueThu)){
         const psicoIdx = carry.pIdx % PSICO_ITEMS.length;
         entry.psico = PSICO_ITEMS[psicoIdx];
         entry.psicoIdx = psicoIdx;
@@ -3379,7 +3403,7 @@ function renderLegend(){
     <span><i style="background:var(--amber)"></i>Unificado (repaso final)</span>
     <span><i style="background:var(--green)"></i>Leve</span>
     <span><i style="background:var(--blue)"></i>Inglés</span>
-    <span><i style="background:#7a5c9c"></i>Psicotécnico</span>
+    <span><i style="background:#7a5c9c"></i>Examen psicotécnico</span>
     <span><i style="background:#a9531d"></i>Entreno</span>
     <span><i style="background:#6b7368"></i>Orto-grama</span>
   `;
@@ -3535,6 +3559,23 @@ function renderCalendar(){
   // alguno, se repinta también (salvo dentro de renderAll, que ya lo pinta él).
   if(!_renderAllEnCurso) renderTodoCalendar();
 }
+/* Carpeta «Exámenes oficiales» de los días de lunes/miércoles/viernes: agrupa el examen psicotécnico,
+   el de inglés y el de ortografía. Devuelve {el, body}: se añade `el` al día y las filas van dentro de `body`.
+   En la rejilla del calendario (compact) es una cabecera fija; en lista y modal se puede plegar. */
+function carpetaExamenes(compact){
+  if(compact){
+    const el = document.createElement('div'); el.className = 'exam-folder compact';
+    const head = document.createElement('div'); head.className = 'exam-folder-head'; head.textContent = '📁 Exámenes oficiales';
+    const body = document.createElement('div'); body.className = 'exam-folder-body';
+    el.appendChild(head); el.appendChild(body);
+    return {el, body};
+  }
+  const el = document.createElement('details'); el.className = 'exam-folder'; el.open = true;
+  const sm = document.createElement('summary'); sm.className = 'exam-folder-head'; sm.textContent = '📁 Exámenes oficiales';
+  const body = document.createElement('div'); body.className = 'exam-folder-body';
+  el.appendChild(sm); el.appendChild(body);
+  return {el, body};
+}
 /* Construye el bloque de tareas de un día (bloque, leve, inglés, entreno, psico, orto).
    Se reutiliza tanto en la vista de rejilla como en la vista de lista/agenda. */
 function buildTasksBlock(d, info, compact){
@@ -3550,12 +3591,21 @@ function buildTasksBlock(d, info, compact){
     : info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
   tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}, 'bc-'+info.color));
   tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
-  tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
-  if(info.iexam) tasks.appendChild(taskRow('EXA', info.iexam, 'tag-iexam', {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}));
-  if(info.oexam) tasks.appendChild(taskRow('EOR', info.oexam, 'tag-oexam', {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}));
+  if(info.inglesNum) tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
+  if(info.diaTipo === 'examenes'){
+    // Lunes, miércoles y viernes: los tres exámenes oficiales juntos, dentro de su carpeta.
+    const fol = carpetaExamenes(compact);
+    if(info.psico) fol.body.appendChild(taskRow(compact ? 'PSI' : 'EXAMEN PSICOTÉCNICO', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
+    if(info.iexam) fol.body.appendChild(taskRow(compact ? 'EXA' : 'EXAMEN INGLÉS', info.iexam, 'tag-iexam', {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}));
+    if(info.oexam) fol.body.appendChild(taskRow(compact ? 'EOR' : 'EXAMEN ORTOGRAFÍA', info.oexam, 'tag-oexam', {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}));
+    tasks.appendChild(fol.el);
+  } else {
+    if(info.iexam) tasks.appendChild(taskRow('EXA', info.iexam, 'tag-iexam', {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}));
+    if(info.oexam) tasks.appendChild(taskRow('EOR', info.oexam, 'tag-oexam', {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}));
+  }
   if(info.entreno) tasks.appendChild(taskRow('FÍS', 'Entreno', 'tag-entreno', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}));
-  if(info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
-  tasks.appendChild(taskRow('ORT', 'Orto-grama'+(info.ortoSes ? ' · '+ortoSesEsc(ortoSesTxt(info.ortoSes, compact)) : ''), 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
+  if(info.diaTipo !== 'examenes' && info.psico) tasks.appendChild(taskRow('PSI', info.psico, 'tag-psico', {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}));
+  if(info.diaTipo !== 'examenes') tasks.appendChild(taskRow('ORT', 'Orto-grama'+(info.ortoSes ? ' · '+ortoSesEsc(ortoSesTxt(info.ortoSes, compact)) : ''), 'tag-orto', {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}));
   // Test de arrastre: no tiene "tarea pendiente" (no sigue el sistema de vueltas ni el de
   // "marcar como NO completado"), así que solo se muestra como aviso cuando ya hay una nota
   // guardada ese día — igual que la vista previa de la nota de texto, justo debajo.
@@ -3582,7 +3632,8 @@ function buildTasksBlock(d, info, compact){
 function dayCompletionInfo(info){
   if(info.status !== 'ESTUDIO') return null;
   const dticks = info.ticks || {};
-  const streams = ['bloque','leve','ingles','orto'];
+  const streams = ['bloque','leve'];
+  if(info.diaTipo !== 'examenes'){ streams.push('ingles'); streams.push('orto'); }
   if(info.iexam) streams.push('iexam');
   if(info.oexam) streams.push('oexam');
   if(info.entreno) streams.push('entreno');
@@ -3656,13 +3707,14 @@ function renderHomeDash(){
     const parts = [
       'Bloque '+todayInfo.bloque+' ('+todayInfo.color+'): '+temasTxt,
       'Leve '+todayInfo.leveNum+': '+todayInfo.leveInfo.nombre,
-      'Inglés tema '+todayInfo.inglesNum
     ];
+    if(todayInfo.inglesNum) parts.push('Inglés tema '+todayInfo.inglesNum);
+    if(todayInfo.psico && todayInfo.diaTipo === 'examenes') parts.push('Examen psicotécnico: '+todayInfo.psico);
     if(todayInfo.iexam) parts.push('Examen de inglés: '+todayInfo.iexam);
     if(todayInfo.oexam) parts.push('Examen de ortografía: '+todayInfo.oexam);
     if(todayInfo.entreno){ parts.push('Entreno físico'); entrenoHoy = true; }
-    if(todayInfo.psico) parts.push('Psicotécnico: '+todayInfo.psico);
-    parts.push('Orto-grama'+(todayInfo.ortoSes ? ' · '+ortoSesTxt(todayInfo.ortoSes) : ''));
+    if(todayInfo.psico && todayInfo.diaTipo !== 'examenes') parts.push('Psicotécnico: '+todayInfo.psico);
+    if(todayInfo.diaTipo !== 'examenes') parts.push('Orto-grama'+(todayInfo.ortoSes ? ' · '+ortoSesTxt(todayInfo.ortoSes) : ''));
     const comp = dayCompletionInfo(todayInfo);
     const doneTxt = comp ? (comp.pending===0 ? 'Día completo ✓' : comp.pending+' tarea'+(comp.pending>1?'s':'')+' pendiente'+(comp.pending>1?'s':'')) : '';
     resumenHtml = '<ul class="home-today-list">'+parts.map(p=>'<li>'+p.replace(/</g,'&lt;')+'</li>').join('')+'</ul>'+
@@ -4245,11 +4297,21 @@ function openDayModal(d, info, modo){
       if(info.inglesNum){
         addModalRow(sb, 'tag-ing', 'INGLÉS', 'Tema '+info.inglesNum+' / '+INGLES_TOTAL, {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}, {key:'ingles-'+info.inglesNum, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO, 'ingles');
       }
-      if(info.iexam) addModalRow(sb, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO, 'iexam');
-      if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO, 'oexam');
-      if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}, null, fechaISO, 'entreno');
-      if(info.psico) addModalRow(sb, 'tag-psico', 'PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, 'psico');
-      addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}, fechaISO, info.ortoSes);
+      if(info.diaTipo === 'examenes'){
+        // Lunes, miércoles y viernes: carpeta «Exámenes oficiales» con los tres exámenes.
+        const fol = carpetaExamenes(false);
+        if(info.psico) addModalRow(fol.body, 'tag-psico', 'EXAMEN PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, 'psico');
+        if(info.iexam) addModalRow(fol.body, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO, 'iexam');
+        if(info.oexam) addModalRow(fol.body, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO, 'oexam');
+        sb.appendChild(fol.el);
+        if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}, null, fechaISO, 'entreno');
+      } else {
+        if(info.iexam) addModalRow(sb, 'tag-iexam', 'EXAMEN INGLÉS', info.iexam, {monthKey:currentMonthKey, day:d, stream:'iexam', checked:dticks.iexam}, {key:'iexam-'+info.iexamIdx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO, 'iexam');
+        if(info.oexam) addModalRow(sb, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', info.oexam, {monthKey:currentMonthKey, day:d, stream:'oexam', checked:dticks.oexam}, {key:'oexam-'+info.oexamIdx}, fechaISO, 'oexam');
+        if(info.entreno) addModalRow(sb, 'tag-entreno', 'ENTRENO', 'Día de entreno físico', {monthKey:currentMonthKey, day:d, stream:'entreno', checked:dticks.entreno}, null, fechaISO, 'entreno');
+        if(info.psico) addModalRow(sb, 'tag-psico', 'EXAMEN PSICOTÉCNICO', info.psico, {monthKey:currentMonthKey, day:d, stream:'psico', checked:dticks.psico}, {key:'psico-'+info.psicoIdx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, 'psico');
+      }
+      if(info.diaTipo !== 'examenes') addOrtoGramRow(sb, {monthKey:currentMonthKey, day:d, stream:'orto', checked:dticks.orto}, fechaISO, info.ortoSes);
     }catch(err){
       // Pase lo que pase con las tareas del día, las notas siguen funcionando: el aviso es
       // solo para saber que ahí ha fallado algo.
@@ -6761,6 +6823,9 @@ function computeArrastreData(asOfDayKey, acumulado){
       const dateObj = new Date(y, m-1, d);
       const jsDow = dateObj.getDay();
       const isMonWed = (jsDow===1 || jsDow===3);
+      const nuevoPlanA = planSemanalActivo(dayKey);
+      const hoyExamenesA = diaExamenes(dayKey, jsDow);
+      const hoyMateriasA = diaMaterias(dayKey, jsDow);
       const dayOfMonthParity = d % 2;
 
       // ---- Bloque (grave en días impares, menos grave en días pares) ----
@@ -6833,7 +6898,7 @@ function computeArrastreData(asOfDayKey, acumulado){
       // ---- Inglés ----
       const inglesNum = (iIdx % INGLES_TOTAL) + 1;
       const inglesLap = Math.floor(iIdx / INGLES_TOTAL) + 1;
-      if(!ticks.ingles){
+      if(!ticks.ingles && (!nuevoPlanA || hoyMateriasA)){
         pushItem('ingles', inglesLap, {
           key: 'ingles-'+inglesNum,
           clase: '',
@@ -6844,8 +6909,8 @@ function computeArrastreData(asOfDayKey, acumulado){
         iIdx++;
       }
 
-      // ---- Psicotécnico (solo lunes/miércoles) ----
-      if(isMonWed){
+      // ---- Examen psicotécnico (lunes/miércoles; desde el cambio, lunes/miércoles/viernes) ----
+      if(nuevoPlanA ? hoyExamenesA : isMonWed){
         const psicoIdx = pIdx % PSICO_ITEMS.length;
         const psicoLap = Math.floor(pIdx / PSICO_ITEMS.length) + 1;
         if(!ticks.psico){
@@ -10730,7 +10795,7 @@ function renderTodoCalLegend(){
     <span><i style="background:var(--amber)"></i>Bloque menos grave</span>
     <span><i style="background:var(--green)"></i>Leve</span>
     <span><i style="background:var(--blue)"></i>Inglés</span>
-    <span><i style="background:#7a5c9c"></i>Psicotécnico</span>
+    <span><i style="background:#7a5c9c"></i>Examen psicotécnico</span>
     <span><i style="background:#a9531d"></i>Entreno</span>
     <span><i style="background:#6b7368"></i>Orto-grama</span>
     <span><i style="background:#7a9bb5"></i>Clases</span>
@@ -13175,7 +13240,7 @@ function computeRitmoExamen(){
       recientes[bl].push({iso, ok: !t.bloque});
       if(!t.bloque) hechas[bl] += pesoBloque(iso);
       recientes.leves.push({iso, ok: !t.leve});   if(!t.leve) hechas.leves++;
-      recientes.ingles.push({iso, ok: !t.ingles}); if(!t.ingles) hechas.ingles++;
+      if(e.inglesNum){ recientes.ingles.push({iso, ok: !t.ingles}); if(!t.ingles) hechas.ingles++; }
       if(e.psico){ recientes.psico.push({iso, ok: !t.psico}); if(!t.psico) hechas.psico++; }
     });
   });
@@ -13204,9 +13269,13 @@ function computeRitmoExamen(){
     diasEstudio += sEst;
     restantes[(d % 2 === 1) ? 'graves' : 'mgraves'] += sEst * pesoBloque(iso);
     restantes.leves += sEst;
-    restantes.ingles += sEst;
     const dow = dt.getDay();
-    if(dow === 1 || dow === 3) restantes.psico += sEst;
+    if(planSemanalActivo(iso)){
+      if(dow === 1 || dow === 3 || dow === 5) restantes.psico += sEst; else restantes.ingles += sEst;
+    } else {
+      restantes.ingles += sEst;
+      if(dow === 1 || dow === 3) restantes.psico += sEst;
+    }
   }
 
   // 3) Vueltas por área.
@@ -13645,6 +13714,7 @@ function renderCiclo(){
     const inglesAppearances = Array.from({length:INGLES_TOTAL}, ()=>[]);
     let lastInglesNum = null;
     studyDays.forEach(({dateMs,e})=>{
+      if(!e.inglesNum) return; // lunes/miércoles/viernes no hay temario de inglés
       if(e.inglesNum !== lastInglesNum){
         inglesAppearances[e.inglesNum-1].push(dateMs);
       } else {
