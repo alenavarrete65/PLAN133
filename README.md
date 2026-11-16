@@ -747,3 +747,8 @@ Desde `PLAN_SEMANAL_DESDE` (constante en `app.js`, justo antes de `computePlan()
 - **Martes, jueves, sábado y domingo:** bloque + leve + Inglés (temario) + Orto-grama (sesión del día con sus tests Apto / No apto). Sin carpetas.
 
 Cada materia avanza solo los días en que le toca (los contadores no se mueven los demás días). Los días anteriores a esa fecha se calculan como antes, así que el historial no cambia. El entreno sigue martes y jueves.
+
+
+## Día de simulacro (estado del día)
+
+En el desplegable de estado de cada día hay una opción nueva, **Día de simulacro**, junto a Estudio, Descanso, Trabajo, Recuperación… (valor interno `SIMULACRO`). Se comporta exactamente igual que un día de **Recuperación** (`esDiaRecup()` en `app.js`): no avanza ninguna materia, en él se programan los temas de «Recuperar» (aunque ese día tenga el simulacro registrado), le toca su psicotécnico especial y cuenta como día de recuperación en las estadísticas. Se pinta con el mismo color ámbar.

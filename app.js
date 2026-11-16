@@ -1752,7 +1752,7 @@ function exportarCalendarioEstudioICS(){
       let summary, desc = '';
       if(info.status === 'DESCANSO') summary = 'Descanso';
       else if(info.status === 'TRABAJO') summary = 'Trabajo';
-      else if(info.status === 'RECUPERACION'){ summary = 'Recuperación'; desc = (psicoEspDe(fecha) ? ['Psico especial: '+psicoEspDe(fecha).nombre] : []).concat(recuperarDelDia(fecha).map(x=> x.label)).join('\n'); }
+      else if(esDiaRecup(info.status)){ summary = statusLabel(info.status); desc = (psicoEspDe(fecha) ? ['Psico especial: '+psicoEspDe(fecha).nombre] : []).concat(recuperarDelDia(fecha).map(x=> x.label)).join('\n'); }
       else if(info.status === 'BAREMO'){ summary = 'Baremo'; desc = baremoDia(fecha).map(e=> [e.materia, e.tema, e.nota].filter(Boolean).join(' · ')).join('\n'); }
       else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
       else {
@@ -3253,8 +3253,11 @@ function renderNotasArchivo(){
 const BAREMO_SUGERIDAS = ['Autoescuela', 'Inglés Cambridge'];
 function statusLabel(s){
   return s==='ESTUDIO' ? 'Estudio' : s==='DESCANSO' ? 'Descanso' : s==='TRABAJO' ? 'Trabajo'
-    : s==='RECUPERACION' ? 'Recuperación' : s==='BAREMO' ? 'Baremo' : 'Sin horario';
+    : s==='RECUPERACION' ? 'Recuperación' : s==='SIMULACRO' ? 'Día de simulacro' : s==='BAREMO' ? 'Baremo' : 'Sin horario';
 }
+/* «Día de simulacro» funciona EXACTAMENTE igual que un día de recuperación (no avanza ninguna materia, aquí se
+   recuperan temas y toca el psicotécnico especial): el día del simulacro no hay tiempo para más y se recupera. */
+function esDiaRecup(st){ return st === 'RECUPERACION' || st === 'SIMULACRO'; }
 function baremoData(){
   if(!state.baremo || typeof state.baremo !== 'object' || Array.isArray(state.baremo)) state.baremo = {};
   return state.baremo;
@@ -3946,7 +3949,7 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','BAREMO','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','SIMULACRO','BAREMO','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
     o.textContent = statusLabel(opt);
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
@@ -3971,7 +3974,7 @@ function buildCalGridCell(y, m, d, info, daysData, isToday){
     lbl.className = 'off-label';
     lbl.textContent = statusLabel(info.status);
     cell.appendChild(lbl);
-    if(info.status === 'RECUPERACION') cell.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
+    if(esDiaRecup(info.status)) cell.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
     { const bz = baremoResumenEl(y+'-'+pad2(m)+'-'+pad2(d)); if(bz) cell.appendChild(bz); }
   }
   // Se abre el día entero, sea del tipo que sea: también en descanso, trabajo o sin
@@ -4053,7 +4056,7 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
   const statusSel = document.createElement('select');
   statusSel.className = 'status-select cal-list-status-select';
   statusSel.setAttribute('aria-label','Estado del día '+d);
-  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','BAREMO','DESCONOCIDO'].forEach(opt=>{
+  ['ESTUDIO','DESCANSO','TRABAJO','RECUPERACION','SIMULACRO','BAREMO','DESCONOCIDO'].forEach(opt=>{
     const o = document.createElement('option'); o.value = opt;
     o.textContent = statusLabel(opt);
     if((daysData[d]||'ESTUDIO')===opt) o.selected = true;
@@ -4081,7 +4084,7 @@ function buildCalListItem(y, m, d, info, daysData, isToday){
     lbl.style.margin = '2px 0 0';
     lbl.textContent = statusLabel(info.status);
     item.appendChild(lbl);
-    if(info.status === 'RECUPERACION') item.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
+    if(esDiaRecup(info.status)) item.appendChild(recDiaResumenEl(y+'-'+pad2(m)+'-'+pad2(d)));
     { const bz = baremoResumenEl(y+'-'+pad2(m)+'-'+pad2(d)); if(bz) item.appendChild(bz); }
   }
   // Igual que en la rejilla: cualquier día se abre, sea de estudio o no.
@@ -5588,7 +5591,7 @@ function psicoEspFechas(){
   const out = [];
   sortedMonthKeys().forEach(mk=>{
     const dias = (state.months[mk] && state.months[mk].days) || {};
-    Object.keys(dias).map(Number).sort((a,b)=>a-b).forEach(d=>{ if(dias[d]==='RECUPERACION') out.push(mk+'-'+pad2(d)); });
+    Object.keys(dias).map(Number).sort((a,b)=>a-b).forEach(d=>{ if(esDiaRecup(dias[d])) out.push(mk+'-'+pad2(d)); });
   });
   return out.sort();
 }
@@ -11224,8 +11227,9 @@ function proximoDiaDescanso(desdeISO){
       for(let d=1; d<=n; d++){
         const f = mk+'-'+pad2(d);
         if(f < desdeISO) continue;
-        if(days[d] !== estado) continue;
-        if(buscarSimulacroPorFecha(f)) continue;
+        const estDia = days[d];
+        if(estado === 'RECUPERACION' ? !esDiaRecup(estDia) : estDia !== estado) continue;
+        if(estDia !== 'SIMULACRO' && buscarSimulacroPorFecha(f)) continue;
         if(recuperarDelDia(f).length >= recMaxPorDia()) continue;
         return f;
       }
@@ -13103,7 +13107,7 @@ function renderAjustes(){
       if(v.status==='ESTUDIO') studyDays++;
       else if(v.status==='DESCANSO') restDays++;
       else if(v.status==='TRABAJO') workDays++;
-      else if(v.status==='RECUPERACION') recupDays++;
+      else if(esDiaRecup(v.status)) recupDays++;
       else if(v.status==='BAREMO') baremoDays++;
       else unknownDays++;
     });
