@@ -752,3 +752,12 @@ Cada materia avanza solo los días en que le toca (los contadores no se mueven l
 ## Día de simulacro (estado del día)
 
 En el desplegable de estado de cada día hay una opción nueva, **Día de simulacro**, junto a Estudio, Descanso, Trabajo, Recuperación… (valor interno `SIMULACRO`). Se comporta exactamente igual que un día de **Recuperación** (`esDiaRecup()` en `app.js`): no avanza ninguna materia, en él se programan los temas de «Recuperar» (aunque ese día tenga el simulacro registrado), le toca su psicotécnico especial y cuenta como día de recuperación en las estadísticas. Se pinta con el mismo color ámbar.
+
+
+## Cronómetro, racha, tendencia de simulacros y microanimaciones
+
+- **Cronómetro de estudio:** cada campo «[ ] min» tiene un botón ▶ (`tiempoMini()`, bloque «CRONÓMETRO DE ESTUDIO» en `app.js`). Al pararlo suma los minutos a lo que ya hubiera; el campo se sigue pudiendo escribir a mano. Solo corre uno a la vez, sobrevive a recargar (`localStorage ob_cron`), suma como mucho 4 h por tramo y nada si dura menos de 1 min. Mientras corre aparece una píldora «Parar y sumar» abajo.
+- **Racha de estudio** (tarjeta 🔥 en el panel de inicio, `computeRachaEstudio()`): días de estudio seguidos con tiempo apuntado. Descanso, trabajo, recuperación, simulacro, baremo y sin horario se saltan sin romperla; hoy suma en cuanto apuntas algo.
+- **Tendencia de simulacros** (`buildSimTendencia()`, arriba de la pestaña Simulacros): total o cada parte, línea del mínimo, puntos verdes/rojos y detalle al tocar un punto.
+- **Microanimaciones nuevas:** llama de la racha (parpadea y «salta» al sumar), fila que se ilumina al resolver un «NO completado», «¡Día completo!» con chispas al quitar el último pendiente, carpeta de exámenes que se despliega suave, botón ▶ que late mientras corre. Todo respeta «reducir movimiento» del sistema.
+- **Repaso de flojos:** ya estaba dentro de la pestaña Progreso (entre «Ritmo» y el resto), así que no se ha movido.

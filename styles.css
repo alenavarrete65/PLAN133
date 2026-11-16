@@ -2048,3 +2048,49 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
 .exam-folder.compact .exam-folder-head{cursor:default;font-size:10px;padding:1px 2px;}
 .exam-folder-head::-webkit-details-marker{display:none;}
 .exam-folder-body{display:flex;flex-direction:column;gap:2px;padding-left:6px;}
+
+
+/* ===== Cronómetro de estudio ===== */
+.tmini-play{border:1px solid var(--line-strong);background:var(--bg-panel-2);color:var(--cream);border-radius:3px;
+  font-family:var(--font-mono);font-size:11px;line-height:1;padding:5px 7px;cursor:pointer;white-space:nowrap;min-height:26px;}
+.tmini-play:hover{border-color:var(--amber,#c9a227);}
+.tmini-play.running{background:var(--amber,#c9a227);color:#1d1a10;border-color:var(--amber,#c9a227);font-weight:700;}
+#cronPill{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(78px + env(safe-area-inset-bottom,0px));z-index:2000;
+  display:none;align-items:center;gap:10px;padding:8px 10px 8px 14px;border-radius:999px;max-width:92vw;
+  background:var(--bg-panel,#1f2a24);color:var(--cream,#ece4d3);border:1px solid var(--amber,#c9a227);box-shadow:0 6px 22px rgba(0,0,0,.35);
+  font-family:var(--font-mono);font-size:12px;}
+#cronPill .cron-txt{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+#cronPill .cron-stop{border:0;border-radius:999px;background:var(--amber,#c9a227);color:#1d1a10;font-weight:700;font-size:12px;padding:6px 12px;cursor:pointer;}
+
+/* ===== Racha de estudio ===== */
+.home-racha .llama{display:inline-block;transform-origin:50% 90%;}
+.home-racha:not(.activa) .llama{filter:grayscale(1);opacity:.45;}
+
+/* ===== Tendencia de simulacros ===== */
+.sim-tend{margin:0 0 18px;padding:12px 14px 14px;border:1px solid var(--line-strong);border-radius:8px;background:var(--bg-panel,rgba(255,255,255,.03));}
+.sim-tend-head{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px;}
+.sim-tend-head h4{margin:0;font-family:var(--font-display);text-transform:uppercase;letter-spacing:.03em;font-size:14px;color:var(--amber-ink);}
+.sim-tend-seg{display:flex;flex-wrap:wrap;gap:4px;}
+.sim-tend-btn{border:1px solid var(--line-strong);background:transparent;color:var(--cream-dim,inherit);border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer;font-family:var(--font-mono);}
+.sim-tend-btn.on{background:var(--amber,#c9a227);color:#1d1a10;border-color:var(--amber,#c9a227);font-weight:700;}
+.sim-tend-cv{width:100%;touch-action:pan-y;}
+.sim-tend-cv canvas{display:block;max-width:100%;}
+.sim-tend-cap{font-family:var(--font-mono);font-size:12px;margin-top:8px;}
+.sim-tend-cap.bien{color:#4f9d69;} .sim-tend-cap.mal{color:#c0504d;}
+.sim-tend-res{font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);margin-top:4px;}
+
+@media (prefers-reduced-motion:no-preference){
+  .tmini-play.running{animation:cronLate 1.4s ease-in-out infinite;}
+  @keyframes cronLate{0%,100%{box-shadow:0 0 0 0 rgba(201,162,39,.5);}50%{box-shadow:0 0 0 7px rgba(201,162,39,0);}}
+  #cronPill{animation:cronEntra .3s ease-out;}
+  @keyframes cronEntra{from{opacity:0;transform:translate(-50%,14px);}to{opacity:1;transform:translate(-50%,0);}}
+  .home-racha.activa .llama{animation:llamaVive 1.7s ease-in-out infinite;}
+  .home-racha.bump .llama{animation:llamaBump .95s ease-out, llamaVive 1.7s ease-in-out .95s infinite;}
+  @keyframes llamaVive{0%,100%{transform:scale(1) rotate(-2deg);}50%{transform:scale(1.09) rotate(2deg);filter:drop-shadow(0 0 6px rgba(255,150,40,.7));}}
+  @keyframes llamaBump{0%{transform:scale(1);}35%{transform:scale(1.7) rotate(-8deg);filter:drop-shadow(0 0 16px rgba(255,170,50,.95));}100%{transform:scale(1);}}
+  details.exam-folder[open] > .exam-folder-body{animation:carpetaAbre .26s ease-out;}
+  @keyframes carpetaAbre{from{opacity:0;transform:translateY(-6px);}to{opacity:1;transform:none;}}
+  .task-row.tick-resuelto{animation:filaResuelta .9s ease-out;}
+  @keyframes filaResuelta{0%{background:rgba(79,157,105,.42);transform:scale(1.015);}100%{background:transparent;transform:none;}}
+  .sim-tend-btn{transition:background .2s,color .2s;}
+}

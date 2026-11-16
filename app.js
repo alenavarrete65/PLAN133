@@ -2547,12 +2547,42 @@ function computePlan(){
   _planDirtyFromKey = null;
   return plan;
 }
+/* Chispas de emoji que suben desde un punto (o desde abajo al centro). Respeta «reducir movimiento». */
+function lanzaChispas(emojis, ancla){
+  try{
+    if(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    const r = ancla && ancla.getBoundingClientRect ? ancla.getBoundingClientRect() : {left:window.innerWidth/2-60, top:window.innerHeight-90, width:120};
+    emojis.forEach((emo,i)=>{
+      const sp = document.createElement('span'); sp.className='ob-spark ob-spark-meta'; sp.textContent = emo;
+      sp.style.left = (r.left + r.width*(0.1+0.8*(i/Math.max(1,emojis.length-1))) + window.scrollX)+'px';
+      sp.style.top = (r.top + window.scrollY - 6)+'px';
+      sp.style.animationDelay = (i*60)+'ms';
+      document.body.appendChild(sp);
+      setTimeout(()=> sp.remove(), 1400);
+    });
+  }catch(e){}
+}
+var _animaTick = null; // fila que acaba de pasar de «pendiente» a hecha: la siguiente pintada la resalta
+function alResolverPendiente(monthKey, day, stream){
+  _animaTick = monthKey+'|'+day+'|'+stream;
+  vibra(10);
+  const info = (computePlan()[monthKey] || {})[day];
+  const comp = info ? dayCompletionInfo(info) : null;
+  if(comp && comp.pending === 0){
+    showToast('✨ ¡Día completo!');
+    const t = document.getElementById('toast'); if(t){ clearTimeout(t._h); t._h = setTimeout(()=>t.classList.remove('show'), 2200); }
+    lanzaChispas(['✅','✨','⭐','✨','🔥'], t);
+    vibra(25);
+  }
+}
 function setDayTick(monthKey, day, stream, val){
+  const _antes = !!(state.dayTicks[monthKey] && state.dayTicks[monthKey][day] && state.dayTicks[monthKey][day][stream]);
   if(!state.dayTicks[monthKey]) state.dayTicks[monthKey] = {};
   if(!state.dayTicks[monthKey][day]) state.dayTicks[monthKey][day] = {};
   state.dayTicks[monthKey][day][stream] = val;
   invalidatePlan(monthKey); // solo hace falta recalcular desde este mes en adelante
   scheduleSave();
+  if(_antes && !val){ try{ alResolverPendiente(monthKey, day, stream); }catch(e){} }
 }
 
 /* ===================== RENDER: NAV MESES ===================== */
@@ -3692,6 +3722,44 @@ function nextExamInfo(){
           etiqueta: examDate.getDate()+' '+MESES[examDate.getMonth()].slice(0,3).toLowerCase()+' '+examDate.getFullYear()};
 }
 /* Panel superior: cuenta atrás, racha y resumen del día de hoy. */
+/* Racha de estudio: días de estudio SEGUIDOS con tiempo apuntado (a mano o con el cronómetro). Los días de descanso,
+   trabajo, recuperación, simulacro, baremo o sin horario se saltan sin romperla. Hoy suma en cuanto apuntas tiempo,
+   pero si aún no has apuntado nada hoy no la rompe. */
+function computeRachaEstudio(plan){
+  const now = new Date();
+  let streak = 0, hoyCuenta = false;
+  for(let i=0; i<3650; i++){
+    const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate()-i);
+    const mk = dt.getFullYear()+'-'+pad2(dt.getMonth()+1), dd = dt.getDate();
+    const info = plan[mk] && plan[mk][dd];
+    if(!info) break;
+    if(info.status !== 'ESTUDIO') continue;
+    const t = (state.tiempos && state.tiempos.dias && state.tiempos.dias[mk+'-'+pad2(dd)]) || {};
+    let min = (Number(t.clase)||0)+(Number(t.estudioClase)||0)+(Number(t.otras)||0)+(Number(t.test)||0)+(Number(t.arrastre)||0);
+    if(t.tareas && typeof t.tareas==='object') Object.keys(t.tareas).forEach(k=>{ min += Number(t.tareas[k])||0; });
+    if(i === 0){ if(min > 0){ streak++; hoyCuenta = true; } continue; }
+    if(min > 0) streak++; else break;
+  }
+  return {streak, hoyCuenta};
+}
+function rachaEstudioHtml(plan){
+  let r = {streak:0, hoyCuenta:false}, record = 0, prev = 0, bump = false;
+  try{ r = computeRachaEstudio(plan); }catch(e){}
+  try{
+    prev = Number(localStorage.getItem('ob_racha_prev')) || 0;
+    record = Number(localStorage.getItem('ob_racha_max')) || 0;
+    if(r.streak > record){ record = r.streak; localStorage.setItem('ob_racha_max', String(record)); }
+    if(r.streak > prev) bump = true;
+    if(r.streak !== prev) localStorage.setItem('ob_racha_prev', String(r.streak));
+  }catch(e){}
+  const activa = r.streak > 0;
+  return '<div class="home-card home-racha'+(activa?' activa':'')+(bump?' bump':'')+'"><div class="home-card-label">Racha de estudio</div>'+
+    '<div class="home-card-value"><span class="llama" aria-hidden="true">🔥</span> <span data-countup="'+r.streak+'" data-fmt="int" data-countkey="racha-estudio">'+r.streak+'</span></div>'+
+    '<div class="home-card-sub">'+(activa
+      ? (r.streak===1?'día':'días')+' seguidos con tiempo apuntado'+(record>r.streak?' · récord '+record:' · ¡es tu récord!')
+      : 'Apunta tus minutos (o usa el ▶) y empieza tu racha')+'</div>'+
+    (activa && !r.hoyCuenta ? '<div class="home-card-note">Apunta algo hoy para sumar otro día.</div>' : '')+'</div>';
+}
 function renderHomeDash(){
   const el = document.getElementById('homeDash');
   if(!el) return;
@@ -3829,6 +3897,7 @@ function renderHomeDash(){
         : '<div class="home-card-value">—</div>'+
           '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
       '<button type="button" class="home-exam-edit" id="homeExamEditBtn">✏️ Cambiar fecha</button></div>'+
+    rachaEstudioHtml(plan)+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+
       (anilloHoyHtml ? '<div class="home-hoy-fila"><div class="home-hoy-main">'+resumenHtml+'</div>'+anilloHoyHtml+'</div>' : resumenHtml)+'</div>'+
@@ -4140,6 +4209,7 @@ function renderCalendarList(){
 function taskRow(tag, txt, tagClass, tickInfo, extraClass){
   const row = document.createElement('div'); row.className='task-row'+(extraClass?' '+extraClass:'');
   row.innerHTML = '<span class="tag '+tagClass+'">'+tag+'</span><span class="task-txt">'+txt+'</span>';
+  if(tickInfo && _animaTick && _animaTick === tickInfo.monthKey+'|'+tickInfo.day+'|'+tickInfo.stream){ row.classList.add('tick-resuelto'); _animaTick = null; }
   if(tickInfo){
     const cb = document.createElement('input');
     cb.type = 'checkbox'; cb.className = 'day-tick';
@@ -4275,7 +4345,7 @@ function openDayModal(d, info, modo){
           const txt = document.createElement('span'); txt.className='tema-line-txt';
           txt.innerHTML = '• '+(t.clase?t.clase:t.nombre)+(t.clase?' <span style="color:var(--muted);font-family:var(--font-mono);font-size:12px;">('+t.nombre+')</span>':'');
           line.appendChild(txt);
-          line.appendChild(tiempoMini((state.tiempos.temas||{})[t.key], v=>setTiempoTema(t.key, v), t.clase?t.clase:t.nombre));
+          line.appendChild(tiempoMini((state.tiempos.temas||{})[t.key], v=>setTiempoTema(t.key, v), t.clase?t.clase:t.nombre, 'tema|'+t.key));
           line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
           bLeft.appendChild(line);
         });
@@ -5033,7 +5103,7 @@ function addArrastreTestRow(body, fechaISO){
   notaLbl.appendChild(document.createTextNode('/10'));
   actions.appendChild(notaLbl);
   { const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
-    actions.appendChild(tiempoMini(dd.arrastre, v=>setTiempoDia(fechaISO,'arrastre',v), 'Test de arrastre')); }
+    actions.appendChild(tiempoMini(dd.arrastre, v=>setTiempoDia(fechaISO,'arrastre',v), 'Test de arrastre', 'dia|'+fechaISO+'|arrastre')); }
   card.appendChild(actions);
 
   const hint = document.createElement('div'); hint.className = 'arrastre-hero-hint';
@@ -5623,7 +5693,7 @@ function psicoEspFila(fechaISO, repintar, onCambio, onTiempo){
   const tx = document.createElement('span'); tx.style.cssText='font-size:13px;flex:1;'; tx.textContent = (e.idx+1)+'/'+PSICO_ESPECIALES.length+' · '+e.nombre;
   head.appendChild(tag); head.appendChild(tx); row.appendChild(head);
   const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
-  row.appendChild(tiempoMini(dd.tareas ? dd.tareas['rec:psicoesp'] : '', v=>{ setTiempoTarea(fechaISO,'rec:psicoesp',v); if(onTiempo) onTiempo(); }, 'Psicotécnico especial'));
+  row.appendChild(tiempoMini(dd.tareas ? dd.tareas['rec:psicoesp'] : '', v=>{ setTiempoTarea(fechaISO,'rec:psicoesp',v); if(onTiempo) onTiempo(); }, 'Psicotécnico especial', 'tarea|'+fechaISO+'|rec:psicoesp'));
   const cb = document.createElement('input'); cb.type='checkbox'; cb.className='day-tick';
   cb.checked = !!(state.psicoEsp.noHecho[fechaISO]);
   cb.title = 'Marcar como NO hecho (pasa al siguiente día de recuperación)';
@@ -5743,7 +5813,7 @@ function buildDiaRecuperacion(body, fechaISO, onCambio){
       const mt = document.createElement('div'); mt.className = 'rec-meta'; mt.textContent = it.grupo+' · Vuelta '+it.vuelta;
       info.appendChild(nm); info.appendChild(mt); top.appendChild(info);
       { const dd = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
-        const mini = tiempoMini(dd.tareas ? dd.tareas[recKey(it)] : '', v=>{ setTiempoTarea(fechaISO, recKey(it), v); pintarResRec(); }, 'Recuperación: '+it.label);
+        const mini = tiempoMini(dd.tareas ? dd.tareas[recKey(it)] : '', v=>{ setTiempoTarea(fechaISO, recKey(it), v); pintarResRec(); }, 'Recuperación: '+it.label, 'tarea|'+fechaISO+'|'+recKey(it));
         mini.title = 'Tiempo estimado (min) para recuperar este tema';
         top.appendChild(mini); }
       const lab = document.createElement('label'); lab.className = 'rec-dia-check';
@@ -9324,6 +9394,154 @@ document.getElementById('closeClaseDayModal').onclick = ()=> document.getElement
 document.getElementById('claseDayModal').addEventListener('click', e=>{ if(e.target.id==='claseDayModal') e.currentTarget.classList.remove('open'); });
 
 /* ===================== RENDER: SIMULACROS ===================== */
+/* ===================== TENDENCIA DE SIMULACROS =====================
+   Gráfica siempre visible arriba de la pestaña Simulacros: TODOS los simulacros con datos, por orden de la lista
+   (nº de simulacro), con la línea del mínimo para el apto y los puntos en verde (apto) o rojo (no apto).
+   Se puede ver el total o cada parte por separado. Toca un punto para ver su detalle. */
+var _simTendSerie = 'total', _simTendSel = null;
+function buildSimTendencia(host){
+  const SERIES = {
+    total:{label:'Total', get:r=> r.hasAny ? r.total : null, min:SIM_MIN_TOTAL, max:null, color:'#c9a227'},
+    con:{label:'Conocimientos', get:r=> r.con, min:SIM_MIN_CON, max:100, color:'#8ec0cf'},
+    ing:{label:'Inglés', get:r=> r.ing, min:SIM_MIN_ING, max:20, color:'#3f8f8a'},
+    psi:{label:'Psicotécnico', get:r=> r.psi, min:PSICO_APTO, max:PSICO_MAX, color:'#9a7bc0'}
+  };
+  const hayAlgo = (state.simulacros||[]).some(sim=>{ const r = computeSimTotal(sim); return r.hasAny || r.noApto; });
+  if(!hayAlgo) return;
+  if(!SERIES[_simTendSerie]) _simTendSerie = 'total';
+  const wrap = document.createElement('div'); wrap.className = 'sim-tend';
+  const head = document.createElement('div'); head.className = 'sim-tend-head';
+  head.innerHTML = '<h4>📈 Tendencia de tus simulacros</h4>';
+  const seg = document.createElement('div'); seg.className = 'sim-tend-seg';
+  head.appendChild(seg); wrap.appendChild(head);
+  const cvWrap = document.createElement('div'); cvWrap.className = 'sim-tend-cv';
+  const canvas = document.createElement('canvas'); canvas.setAttribute('role','img'); cvWrap.appendChild(canvas); wrap.appendChild(cvWrap);
+  const cap = document.createElement('div'); cap.className = 'sim-tend-cap'; wrap.appendChild(cap);
+  const res = document.createElement('div'); res.className = 'sim-tend-res'; wrap.appendChild(res);
+  host.appendChild(wrap);
+
+  const datos = (serie)=>{
+    const out = [];
+    (state.simulacros||[]).forEach((sim,i)=>{
+      const r = computeSimTotal(sim);
+      if(!(r.hasAny || r.noApto)) return;
+      const v = serie.get(r); if(v==null || isNaN(v)) return;
+      const noApto = (serie === SERIES.total) ? r.noApto : (v < serie.min);
+      out.push({n:i+1, sim, r, v:Number(v), noApto});
+    });
+    return out;
+  };
+  const VERDE = '#4f9d69', ROJO = '#c0504d';
+
+  function dibuja(pts, serie, progreso){
+    const T = chartTheme();
+    const cssW = Math.max(260, cvWrap.clientWidth || (window.innerWidth - 60));
+    const cssH = cssW > 720 ? 250 : 200;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = cssW*dpr; canvas.height = cssH*dpr; canvas.style.width = cssW+'px'; canvas.style.height = cssH+'px';
+    const ctx = canvas.getContext('2d'); ctx.scale(dpr, dpr); ctx.clearRect(0,0,cssW,cssH);
+    const vals = pts.map(p=>p.v);
+    const lo = Math.min(serie.min, ...vals), hi = Math.max(...vals);
+    const minV = Math.max(0, Math.floor((lo - (serie.max ? serie.max*0.1 : 10))/5)*5);
+    const maxV = serie.max || (Math.ceil((hi+5)/10)*10);
+    ctx.font = CHART_FONT;
+    const fmt = v=> fmtNotaEs(Math.round(v*10)/10);
+    const ticks = [minV, (minV+maxV)/2, maxV];
+    const labelW = Math.max(...ticks.map(v=>ctx.measureText(fmt(v)).width));
+    const padL = Math.max(30, Math.ceil(labelW)+12), padR = 16, padT = 14, padB = 28;
+    const w = cssW-padL-padR, h = cssH-padT-padB, n = pts.length;
+    const xAt = i => n>1 ? padL + w*i/(n-1) : padL + w/2;
+    const yAt = v => padT + h*(1 - (Math.max(minV, Math.min(maxV, v)) - minV)/(maxV-minV));
+    // zona por debajo del mínimo (no apto)
+    const yMin = yAt(serie.min);
+    ctx.fillStyle = 'rgba(192,80,77,0.09)'; ctx.fillRect(padL, yMin, w, padT+h-yMin);
+    // rejilla + eje Y
+    ctx.strokeStyle = T.grid; ctx.lineWidth = 1; ctx.fillStyle = T.text; ctx.textAlign = 'right'; ctx.textBaseline = 'middle';
+    ticks.forEach(v=>{ const y = yAt(v); ctx.beginPath(); ctx.moveTo(padL,y); ctx.lineTo(padL+w,y); ctx.stroke(); ctx.fillText(fmt(v), padL-6, y); });
+    // línea del mínimo
+    ctx.save(); ctx.setLineDash([5,4]); ctx.strokeStyle = chartColor(ROJO); ctx.lineWidth = 1.4;
+    ctx.beginPath(); ctx.moveTo(padL,yMin); ctx.lineTo(padL+w,yMin); ctx.stroke(); ctx.restore();
+    ctx.fillStyle = chartColor(ROJO); ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
+    ctx.fillText('Mínimo '+fmt(serie.min), padL+4, yMin-3);
+    // eje X: nº de simulacro
+    ctx.fillStyle = T.text; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    const salto = n>14 ? Math.ceil(n/12) : 1;
+    pts.forEach((p,i)=>{ if(i%salto===0 || i===n-1) ctx.fillText('#'+p.n, xAt(i), padT+h+7); });
+    // línea + puntos, revelados con `progreso`
+    ctx.save(); ctx.beginPath(); ctx.rect(0,0, padL + w*progreso + 8, cssH); ctx.clip();
+    const color = chartColor(serie.color);
+    if(n>1){
+      ctx.beginPath(); pts.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.v); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+      ctx.lineTo(xAt(n-1), padT+h); ctx.lineTo(xAt(0), padT+h); ctx.closePath(); ctx.fillStyle = color+'22'; ctx.fill();
+      ctx.beginPath(); pts.forEach((p,i)=>{ const x=xAt(i), y=yAt(p.v); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); });
+      ctx.strokeStyle = color; ctx.lineWidth = 2.2; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; ctx.stroke();
+    }
+    pts.forEach((p,i)=>{
+      const sel = (_simTendSel === p.n) || (_simTendSel === null && i === n-1);
+      ctx.beginPath(); ctx.arc(xAt(i), yAt(p.v), sel ? 6 : 4, 0, Math.PI*2);
+      ctx.fillStyle = chartColor(p.noApto ? ROJO : VERDE); ctx.fill();
+      if(sel){ ctx.lineWidth = 2; ctx.strokeStyle = T.light ? '#1e2a22' : '#ece4d3'; ctx.stroke(); }
+    });
+    ctx.restore();
+    canvas._geo = {xAt, pts};
+  }
+
+  function pinta(animar){
+    const serie = SERIES[_simTendSerie];
+    seg.innerHTML = '';
+    Object.keys(SERIES).forEach(k=>{
+      const b = document.createElement('button'); b.type = 'button'; b.textContent = SERIES[k].label;
+      b.className = 'sim-tend-btn'+(k===_simTendSerie?' on':'');
+      b.onclick = ()=>{ _simTendSerie = k; _simTendSel = null; pinta(true); };
+      seg.appendChild(b);
+    });
+    const pts = datos(serie);
+    if(!pts.length){
+      canvas.style.display = 'none'; cap.textContent = ''; res.textContent = 'Todavía no hay datos de «'+serie.label+'» en tus simulacros.'; return;
+    }
+    canvas.style.display = '';
+    const sel = pts.find(p=>p.n===_simTendSel) || pts[pts.length-1];
+    const txtSel = ()=>{
+      const p = (pts.find(q=>q.n===_simTendSel) || pts[pts.length-1]);
+      let t = 'Simulacro '+p.n+(p.sim.fecha ? ' · '+formatFechaEs(p.sim.fecha) : '')+' · '+serie.label+' '+fmtNotaEs(p.v);
+      t += p.noApto ? ' · ✗ NO APTO'+((serie===SERIES.total && p.r.motivos.length) ? ' ('+p.r.motivos.join('; ')+')' : '') : ' · ✓ APTO';
+      cap.textContent = t; cap.className = 'sim-tend-cap '+(p.noApto?'mal':'bien');
+    };
+    txtSel();
+    // resumen: último, mejor y tendencia de los últimos 3 frente a los 3 anteriores
+    const ultimo = pts[pts.length-1].v, mejor = Math.max(...pts.map(p=>p.v));
+    const media = a=> a.reduce((x,y)=>x+y,0)/a.length;
+    let tend = '';
+    if(pts.length >= 4){
+      const rec = pts.slice(-3).map(p=>p.v), ant = pts.slice(-6,-3).map(p=>p.v);
+      const d = media(rec)-media(ant);
+      tend = Math.abs(d) < 0.05 ? ' · → estable' : (d>0 ? ' · ↗ subiendo '+fmtNotaEs(Math.round(d*10)/10) : ' · ↘ bajando '+fmtNotaEs(Math.round(Math.abs(d)*10)/10))+' (media de los últimos 3 frente a los 3 anteriores)';
+    } else if(pts.length >= 2){
+      const d = ultimo - pts[pts.length-2].v;
+      tend = d===0 ? ' · → igual que el anterior' : (d>0 ? ' · ↗ +' : ' · ↘ −')+fmtNotaEs(Math.round(Math.abs(d)*10)/10)+' respecto al anterior';
+    } else tend = ' · con un segundo simulacro verás la tendencia';
+    const falta = ultimo < serie.min ? ' · te faltan '+fmtNotaEs(Math.round((serie.min-ultimo)*10)/10)+' para el mínimo' : '';
+    res.textContent = 'Último '+fmtNotaEs(ultimo)+' · mejor '+fmtNotaEs(mejor)+tend+falta;
+    canvas.setAttribute('aria-label', 'Tendencia de '+serie.label+': '+res.textContent);
+    // dibujo (con barrido de izquierda a derecha, salvo «reducir movimiento»)
+    cancelAnimationFrame(canvas._raf || 0);
+    if(!animar || _reduceMotion()){ dibuja(pts, serie, 1); }
+    else {
+      const t0 = performance.now(), dur = 800;
+      const paso = (t)=>{ const q = Math.min(1,(t-t0)/dur), e = 1-Math.pow(1-q,3); dibuja(pts, serie, e); if(q<1 && document.body.contains(canvas)) canvas._raf = requestAnimationFrame(paso); };
+      canvas._raf = requestAnimationFrame(paso);
+    }
+    const elegir = (ev)=>{
+      const g = canvas._geo; if(!g) return;
+      const rc = canvas.getBoundingClientRect(); const x = ev.clientX - rc.left;
+      let best = 0, bd = 1e9; g.pts.forEach((p,i)=>{ const d = Math.abs(g.xAt(i)-x); if(d<bd){ bd = d; best = i; } });
+      _simTendSel = g.pts[best].n; txtSel(); dibuja(pts, serie, 1);
+    };
+    canvas.onpointerdown = elegir;
+    canvas.onpointermove = (ev)=>{ if(ev.pointerType==='mouse' || ev.buttons) elegir(ev); };
+  }
+  pinta(true);
+}
 function renderSimulacrosList(){
   const host = document.getElementById('simulacrosListHost');
   if(!host) return;
@@ -9343,6 +9561,7 @@ function renderSimulacrosList(){
   };
   topBar.appendChild(addBtn);
   host.appendChild(topBar);
+  try{ buildSimTendencia(host); }catch(e){ try{ console.error('Tendencia de simulacros', e); }catch(_){} }
 
   if(!list.length){
     const empty = document.createElement('div'); empty.className='empty-state';
@@ -10188,15 +10407,104 @@ function setTiempoTarea(fechaISO, stream, valor){
 /* Se rellena al pintar la ficha: refresca el resumen del cuadro de tiempo cuando cambias unos minutos. */
 var _tiempoRefresh = null;
 /* Campo pequeño «[  ] min» para apuntar el tiempo al lado de una tarea. */
-function tiempoMini(valor, onSet, etiqueta){
-  const w = document.createElement('label'); w.className='tmini'; w.title = 'Minutos que has dedicado a esto';
+/* ===================== CRONÓMETRO DE ESTUDIO =====================
+   Cada campo «[ ] min» tiene un botón ▶. Al pulsarlo empieza a contar; al pararlo (⏸ o «Parar y sumar»)
+   suma los minutos al valor que ya hubiera. El campo sigue siendo editable a mano, por si no le das al botón.
+   Solo corre un cronómetro a la vez (si empiezas otro, el anterior se para y se suma). Sobrevive a recargar
+   la página. Se suman como mucho 4 h por tramo (por si te lo dejas puesto) y menos de 1 min no suma nada. */
+var _cron = null;      // {key, label, t0}
+var _cronReg = {};     // key -> input visible (solo para refrescar lo que se ve)
+try{ const raw = localStorage.getItem('ob_cron'); if(raw){ const o = JSON.parse(raw); if(o && o.key && o.t0) _cron = o; } }catch(e){}
+function _cronGuarda(){ try{ if(_cron) localStorage.setItem('ob_cron', JSON.stringify(_cron)); else localStorage.removeItem('ob_cron'); }catch(e){} }
+function _cronFmt(ms){
+  const s = Math.max(0, Math.floor(ms/1000)), h = Math.floor(s/3600), m = Math.floor((s%3600)/60), x = s%60;
+  return h ? (h+':'+pad2(m)+':'+pad2(x)) : (pad2(m)+':'+pad2(x));
+}
+function vibra(ms){ try{ if(navigator.vibrate) navigator.vibrate(ms); }catch(e){} }
+// Suma `min` minutos al campo que identifica `key` (escribe directamente en los datos, aunque el campo no esté pintado).
+function _cronAcredita(key, min){
+  const p = String(key).split('|');
+  if(p[0]==='tarea' && p.length>=3){
+    const f = p[1], st = p.slice(2).join('|');
+    const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[f]) || {};
+    const cur = Number(d.tareas && d.tareas[st]) || 0;
+    setTiempoTarea(f, st, String(cur+min)); return cur+min;
+  }
+  if(p[0]==='dia' && p.length>=3){
+    const f = p[1], campo = p.slice(2).join('|');
+    const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[f]) || {};
+    const cur = Number(d[campo]) || 0;
+    setTiempoDia(f, campo, String(cur+min)); return cur+min;
+  }
+  if(p[0]==='tema' && p.length>=2){
+    const k = p.slice(1).join('|');
+    const cur = Number(state.tiempos && state.tiempos.temas && state.tiempos.temas[k]) || 0;
+    setTiempoTema(k, String(cur+min)); return cur+min;
+  }
+  return null;
+}
+function cronParar(){
+  if(!_cron) return;
+  const c = _cron; _cron = null; _cronGuarda();
+  const min = Math.min(240, Math.round((Date.now()-c.t0)/60000));
+  if(min >= 1){
+    const nuevo = _cronAcredita(c.key, min);
+    if(nuevo !== null){
+      const inp = _cronReg[c.key]; if(inp && document.body.contains(inp)) inp.value = nuevo;
+      try{ if(_tiempoRefresh) _tiempoRefresh(); }catch(e){}
+      try{ renderHomeDash(); }catch(e){}
+      showToast('⏱ +'+min+' min · '+c.label);
+      try{ celebrarObjetivoSiToca(); }catch(e){}
+    } else showToast('⏱ No se ha podido sumar el tiempo a este campo');
+  } else showToast('⏱ Menos de 1 minuto: no se ha sumado nada');
+  vibra(18);
+  cronPinta();
+}
+function cronAlternar(key, label){
+  if(_cron && _cron.key === key){ cronParar(); return; }
+  if(_cron) cronParar();
+  _cron = {key, label: label || 'Estudio', t0: Date.now()}; _cronGuarda();
+  vibra(12);
+  cronPinta();
+}
+function cronPinta(){
+  document.querySelectorAll('.tmini-play').forEach(b=>{
+    const run = !!(_cron && _cron.key === b.getAttribute('data-key'));
+    b.classList.toggle('running', run);
+    b.textContent = run ? ('⏸ '+_cronFmt(Date.now()-_cron.t0)) : '▶';
+    b.setAttribute('aria-label', (run ? 'Parar y sumar el tiempo: ' : 'Empezar a cronometrar: ')+(b.getAttribute('data-label')||''));
+  });
+  let pill = document.getElementById('cronPill');
+  if(!_cron){ if(pill) pill.style.display = 'none'; return; }
+  if(!pill){
+    pill = document.createElement('div'); pill.id = 'cronPill';
+    pill.innerHTML = '<span class="cron-ico">⏱</span><span class="cron-txt"></span><button type="button" class="cron-stop">Parar y sumar</button>';
+    pill.querySelector('.cron-stop').onclick = ()=> cronParar();
+    document.body.appendChild(pill);
+  }
+  pill.style.display = 'flex';
+  pill.querySelector('.cron-txt').textContent = _cron.label+' · '+_cronFmt(Date.now()-_cron.t0);
+}
+setInterval(()=>{ if(_cron) cronPinta(); }, 1000);
+setTimeout(()=>{ try{ cronPinta(); }catch(e){} }, 600);
+
+function tiempoMini(valor, onSet, etiqueta, timerKey){
+  const w = document.createElement('label'); w.className='tmini'; w.title = 'Minutos que has dedicado a esto (puedes escribirlos a mano o usar el cronómetro ▶)';
   const inp = document.createElement('input'); inp.type='number'; inp.min='0'; inp.step='5'; inp.inputMode='numeric';
   inp.placeholder='0'; inp.setAttribute('aria-label', 'Minutos: '+(etiqueta||'tarea'));
   if(valor!==undefined && valor!==null && valor!=='' && Number(valor)>0) inp.value = valor;
   inp.onclick = (e)=>e.stopPropagation();
   inp.oninput = ()=>{ onSet(inp.value); if(_tiempoRefresh) _tiempoRefresh(); };
+  const key = timerKey || ('x|'+(etiqueta||'tarea'));
+  _cronReg[key] = inp;
+  const play = document.createElement('button'); play.type='button'; play.className='tmini-play';
+  play.setAttribute('data-key', key); play.setAttribute('data-label', etiqueta||'tarea');
+  play.onclick = (e)=>{ e.preventDefault(); e.stopPropagation(); cronAlternar(key, etiqueta||'tarea'); };
+  w.appendChild(play);
   w.appendChild(inp);
   const u = document.createElement('em'); u.textContent='min'; w.appendChild(u);
+  const run = !!(_cron && _cron.key === key);
+  play.classList.toggle('running', run); play.textContent = run ? ('⏸ '+_cronFmt(Date.now()-_cron.t0)) : '▶';
   return w;
 }
 /* Fila «etiqueta … [ ] min» para un tiempo del día (clase, estudio de la clase, test). */
@@ -10204,13 +10512,13 @@ function tiempoFilaDia(label, fechaISO, campo){
   const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
   const row = document.createElement('div'); row.className='tiempo-fila';
   const sp = document.createElement('span'); sp.textContent = label; row.appendChild(sp);
-  row.appendChild(tiempoMini(d[campo], v=>setTiempoDia(fechaISO, campo, v), label));
+  row.appendChild(tiempoMini(d[campo], v=>setTiempoDia(fechaISO, campo, v), label, 'dia|'+fechaISO+'|'+campo));
   return row;
 }
 /* Mini campo ya enlazado a una tarea del día (leve, inglés, examen, entreno, psico, orto). */
 function tiempoMiniTarea(fechaISO, stream, etiqueta){
   const d = (state.tiempos && state.tiempos.dias && state.tiempos.dias[fechaISO]) || {};
-  return tiempoMini(d.tareas ? d.tareas[stream] : '', v=>setTiempoTarea(fechaISO, stream, v), etiqueta);
+  return tiempoMini(d.tareas ? d.tareas[stream] : '', v=>setTiempoTarea(fechaISO, stream, v), etiqueta, 'tarea|'+fechaISO+'|'+stream);
 }
 function setTiempoTema(key, valor){
   normalizeState();
