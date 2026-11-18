@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v169'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v171'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -778,3 +778,7 @@ En la ficha de cualquier día de estudio, dentro de la tarjeta del **Bloque**, h
 
 - Al elegir un bloque en el desplegable **no se guarda nada todavía**: la ficha del día enseña un panel «Así quedarían los próximos días» (8 días de estudio, con ✎ en los que cambian y el «antes B…») con **Confirmar / Cancelar**; en la vista de lista sale como aviso de confirmación. `vistaPreviaBloque()` calcula el plan con la elección puesta de forma temporal y luego la quita, sin guardar.
 - Bajo el desplegable, **📊 Vuelta actual**: cuántos bloques llevas de cada familia (p. ej. «Menos graves 5/7 (+3 adelantados)»; «adelantados» = estudiados antes de su turno y que aún no han llegado). Viene de `entry.ronda` (`bqRonda()`), que se calcula en `computePlan()` contando ese día.
+
+## Cabecera compacta (una sola línea)
+
+Arriba del calendario van **⏳ días para el examen**, **🔥 racha** y el botón **📋 Resumen de hoy**, siempre en **una sola línea** (ordenador, tablet y móvil; en pantallas estrechas se acortan los textos y los tooltips llevan el detalle). Las tarjetas de detalle (test de arrastre, hoy, clases, simulacro, por recuperar) están dentro del resumen, **plegado por defecto**, para que el calendario quede arriba; la elección abierto/cerrado se recuerda en `localStorage` (`ob-resumen-abierto`). Código: `renderHomeDash()` / `rachaEstudioHtml()` en `app.js`; estilos al final de `styles.css` (`.home-bar`, `.home-chip`, `.home-resumen-btn`, `.home-resumen-grid`). El ✏️ del chip del examen abre «Cambiar fecha».

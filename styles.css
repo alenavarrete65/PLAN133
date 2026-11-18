@@ -2094,3 +2094,61 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
   @keyframes filaResuelta{0%{background:rgba(79,157,105,.42);transform:scale(1.015);}100%{background:transparent;transform:none;}}
   .sim-tend-btn{transition:background .2s,color .2s;}
 }
+
+
+/* ===== Cabecera compacta: cuenta atrás + racha + botón «Resumen de hoy» SIEMPRE en una sola línea
+   (ordenador, tablet y móvil). Las tarjetas de detalle quedan plegadas para que el calendario suba. ===== */
+.home-dash{display:block !important;margin-bottom:12px;}
+.home-bar{display:flex;flex-wrap:nowrap;align-items:stretch;gap:8px;min-width:0;}
+.home-chip{
+  display:flex;align-items:center;gap:6px;flex:1 1 0;min-width:0;white-space:nowrap;overflow:hidden;
+  background:var(--bg-panel);border:1px solid rgba(201,162,39,.2);border-radius:999px;padding:6px 12px;
+}
+.home-chip .home-card-value{font-size:18px;line-height:1;flex:0 0 auto;}
+.home-chip-sub{font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);overflow:hidden;text-overflow:ellipsis;min-width:0;}
+.home-chip-edit{
+  margin-left:auto;flex:0 0 auto;background:none;border:none;padding:2px 2px;cursor:pointer;font-size:13px;line-height:1;opacity:.8;
+}
+.home-chip-edit:hover{opacity:1;}
+.home-resumen-btn{
+  flex:0 0 auto;display:flex;align-items:center;gap:4px;white-space:nowrap;cursor:pointer;
+  background:var(--bg-panel);color:var(--cream);border:1px solid rgba(201,162,39,.2);border-radius:999px;padding:6px 12px;
+  font-family:var(--font-mono);font-size:12px;
+}
+.home-resumen-btn:hover{border-color:var(--amber);}
+.home-resumen-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px;margin-top:10px;}
+.home-resumen-grid[hidden]{display:none;}
+.home-resumen-grid .home-card-wide{grid-column:auto;}
+@media (max-width:480px){
+  .home-bar{gap:6px;}
+  .home-chip{padding:6px 9px;gap:4px;}
+  .home-chip .home-card-value{font-size:16px;}
+  .home-chip-sub{font-size:11px;}
+  .hc-largo{display:none;}
+  .hr-txt{display:none;}
+  .home-resumen-btn{padding:6px 10px;}
+}
+@media (max-width:360px){
+  .home-chip-edit{display:none;}
+}
+
+/* ===== Cabecera mínima: una línea fina de texto, sin recuadros (menos ruido visual). ===== */
+.home-dash{margin-bottom:6px !important;}
+.home-bar{justify-content:center;align-items:center;gap:14px;}
+.home-chip{
+  flex:0 1 auto;background:none;border:none;border-radius:0;padding:2px 0;gap:5px;overflow:visible;
+}
+.home-chip .home-card-value{font-size:15px;font-weight:600;color:var(--cream-dim);}
+.home-chip-sub{font-size:12px;color:var(--muted);}
+.home-chip-edit{display:none;}
+.home-resumen-btn{
+  background:none;border:none;border-radius:0;padding:2px 0;color:var(--muted);font-size:12px;text-decoration:underline;text-underline-offset:3px;
+}
+.home-resumen-btn:hover{border:none;color:var(--cream);}
+.home-resumen-btn > span:first-child{display:none;}
+.home-resumen-grid{margin-top:8px;}
+@media (max-width:480px){
+  .home-bar{gap:10px;}
+  .hr-txt{display:inline;}
+  .home-chip .home-card-value{font-size:14px;}
+}

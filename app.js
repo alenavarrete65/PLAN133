@@ -3821,12 +3821,13 @@ function rachaEstudioHtml(plan){
     if(r.streak !== prev) localStorage.setItem('ob_racha_prev', String(r.streak));
   }catch(e){}
   const activa = r.streak > 0;
-  return '<div class="home-card home-racha'+(activa?' activa':'')+(bump?' bump':'')+'"><div class="home-card-label">Racha de estudio</div>'+
-    '<div class="home-card-value"><span class="llama" aria-hidden="true">🔥</span> <span data-countup="'+r.streak+'" data-fmt="int" data-countkey="racha-estudio">'+r.streak+'</span></div>'+
-    '<div class="home-card-sub">'+(activa
-      ? (r.streak===1?'día':'días')+' seguidos con tiempo apuntado'+(record>r.streak?' · récord '+record:' · ¡es tu récord!')
-      : 'Apunta tus minutos (o usa el ▶) y empieza tu racha')+'</div>'+
-    (activa && !r.hoyCuenta ? '<div class="home-card-note">Apunta algo hoy para sumar otro día.</div>' : '')+'</div>';
+  const tip = activa
+    ? 'Racha de estudio: '+r.streak+(r.streak===1?' día':' días')+' seguidos con tiempo apuntado'+(record>r.streak?' · récord '+record:' · ¡es tu récord!')+(!r.hoyCuenta ? ' · Apunta algo hoy para sumar otro día.' : '')
+    : 'Racha de estudio: apunta tus minutos (o usa el ▶) y empieza tu racha';
+  return '<div class=\"home-chip home-racha'+(activa?' activa':'')+(bump?' bump':'')+'\" title=\"'+tip.replace(/\"/g,'&quot;')+'\">'+
+    '<span class=\"llama\" aria-hidden=\"true\">🔥</span>'+
+    '<span class=\"home-card-value\" data-countup=\"'+r.streak+'\" data-fmt=\"int\" data-countkey=\"racha-estudio\">'+r.streak+'</span>'+
+    '<span class=\"home-chip-sub\">'+(r.streak===1?'día':'días')+'<span class=\"hc-largo\"> de racha</span></span></div>';
 }
 function renderHomeDash(){
   const el = document.getElementById('homeDash');
@@ -3957,24 +3958,39 @@ function renderHomeDash(){
     }
   }catch(e){ anilloHoyHtml = ''; }
 
+  let resumenAbierto = false;
+  try{ resumenAbierto = localStorage.getItem('ob-resumen-abierto') === '1'; }catch(e){}
+  const chipCuenta = '<div class=\"home-chip home-cuenta\" title=\"'+(exam.daysLeft >= 0
+      ? exam.daysLeft+(exam.daysLeft===1?' día':' días')+' para el examen ('+exam.etiqueta+')'
+      : 'La fecha del examen ('+exam.etiqueta+') ya pasó')+'\">'+
+    '<span aria-hidden=\"true\">⏳</span>'+
+    (exam.daysLeft >= 0
+      ? '<span class=\"home-card-value\" data-countup=\"'+exam.daysLeft+'\" data-fmt=\"int\" data-countkey=\"exam-dias\">'+exam.daysLeft+'</span>'+
+        '<span class=\"home-chip-sub\">'+(exam.daysLeft===1?'día':'días')+'<span class=\"hc-largo\"> para el examen</span></span>'
+      : '<span class=\"home-card-value\">—</span><span class=\"home-chip-sub\">examen pasado</span>')+
+    '<button type=\"button\" class=\"home-chip-edit\" id=\"homeExamEditBtn\" title=\"Cambiar la fecha del examen\" aria-label=\"Cambiar la fecha del examen\">✏️</button></div>';
   el.innerHTML =
-    '<div class="home-card"><div class="home-card-label">Cuenta atrás</div>'+
-      (exam.daysLeft >= 0
-        ? '<div class="home-card-value" data-countup="'+exam.daysLeft+'" data-fmt="int" data-countkey="exam-dias">'+exam.daysLeft+'</div>'+
-          '<div class="home-card-sub">'+(exam.daysLeft===1?'día':'días')+' para el examen ('+exam.etiqueta+')</div>'
-        : '<div class="home-card-value">—</div>'+
-          '<div class="home-card-sub">La fecha del examen ('+exam.etiqueta+') ya pasó</div>')+
-      '<button type="button" class="home-exam-edit" id="homeExamEditBtn">✏️ Cambiar fecha</button></div>'+
-    rachaEstudioHtml(plan)+
+    '<div class=\"home-bar\">'+chipCuenta+rachaEstudioHtml(plan)+
+      '<button type=\"button\" class=\"home-resumen-btn\" id=\"homeResumenBtn\" aria-expanded=\"'+(resumenAbierto?'true':'false')+'\" aria-controls=\"homeResumen\" title=\"Mostrar u ocultar el resumen de hoy\">'+
+        '<span aria-hidden=\"true\">📋</span><span class=\"hr-txt\"> Resumen de hoy</span><span class=\"hr-chev\" aria-hidden=\"true\">'+(resumenAbierto?'▴':'▾')+'</span></button></div>'+
+    '<div class=\"home-resumen-grid\" id=\"homeResumen\"'+(resumenAbierto?'':' hidden')+'>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">📋 Test de arrastre de hoy</div>'+arrastreHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">Hoy</div>'+
       (anilloHoyHtml ? '<div class="home-hoy-fila"><div class="home-hoy-main">'+resumenHtml+'</div>'+anilloHoyHtml+'</div>' : resumenHtml)+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🏫 Clases de hoy</div>'+clasesHoyHtml+'</div>'+
     '<div class="home-card home-card-wide"><div class="home-card-label">🎯 Simulacro de hoy</div>'+simHoyHtml+'</div>'+
-    '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div>';
+    '<div class="home-card home-card-wide"><div class="home-card-label">🔁 Por recuperar</div>'+recuperarHomeHtml+'</div></div>';
 
   const examEditBtn = document.getElementById('homeExamEditBtn');
   if(examEditBtn) examEditBtn.onclick = openExamDateModal;
+  const resBtn = document.getElementById('homeResumenBtn'), resBox = document.getElementById('homeResumen');
+  if(resBtn && resBox) resBtn.onclick = ()=>{
+    const abrir = resBox.hasAttribute('hidden');
+    if(abrir) resBox.removeAttribute('hidden'); else resBox.setAttribute('hidden','');
+    resBtn.setAttribute('aria-expanded', abrir ? 'true' : 'false');
+    const ch = resBtn.querySelector('.hr-chev'); if(ch) ch.textContent = abrir ? '▴' : '▾';
+    try{ localStorage.setItem('ob-resumen-abierto', abrir ? '1' : '0'); }catch(e){}
+  };
   // El anillo de hoy entra llenándose desde vacío.
   { const pg = el.querySelector('.home-anillo .an-prog');
     if(pg) requestAnimationFrame(()=>requestAnimationFrame(()=>{ pg.setAttribute('stroke-dashoffset', pg.getAttribute('data-off')); })); }
