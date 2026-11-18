@@ -8710,25 +8710,27 @@ function setClaseParcial(entry, cat, value, esParcial){
   if(!esParcial && i>-1) entry.parciales.splice(i,1);
 }
 function quitarClaseParcial(entry, cat, value){ setClaseParcial(entry, cat, value, false); }
-function buildClasePillsHTML(entry, notePreviewLen){
+function buildClasePillsHTML(entry, notePreviewLen, arrastrable){
   let html = '';
   let any = false;
-  if(entry.conocimientos && entry.conocimientos.length){ html += '<span class="cclase-pill p-con">CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
-  if(entry.ingles && entry.ingles.length){ html += '<span class="cclase-pill p-ing">ING · Lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
-  if(entry.psico && entry.psico.length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
-  if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ html += '<span class="cclase-pill p-psi">PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
+  // Con `arrastrable` cada pastilla lleva (en data-mv) qué clases contiene, para poder arrastrarla a otro día.
+  const dr = (items)=> arrastrable ? ' draggable="true" data-mv="'+encodeURIComponent(JSON.stringify(items))+'"' : '';
+  if(entry.conocimientos && entry.conocimientos.length){ html += '<span class="cclase-pill p-con"'+dr(entry.conocimientos.map(v=>({cat:'conocimientos',value:v})))+'>CON · Tema'+(entry.conocimientos.length>1?'s ':' ')+entry.conocimientos.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
+  if(entry.ingles && entry.ingles.length){ html += '<span class="cclase-pill p-ing"'+dr(entry.ingles.map(v=>({cat:'ingles',value:v})))+'>ING · Lesson'+(entry.ingles.length>1?'s ':' ')+entry.ingles.slice().sort((a,b)=>a-b).join(', ')+'</span>'; any=true; }
+  if(entry.psico && entry.psico.length){ html += '<span class="cclase-pill p-psi"'+dr(entry.psico.map(v=>({cat:'psico',value:v})))+'>PSI · '+entry.psico.slice().sort((a,b)=>a-b).map(idx=>PSICO_ITEMS[idx]).join(', ')+'</span>'; any=true; }
+  if(entry.psicoExtra && entry.psicoExtra.filter(n=>n&&n.trim()).length){ html += '<span class="cclase-pill p-psi"'+dr(entry.psicoExtra.filter(n=>n&&n.trim()).map(v=>({cat:'psicoExtra',value:v})))+'>PSI · '+entry.psicoExtra.filter(n=>n&&n.trim()).join(', ').replace(/</g,'&lt;')+'</span>'; any=true; }
   if(entry.orto && entry.orto.length){
     const label = entry.orto.filter(n=>n && n.trim()).join(', ') || ('ORTOGRAFÍA Y GRAMÁTICA'+(entry.orto.length>1?' ×'+entry.orto.length:''));
-    html += '<span class="cclase-pill p-orto">'+(entry.orto.some(n=>n&&n.trim())?'ORT/GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+    html += '<span class="cclase-pill p-orto"'+dr(entry.orto.map(v=>({cat:'orto',value:v})))+'>'+(entry.orto.some(n=>n&&n.trim())?'ORT/GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
   }
   if(Array.isArray(entry.seminarios) && entry.seminarios.length){
-    entry.seminarios.forEach(sm=>{
-      html += '<span class="cclase-pill p-sem">SEM · '+((sm && sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario').replace(/</g,'&lt;')+'</span>'; any=true;
+    entry.seminarios.forEach((sm,smi)=>{
+      html += '<span class="cclase-pill p-sem"'+dr([{cat:'seminarios',index:smi}])+'>SEM · '+((sm && sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario').replace(/</g,'&lt;')+'</span>'; any=true;
     });
   }
   if(entry.gram && entry.gram.length){
     const label = entry.gram.filter(n=>n && n.trim()).join(', ') || ('GRAMÁTICA'+(entry.gram.length>1?' ×'+entry.gram.length:''));
-    html += '<span class="cclase-pill p-gram">'+(entry.gram.some(n=>n&&n.trim())?'GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
+    html += '<span class="cclase-pill p-gram"'+dr(entry.gram.map(v=>({cat:'gram',value:v})))+'>'+(entry.gram.some(n=>n&&n.trim())?'GRAM · ':'')+label.replace(/</g,'&lt;')+'</span>'; any=true;
   }
   if(entry.nota){
     const maxLen = notePreviewLen || 28;
@@ -8795,10 +8797,11 @@ function renderClaseCalendarGrid(){
 
     const entry = (state.claseCal[currentMonthKey] && state.claseCal[currentMonthKey][d]) || {};
     const pills = document.createElement('div'); pills.className='cclase-pills';
-    pills.innerHTML = buildClasePillsHTML(entry, 28);
+    pills.innerHTML = buildClasePillsHTML(entry, 28, true);
     cell.appendChild(pills);
 
     hacerCeldaAccesible(cell, ()=> openClaseDayModal(d, jsDow));
+    activarArrastreClases(cell, pills, d);
     grid.appendChild(cell);
   }
   host.appendChild(grid);
@@ -8932,6 +8935,135 @@ function procesarSincronizacionesClaseVencidas(){
   _ultimoDiaClases = hoy;
   invalidarClasesDerivadas();
 }
+/* ===================== MOVER UNA CLASE DE DÍA (sin borrarla ni volver a ponerla) =====================
+   Una «clase» se identifica por su materia + valor (p. ej. conocimientos 5, ingles 3, psico idx, orto 'nombre',
+   seminario por posición). Mover = quitarla del día de origen y ponerla en el de destino llevándose también su
+   marca de «parte suelta» y su comentario (la línea [Materia — Tema] de las notas). NO pasa por «pendientes».
+   Se puede hacer: arrastrando la pastilla a otro día (rejilla) o con el botón ↔ de cada clase en la ficha del día. */
+function etiquetasNotaClase(cat, v){
+  if(cat === 'conocimientos') return ['Conocimientos', 'Tema '+v];
+  if(cat === 'ingles') return ['Inglés', 'Lesson '+v];
+  if(cat === 'psico') return ['Psicotécnicos', PSICO_ITEMS[v]];
+  if(cat === 'psicoExtra') return ['Psicotécnicos', v];
+  if(cat === 'orto') return ['Ortografía y gramática', v];
+  return null;
+}
+// Quita de las notas y devuelve (o '') la línea de comentario asociada a una clase.
+function extraerNotaClase(entry, materiaLabel, temaLabel){
+  if(!entry.nota) return '';
+  const etiquetas = (materiaLabel==='Ortografía y gramática') ? [materiaLabel, 'Ortografía', 'Gramática'] : [materiaLabel];
+  const tags = etiquetas.map(l=> '['+l + (temaLabel ? (' — '+temaLabel) : '') + ']');
+  const lines = entry.nota.split('\n');
+  let hallada = '';
+  const resto = lines.filter(line=>{
+    if(!hallada && tags.some(tag=> line.indexOf(tag)===0)){ hallada = line; return false; }
+    return true;
+  });
+  entry.nota = resto.join('\n');
+  return hallada;
+}
+function moverClases(fromMk, fromD, toMk, toD, items){
+  if(!Array.isArray(items) || !items.length) return null;
+  if(fromMk === toMk && fromD === toD) return null;
+  if(!state.months[toMk]){ showToast('Ese mes aún no está en tu calendario: añádelo primero.'); return null; }
+  const src = ensureClaseCalDay(fromMk, fromD);
+  const dst = ensureClaseCalDay(toMk, toD);
+  let movidas = 0, repetidas = 0;
+  // Los seminarios se localizan por posición: se procesan de mayor a menor para no descolocar índices.
+  const ordenados = items.slice().sort((a,b)=> (b.index||0) - (a.index||0));
+  ordenados.forEach(it=>{
+    const cat = it.cat;
+    let valor = it.value;
+    if(cat === 'seminarios'){
+      if(!Array.isArray(src.seminarios) || !src.seminarios[it.index]) return;
+      dst.seminarios.push(src.seminarios.splice(it.index,1)[0]); movidas++; return;
+    }
+    const arr = src[cat]; if(!Array.isArray(arr)) return;
+    const i = arr.indexOf(valor); if(i === -1) return;
+    arr.splice(i,1);
+    // comentario y «parte suelta» viajan con la clase
+    const et = etiquetasNotaClase(cat, valor);
+    if(et){
+      const linea = extraerNotaClase(src, et[0], et[1]);
+      if(linea) dst.nota = dst.nota ? dst.nota+'\n'+linea : linea;
+    }
+    if(cat === 'conocimientos' || cat === 'ingles' || cat === 'psico'){
+      const k = claseParcialKey(cat, valor);
+      const pi = src.parciales.indexOf(k);
+      if(pi > -1){ src.parciales.splice(pi,1); if(dst.parciales.indexOf(k) === -1) dst.parciales.push(k); }
+    }
+    const numerica = (cat === 'conocimientos' || cat === 'ingles' || cat === 'psico');
+    if(numerica && dst[cat].indexOf(valor) > -1){ repetidas++; return; }   // ya estaba ese día: no se duplica
+    dst[cat].push(valor); movidas++;
+  });
+  scheduleSave();
+  renderClaseCalendar();
+  showToast(repetidas && !movidas ? 'Esa clase ya estaba el '+fechaCortaBq(toMk+'-'+pad2(toD))
+    : 'Clase movida al '+fechaCortaBq(toMk+'-'+pad2(toD)));
+  return {movidas, repetidas};
+}
+// Rejilla: arrastrar una pastilla a otro día (ordenador / tablet con ratón o lápiz).
+function activarArrastreClases(cell, pillsHost, d){
+  const mk = currentMonthKey;
+  pillsHost.querySelectorAll('.cclase-pill[data-mv]').forEach(p=>{
+    p.addEventListener('dragstart', e=>{
+      let items = [];
+      try{ items = JSON.parse(decodeURIComponent(p.getAttribute('data-mv'))); }catch(_){}
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', 'clasemv:'+JSON.stringify({mk, d, items}));
+      p.classList.add('dragging');
+    });
+    p.addEventListener('dragend', ()=>{
+      p.classList.remove('dragging');
+      document.querySelectorAll('.cclase-drop').forEach(c=> c.classList.remove('cclase-drop'));
+    });
+  });
+  cell.addEventListener('dragover', e=>{
+    if(e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'text/plain') > -1){
+      e.preventDefault(); e.dataTransfer.dropEffect = 'move'; cell.classList.add('cclase-drop');
+    }
+  });
+  cell.addEventListener('dragleave', e=>{ if(!cell.contains(e.relatedTarget)) cell.classList.remove('cclase-drop'); });
+  cell.addEventListener('drop', e=>{
+    e.preventDefault(); cell.classList.remove('cclase-drop');
+    const raw = (e.dataTransfer && e.dataTransfer.getData('text/plain')) || '';
+    if(raw.indexOf('clasemv:') !== 0) return;
+    let p; try{ p = JSON.parse(raw.slice(8)); }catch(_){ return; }
+    moverClases(p.mk, p.d, mk, d, p.items);
+  });
+}
+// Ficha del día: panel «Mover a…» con fecha (y ◀ ▶ para ±1 día) bajo la fila de la clase.
+function abrirPanelMoverClase(pill, items, texto, mk, d, alTerminar){
+  const previo = document.getElementById('claseMovePanel'); if(previo) previo.remove();
+  const row = pill.closest('.clase-preview-row') || pill.parentNode;
+  const panel = document.createElement('div'); panel.id = 'claseMovePanel'; panel.className = 'clase-move-panel';
+  const t = document.createElement('div'); t.className = 'clase-move-title'; t.textContent = 'Mover «'+texto+'» a otro día';
+  panel.appendChild(t);
+  const ctrl = document.createElement('div'); ctrl.className = 'clase-move-ctrl';
+  const inp = document.createElement('input'); inp.type = 'date'; inp.value = mk+'-'+pad2(d);
+  inp.setAttribute('aria-label', 'Día de destino');
+  const mover = (delta)=>{
+    const p = (inp.value || mk+'-'+pad2(d)).split('-').map(Number);
+    const dt = new Date(p[0], p[1]-1, p[2]+delta);
+    inp.value = dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate());
+  };
+  const prev = document.createElement('button'); prev.type = 'button'; prev.className = 'btn ghost small'; prev.textContent = '◀ −1 día'; prev.onclick = ()=> mover(-1);
+  const next = document.createElement('button'); next.type = 'button'; next.className = 'btn ghost small'; next.textContent = '+1 día ▶'; next.onclick = ()=> mover(1);
+  ctrl.appendChild(prev); ctrl.appendChild(inp); ctrl.appendChild(next);
+  panel.appendChild(ctrl);
+  const btns = document.createElement('div'); btns.className = 'clase-move-btns';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn small'; ok.textContent = '✓ Mover';
+  ok.onclick = ()=>{
+    const v = inp.value;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(v)){ showToast('Elige un día'); return; }
+    if(v === mk+'-'+pad2(d)){ showToast('Elige un día distinto'); return; }
+    const r = moverClases(mk, d, v.slice(0,7), Number(v.slice(8)), items);
+    if(r) alTerminar();
+  };
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost small'; no.textContent = 'Cancelar'; no.onclick = ()=> panel.remove();
+  btns.appendChild(ok); btns.appendChild(no); panel.appendChild(btns);
+  row.parentNode.insertBefore(panel, row.nextSibling);
+}
 function renderClaseDayPreview(entry, d, jsDow){
   const body = document.getElementById('claseDayModalBody');
   body.innerHTML = '';
@@ -8951,9 +9083,19 @@ function renderClaseDayPreview(entry, d, jsDow){
   };
   // Cada pastilla lleva su propia "×" para quitar esa clase suelta sin tener que entrar
   // en el formulario completo: se guarda al momento y se refresca la vista.
-  const buildPill = (cls, text, onRemove)=>{
+  const buildPill = (cls, text, onRemove, mv)=>{
     const pill = document.createElement('span'); pill.className = 'cclase-pill p-'+cls;
     pill.appendChild(document.createTextNode(text));
+    if(mv){
+      const mb = document.createElement('button');
+      mb.type='button'; mb.className='cclase-pill-del cclase-pill-mv'; mb.textContent='↔';
+      mb.title = 'Mover esta clase a otro día'; mb.setAttribute('aria-label','Mover '+text+' a otro día');
+      mb.onclick = (e)=>{
+        e.stopPropagation();
+        abrirPanelMoverClase(pill, mv, text, currentMonthKey, d, ()=>{ renderClaseDayPreview(entry, d, jsDow); });
+      };
+      pill.appendChild(mb);
+    }
     if(onRemove){
       const del = document.createElement('button');
       del.type='button'; del.className='cclase-pill-del'; del.textContent='×';
@@ -8975,38 +9117,38 @@ function renderClaseDayPreview(entry, d, jsDow){
       val.appendChild(empty);
       return;
     }
-    items.forEach(it=> val.appendChild(buildPill(it.cls, it.text, it.onRemove)));
+    items.forEach(it=> val.appendChild(buildPill(it.cls, it.text, it.onRemove, it.mv)));
   };
 
   addRow('Conocimientos', (val)=> fillRow(val, (entry.conocimientos||[]).slice().sort((a,b)=>a-b).map(t=>({
-    cls:'con', text:'Tema '+t,
+    cls:'con', text:'Tema '+t, mv:[{cat:'conocimientos', value:t}],
     onRemove: ()=>{ const i = entry.conocimientos.indexOf(t); if(i>-1) entry.conocimientos.splice(i,1); quitarClaseParcial(entry,'conocimientos',t); removeClaseNotaTag(entry, 'Conocimientos', 'Tema '+t); cancelarSincronizacionClasePendiente('conocimientos', t, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('conocimientos', t, 'Tema '+t, false); }
   }))));
   addRow('Inglés', (val)=> fillRow(val, (entry.ingles||[]).slice().sort((a,b)=>a-b).map(l=>({
-    cls:'ing', text:'Lesson '+l,
+    cls:'ing', text:'Lesson '+l, mv:[{cat:'ingles', value:l}],
     onRemove: ()=>{ const i = entry.ingles.indexOf(l); if(i>-1) entry.ingles.splice(i,1); quitarClaseParcial(entry,'ingles',l); removeClaseNotaTag(entry, 'Inglés', 'Lesson '+l); cancelarSincronizacionClasePendiente('ingles', l, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('ingles', l, 'Lesson '+l, false); }
   }))));
   addRow('Psicotécnicos', (val)=>{
     const psicoItems = [
       ...(entry.psico||[]).slice().sort((a,b)=>a-b).map(idx=>({
-        cls:'psi', text:PSICO_ITEMS[idx],
+        cls:'psi', text:PSICO_ITEMS[idx], mv:[{cat:'psico', value:idx}],
         onRemove: ()=>{ const i = entry.psico.indexOf(idx); if(i>-1) entry.psico.splice(i,1); quitarClaseParcial(entry,'psico',idx); removeClaseNotaTag(entry, 'Psicotécnicos', PSICO_ITEMS[idx]); cancelarSincronizacionClasePendiente('psico', idx, null, currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('psico', idx, PSICO_ITEMS[idx], false); }
       })),
       ...(entry.psicoExtra||[]).map((n,i)=>({n,i})).filter(o=>o.n && o.n.trim()).map(o=>({
-        cls:'psi', text:o.n,
+        cls:'psi', text:o.n, mv:[{cat:'psicoExtra', value:o.n}],
         onRemove: ()=>{ entry.psicoExtra.splice(o.i,1); removeClaseNotaTag(entry, 'Psicotécnicos', o.n); devolverClaseAPendientes('psico', null, o.n, true); }
       }))
     ];
     fillRow(val, psicoItems);
   });
   addRow('Ortografía y gramática', (val)=> fillRow(val, (entry.orto||[]).map((n,i)=>({
-    cls:'orto', text: n && n.trim() ? n : 'Clase '+(i+1),
+    cls:'orto', text: n && n.trim() ? n : 'Clase '+(i+1), mv:[{cat:'orto', value:n}],
     onRemove: ()=>{ const tag = n; entry.orto.splice(i,1); removeClaseNotaTag(entry, 'Ortografía y gramática', tag); cancelarSincronizacionClasePendiente('orto', null, n || '', currentMonthKey+'-'+pad2(d)); devolverClaseAPendientes('orto', n || '', n || '', false); }
   }))));
   addRow('Seminario', (val)=>{
     const sems = Array.isArray(entry.seminarios) ? entry.seminarios : [];
     fillRow(val, sems.map((sm,i)=>({
-      cls:'sem', text: (sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario',
+      cls:'sem', text: (sm.titulo && sm.titulo.trim()) ? sm.titulo.trim() : 'Seminario', mv:[{cat:'seminarios', index:i}],
       onRemove: ()=>{ const q = entry.seminarios.splice(i,1)[0]; devolverSeminarioAPendientes(q); }
     })));
     sems.forEach(sm=>{

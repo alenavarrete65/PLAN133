@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v171'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v172'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -782,3 +782,12 @@ En la ficha de cualquier día de estudio, dentro de la tarjeta del **Bloque**, h
 ## Cabecera compacta (una sola línea)
 
 Arriba del calendario van **⏳ días para el examen**, **🔥 racha** y el botón **📋 Resumen de hoy**, siempre en **una sola línea** (ordenador, tablet y móvil; en pantallas estrechas se acortan los textos y los tooltips llevan el detalle). Las tarjetas de detalle (test de arrastre, hoy, clases, simulacro, por recuperar) están dentro del resumen, **plegado por defecto**, para que el calendario quede arriba; la elección abierto/cerrado se recuerda en `localStorage` (`ob-resumen-abierto`). Código: `renderHomeDash()` / `rachaEstudioHtml()` en `app.js`; estilos al final de `styles.css` (`.home-bar`, `.home-chip`, `.home-resumen-btn`, `.home-resumen-grid`). El ✏️ del chip del examen abre «Cambiar fecha».
+
+## Mover una clase de día (Calendario de clases)
+
+Sin borrarla ni volver a ponerla: la clase se quita del día de origen y se pone en el destino llevándose su comentario (la línea `[Materia — Tema]` de las notas) y su marca de «parte suelta». No pasa por «Clases pendientes».
+
+- **Arrastrando** (rejilla, ordenador/tablet con ratón o lápiz): arrastra la pastilla (p. ej. «CON · Tema 5») a otro día del mismo mes. Si la pastilla agrupa varias clases (p. ej. «Temas 5, 6»), se mueven todas.
+- **Con el botón ↔** de cada clase en la ficha del día (vale en móvil y para cualquier mes ya añadido): elige la fecha o usa ◀ −1 día / +1 día ▶ y pulsa «Mover».
+- Si ese día ya tenía esa misma clase, no se duplica. Si el mes de destino no está añadido al calendario, avisa.
+- Código: `moverClases()`, `activarArrastreClases()`, `abrirPanelMoverClase()` en `app.js`; `buildClasePillsHTML(entry, len, arrastrable)` marca las pastillas con `data-mv`.

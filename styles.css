@@ -2152,3 +2152,15 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
   .hr-txt{display:inline;}
   .home-chip .home-card-value{font-size:14px;}
 }
+
+
+/* ===== Mover clases de día (arrastrar en la rejilla / botón ↔ en la ficha) ===== */
+.cclase-pill[draggable="true"]{cursor:grab;}
+.cclase-pill.dragging{opacity:.4;}
+.cclase-cell.cclase-drop{outline:2px dashed var(--amber);outline-offset:-3px;background:rgba(201,162,39,.12);}
+.cclase-pill-mv{margin-left:4px;}
+.clase-move-panel{margin:6px 0 10px;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:var(--bg-panel-2);}
+.clase-move-title{font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);margin-bottom:6px;}
+.clase-move-ctrl,.clase-move-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
+.clase-move-btns{margin-top:8px;}
+.clase-move-ctrl input[type=date]{background:var(--bg);color:var(--cream);border:1px solid var(--line);border-radius:3px;padding:5px 8px;font-family:var(--font-mono);font-size:13px;}
