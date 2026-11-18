@@ -971,6 +971,8 @@ function normalizeState(){
   normalizarAgenda();
   // Días de baremo: { 'YYYY-MM-DD': [ {id, materia, tema, nota} ] }.
   normalizarBaremo();
+  // Bloque elegido a mano en un día concreto: { 'YYYY-MM-DD': nºBloque }. Ver bqFrente().
+  normalizarBloqueElegido();
   // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
   // de "disponible a partir de") y que aún no has colocado en ningún día del calendario.
   if(!Array.isArray(state.clasesPendientes)) state.clasesPendientes = [];
@@ -2233,16 +2235,69 @@ function invalidatePlan(fromKey){
   if(_planDirtyFromKey === '') return; // ya hay un recálculo total pendiente, no hace falta afinar
   if(_planDirtyFromKey === null || fromKey < _planDirtyFromKey) _planDirtyFromKey = fromKey;
 }
+/* ===================== ELEGIR OTRO BLOQUE EN UN DÍA =====================
+   Cada familia (graves 1-5 / menos graves 6-12) es una cola cíclica. Si en el día D eliges el bloque X en
+   vez del que tocaba:
+     · X se estudia en D (cuenta como visita de X: azul/morado, vuelta, arrastre…).
+     · El bloque que tocaba en D NO se pierde: como la cola de su familia no avanza ese día, le toca al
+       siguiente día de esa misma familia (grave o menos grave), y todo lo demás se corre un puesto.
+     · El hueco que deja X en su cola se cierra: cuando le llegaba el turno natural a X se salta (gSkip/mgSkip),
+       y ese día toca el siguiente bloque.
+   Vale con bloques de cualquier familia (p. ej. un grave en un día de menos graves). Se guarda solo
+   la elección: state.bloqueElegido = { 'YYYY-MM-DD': nºBloque }. Si ese día marcas «NO completado», la
+   elección no consume nada (X sigue esperando su turno). */
+function bqFamilia(n){ return GRAVES_ORDER.indexOf(n) >= 0 ? 'g' : (MGRAVES_ORDER.indexOf(n) >= 0 ? 'mg' : null); }
+// Bloque que toca ahora en la cola de la familia `f` ('g' o 'mg'), saltando los ya estudiados por adelantado.
+function bqFrente(c, f){
+  const order = f === 'g' ? GRAVES_ORDER : MGRAVES_ORDER;
+  const ik = f + 'Idx', sk = f + 'Skip';
+  if(!c[sk]) c[sk] = {};
+  for(let g = 0; g < 100000; g++){
+    const b = order[c[ik] % order.length];
+    if(c[sk][b] > 0){ c[sk][b]--; c[ik]++; continue; }
+    return b;
+  }
+  return order[c[ik] % order.length];
+}
+// Da por estudiado el bloque `b` de la familia `f` (el que toca, o uno adelantado).
+function bqConsumir(c, f, b){
+  const ik = f + 'Idx', sk = f + 'Skip';
+  if(bqFrente(c, f) === b) c[ik]++;
+  else { if(!c[sk]) c[sk] = {}; c[sk][b] = (c[sk][b] || 0) + 1; }
+}
+// Progreso de la vuelta actual de una familia: cuántos bloques ya estudiados (incluidos los adelantados) de los que tiene.
+function bqRonda(c, f){
+  const len = (f === 'g' ? GRAVES_ORDER : MGRAVES_ORDER).length;
+  const sk = c[f+'Skip'] || {};
+  let adel = 0; Object.keys(sk).forEach(k=>{ if(sk[k] > 0) adel += sk[k]; });
+  return {h: Math.min(len, (c[f+'Idx'] % len) + adel), t: len, adel, vuelta: Math.floor(c[f+'Idx'] / len) + 1};
+}
+function bloqueElegidoData(){
+  if(!state.bloqueElegido || typeof state.bloqueElegido !== 'object' || Array.isArray(state.bloqueElegido)) state.bloqueElegido = {};
+  return state.bloqueElegido;
+}
+function normalizarBloqueElegido(){
+  const m = bloqueElegidoData();
+  Object.keys(m).forEach(k=>{
+    const n = Number(m[k]);
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(k) || !isFinite(n)) delete m[k]; else m[k] = n;
+  });
+}
+// Bloque elegido a mano para ese día (0 si no hay o ya no existe en el temario).
+function bloqueElegidoDe(dayKey){
+  const n = Number((state.bloqueElegido || {})[dayKey]);
+  return (n && BLOCKS[n] && bqFamilia(n)) ? n : 0;
+}
 function freshPlanCarry(){
   const blockTurn = {}, azulCount = {};
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, sEv:0, sCola:[], blockTurn, azulCount, leveAppear, rs:{}};
+  return {gIdx:0, mgIdx:0, gSkip:{}, mgSkip:{}, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, sEv:0, sCola:[], blockTurn, azulCount, leveAppear, rs:{}};
 }
 function clonePlanCarry(c){
   return {
-    gIdx:c.gIdx, mgIdx:c.mgIdx, lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1), sEv:(c.sEv || 0), sCola:(Array.isArray(c.sCola) ? c.sCola.slice() : []),
+    gIdx:c.gIdx, mgIdx:c.mgIdx, gSkip:Object.assign({}, c.gSkip || {}), mgSkip:Object.assign({}, c.mgSkip || {}), lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1), sEv:(c.sEv || 0), sCola:(Array.isArray(c.sCola) ? c.sCola.slice() : []),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
     leveAppear: Object.assign({}, c.leveAppear),
@@ -2270,8 +2325,8 @@ function reiniciosPorCat(){
   return (r && typeof r === 'object' && !Array.isArray(r)) ? r : {};
 }
 function resetCarryCat(carry, cat){
-  if(cat === 'graves'){ carry.gIdx = 0; GRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
-  else if(cat === 'mgraves'){ carry.mgIdx = 0; MGRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
+  if(cat === 'graves'){ carry.gIdx = 0; carry.gSkip = {}; GRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
+  else if(cat === 'mgraves'){ carry.mgIdx = 0; carry.mgSkip = {}; MGRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
   else if(cat === 'leves'){ carry.lIdx = 0; Object.keys(carry.leveAppear).forEach(k=>{ carry.leveAppear[k] = 0; }); }
   else if(cat === 'ingles'){ carry.iIdx = 0; }
   else if(cat === 'iexam'){ carry.xIdx = 0; }
@@ -2463,13 +2518,16 @@ function computePlan(){
       const ticks = monthTicks[d] || {};
       const entry = {status:'ESTUDIO', dow:jsDow, ticks};
       const dayOfMonthParity = d % 2; // 1 = impar, 0 = par
-      if(dayOfMonthParity === 1){
-        entry.bloqueTipo = 'grave';
-        entry.bloque = GRAVES_ORDER[carry.gIdx % GRAVES_ORDER.length];
-      } else {
-        entry.bloqueTipo = 'mgrave';
-        entry.bloque = MGRAVES_ORDER[carry.mgIdx % MGRAVES_ORDER.length];
-      }
+      const famDia = dayOfMonthParity === 1 ? 'g' : 'mg';
+      const bAuto = bqFrente(carry, famDia);           // el que tocaría por calendario
+      const bEleg = bloqueElegidoDe(dayKey);           // el que has elegido tú (0 = ninguno)
+      const bDia = (bEleg && bEleg !== bAuto) ? bEleg : bAuto;
+      const famBloque = bqFamilia(bDia) || famDia;
+      entry.bloqueTipo = famBloque === 'g' ? 'grave' : 'mgrave';
+      entry.bloque = bDia;
+      entry.bloqueAuto = bAuto;
+      entry.bloqueAutoColor = (state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate) ? 'unificado' : ((carry.blockTurn[bAuto] % 2 === 0) ? 'azul' : 'morado');
+      entry.bloqueElegido = (bDia !== bAuto);
       const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
       entry.unify = unifyThisMonth;
       if(unifyThisMonth){
@@ -2491,10 +2549,11 @@ function computePlan(){
       // completado, el puntero se queda quieto y el día siguiente que toque esa misma
       // categoría repetirá exactamente el mismo contenido, hasta que la desmarques.
       if(!ticks.bloque){
-        if(dayOfMonthParity === 1) carry.gIdx++; else carry.mgIdx++;
+        bqConsumir(carry, famBloque, entry.bloque);
         if(unifyThisMonth || entry.color==='azul') carry.azulCount[entry.bloque]++;
         carry.blockTurn[entry.bloque]++;
       }
+      entry.ronda = {g:bqRonda(carry,'g'), mg:bqRonda(carry,'mg')};
 
       const leveIdx = carry.lIdx % LEVES.length;
       entry.leveNum = leveIdx + 1;
@@ -2797,6 +2856,7 @@ function empezarPlanningDeNuevo(mk, d){
   state.tiempos = {temas:{}, dias:{}};
   state.settings.unifyFromDate = null;
   delete state.settings.unifyFromKey;
+  state.bloqueElegido = {}; // las elecciones de bloque de días concretos también parten de cero
   state.settings.reinicios = {}; // el reinicio completo ya parte de cero: los reinicios por categoría anteriores sobran
   state.settings.reiniciosClases = {}; // (y el calendario de clases queda vacío, así que sus reinicios también sobran)
 
@@ -3615,14 +3675,22 @@ function buildTasksBlock(d, info, compact){
   const tasks = document.createElement('div');
   tasks.className = 'cal-tasks';
   const dticks = info.ticks || {};
-  const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase();
+  const bloqueTxt = 'B'+info.bloque+' · '+info.color.toUpperCase()+(info.bloqueElegido ? ' ✎' : '');
   // En modo compacto (rejilla) solo mostramos el número de tema, sin el articulado,
   // para que la celda no se llene de texto; el detalle completo sigue disponible
   // al pulsar el día (modal) y en la vista de lista.
   const temasTxt = compact
     ? info.temasDelDia.map(t=> t.clase || t.nombre).join('; ')
     : info.temasDelDia.map(t=> t.clase ? (t.clase+' ('+t.nombre+')') : t.nombre ).join(', ');
-  tasks.appendChild(taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}, 'bc-'+info.color));
+  const bloqueRow = taskRow(bloqueTxt, temasTxt, info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave', {monthKey:currentMonthKey, day:d, stream:'bloque', checked:dticks.bloque}, 'bc-'+info.color);
+  if(!compact){
+    try{
+      const selB = crearSelectorBloque(currentMonthKey+'-'+pad2(d), info, null);
+      selB.style.cssText += 'font-size:12px;padding:3px 4px;margin-left:6px;';
+      bloqueRow.insertBefore(selB, bloqueRow.querySelector('.day-tick'));
+    }catch(e){ console.error('Selector de bloque', e); }
+  }
+  tasks.appendChild(bloqueRow);
   tasks.appendChild(taskRow('LEVE', 'Leve '+info.leveNum+' · '+info.leveInfo.nombre, 'tag-leve', {monthKey:currentMonthKey, day:d, stream:'leve', checked:dticks.leve}));
   if(info.inglesNum) tasks.appendChild(taskRow('ING', 'Tema '+info.inglesNum, 'tag-ing', {monthKey:currentMonthKey, day:d, stream:'ingles', checked:dticks.ingles}));
   if(info.diaTipo === 'examenes'){
@@ -4295,6 +4363,189 @@ function daySection(body, titulo){
 //  'todo'    → todo (tiempo, estudio, clases, simulacro y notas)
 // Cuando la ficha se repinta a sí misma (sin indicar calendario) mantiene el último modo.
 var diaModalModo = 'todo';
+/* ===================== UI: ELEGIR OTRO BLOQUE EN LA FICHA DEL DÍA ===================== */
+const MESES_CORTOS_BQ = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+function fechaCortaBq(iso){ const p = iso.split('-').map(Number); return p[2]+' '+MESES_CORTOS_BQ[p[1]-1]; }
+// Bloques que quedan por delante, de cada familia, hasta que su cola da la vuelta: los que ya estudiaste en esta
+// pasada no salen (no tiene sentido repetir uno anterior). Sale cada bloque una vez, en orden de aparición.
+function bloquesProximos(fechaISO, info){
+  const plan = computePlan();
+  const out = [];
+  const visto = {g:{}, mg:{}}, fin = {g:false, mg:false}, ultimo = {g:null, mg:null};
+  if(info && info.bloque){ const f0 = bqFamilia(info.bloque); if(f0){ visto[f0][info.bloque] = true; ultimo[f0] = info.bloque; } }
+  const keys = sortedMonthKeys();
+  for(let i=0; i<keys.length; i++){
+    const mk = keys[i];
+    if(mk < fechaISO.slice(0,7)) continue;
+    const dias = plan[mk] || {};
+    const n = daysInMonth(Number(mk.slice(0,4)), Number(mk.slice(5)));
+    for(let dd=1; dd<=n; dd++){
+      const iso = mk+'-'+pad2(dd);
+      if(iso <= fechaISO) continue;
+      const e = dias[dd];
+      if(!e || e.status !== 'ESTUDIO' || !e.bloque) continue;
+      const f = bqFamilia(e.bloque);
+      if(!f || fin[f]) continue;
+      if(visto[f][e.bloque]){ fin[f] = true; continue; }   // la cola ha dado la vuelta
+      visto[f][e.bloque] = true;
+      ultimo[f] = e.bloque;
+      out.push({n:e.bloque, fecha:iso, color:e.color});
+    }
+  }
+  // Si el calendario creado se acaba antes de que la vuelta termine, se completan los que faltan hasta el final
+  // de la lista de esa familia (sin dar la vuelta: lo de antes de este día ya está estudiado).
+  ['g','mg'].forEach(f=>{
+    if(fin[f] || ultimo[f] == null) return;
+    const order = f === 'g' ? GRAVES_ORDER : MGRAVES_ORDER;
+    for(let p = order.indexOf(ultimo[f]) + 1; p > 0 && p < order.length; p++){
+      const b = order[p];
+      if(visto[f][b]) break;
+      visto[f][b] = true;
+      out.push({n:b, fecha:null});
+    }
+  });
+  return out;
+}
+function elegirBloqueDia(fechaISO, n, abrirFicha){
+  const mk = fechaISO.slice(0,7), d = Number(fechaISO.slice(8));
+  const m = bloqueElegidoData();
+  if(n) m[fechaISO] = n; else delete m[fechaISO];
+  invalidatePlan(mk);   // la elección cambia ese día y los siguientes
+  scheduleSave();
+  renderCalendar();
+  const infoNueva = (computePlan()[mk] || {})[d];
+  if(abrirFicha){
+    currentMonthKey = mk;
+    openDayModal(d, infoNueva);
+  }
+  const colTxt = (infoNueva && infoNueva.color) ? ' · '+infoNueva.color.toUpperCase() : '';
+  showToast(n ? 'Ese día toca el bloque '+n+colTxt+' · el resto se ha reordenado' : 'Vuelto al bloque automático ('+(infoNueva ? infoNueva.bloque : '')+colTxt+')');
+}
+// Los próximos días de estudio (hasta 8, desde `fechaISO` incluido) tal y como los calcula el plan.
+function proximosDiasBloque(plan, fechaISO){
+  const out = [];
+  const keys = sortedMonthKeys();
+  for(let i=0; i<keys.length && out.length<8; i++){
+    const mk = keys[i];
+    if(mk < fechaISO.slice(0,7)) continue;
+    const n = daysInMonth(Number(mk.slice(0,4)), Number(mk.slice(5)));
+    for(let dd=1; dd<=n && out.length<8; dd++){
+      const iso = mk+'-'+pad2(dd);
+      if(iso < fechaISO) continue;
+      const e = (plan[mk] || {})[dd];
+      if(!e || e.status !== 'ESTUDIO' || !e.bloque) continue;
+      out.push({iso, dow:e.dow, b:e.bloque, color:e.color});
+    }
+  }
+  return out;
+}
+// Calcula cómo quedarían los días siguientes si ese día estudias el bloque n (0 = automático), SIN guardar nada.
+function vistaPreviaBloque(fechaISO, n){
+  const mk = fechaISO.slice(0,7);
+  const m = bloqueElegidoData();
+  const tenia = Object.prototype.hasOwnProperty.call(m, fechaISO), prev = m[fechaISO];
+  const antes = proximosDiasBloque(computePlan(), fechaISO);
+  if(n) m[fechaISO] = n; else delete m[fechaISO];
+  invalidatePlan(mk);
+  let despues = [];
+  try{ despues = proximosDiasBloque(computePlan(), fechaISO); }
+  finally{
+    if(tenia) m[fechaISO] = prev; else delete m[fechaISO];
+    invalidatePlan(mk);
+    computePlan(); // deja la caché otra vez como estaba
+  }
+  return despues.map((x,i)=>{
+    const a = antes[i];
+    return {iso:x.iso, dow:x.dow, b:x.b, color:x.color, cambia: !a || a.b !== x.b || a.color !== x.color, antes: a};
+  });
+}
+function lineaVistaPrevia(x, hoyISO){
+  const p = x.iso.split('-').map(Number);
+  const dia = (x.iso === hoyISO ? 'Hoy' : DOW[(x.dow===0?6:x.dow-1)].slice(0,3)+' '+p[2]+' '+MESES_CORTOS_BQ[p[1]-1]);
+  return dia+' · B'+x.b+(x.color ? ' '+x.color.toUpperCase() : '')+(x.cambia && x.antes ? '  (antes B'+x.antes.b+(x.antes.color ? ' '+x.antes.color.toUpperCase() : '')+')' : '');
+}
+// Panel «Así quedaría» con Confirmar / Cancelar, dentro de `host` (la ficha del día).
+function mostrarPanelCambioBloque(host, fechaISO, n, sel){
+  const viejo = host.querySelector('.bloque-preview'); if(viejo) viejo.remove();
+  const filas = vistaPreviaBloque(fechaISO, n);
+  const hoyISO = hoyLocalISO();
+  const box = document.createElement('div'); box.className = 'bloque-preview';
+  box.style.cssText = 'margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:var(--bg-panel-2);';
+  const t = document.createElement('div');
+  t.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;';
+  t.textContent = n ? 'Así quedarían los próximos días' : 'Así quedarían al volver al automático';
+  box.appendChild(t);
+  filas.forEach(x=>{
+    const r = document.createElement('div');
+    r.style.cssText = 'font-family:var(--font-mono);font-size:12px;line-height:1.6;'+(x.cambia ? 'color:var(--cream);font-weight:700;' : 'color:var(--muted);');
+    r.textContent = (x.cambia ? '✎ ' : '· ')+lineaVistaPrevia(x, hoyISO);
+    box.appendChild(r);
+  });
+  const btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn small'; ok.textContent = '✓ Confirmar cambio';
+  ok.onclick = ()=>{ elegirBloqueDia(fechaISO, n, true); };
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost small'; no.textContent = 'Cancelar';
+  no.onclick = ()=>{ box.remove(); if(sel) sel.value = ''; };
+  btns.appendChild(ok); btns.appendChild(no); box.appendChild(btns);
+  host.appendChild(box);
+}
+// Desplegable con los bloques que quedan por delante. Con `host` (ficha del día) enseña la vista previa en un panel;
+// sin `host` (vista de lista) pide confirmar con la vista previa en un aviso.
+function crearSelectorBloque(fechaISO, info, host){
+  const sel = document.createElement('select'); sel.className = 'status-select bloque-select';
+  sel.style.cssText = 'width:auto;max-width:100%;';
+  sel.setAttribute('aria-label', 'Cambiar el bloque de este día');
+  sel.title = 'Cambiar el bloque de este día por uno de los que te quedan';
+  const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Bloque '+info.bloque+(info.color ? ' · '+info.color.toUpperCase() : '')+(info.bloqueElegido ? ' ✎' : '')+' ▾ cambiar…'; sel.appendChild(o0);
+  if(info.bloqueElegido){
+    const oa = document.createElement('option'); oa.value = 'auto'; oa.textContent = '↩ Volver al automático (bloque '+info.bloqueAuto+(info.bloqueAutoColor ? ' · '+info.bloqueAutoColor.toUpperCase() : '')+')'; sel.appendChild(oa);
+  }
+  bloquesProximos(fechaISO, info).forEach(o=>{
+    const op = document.createElement('option'); op.value = String(o.n);
+    const fam = bqFamilia(o.n) === 'g' ? 'grave' : 'menos grave';
+    op.textContent = 'Bloque '+o.n+(o.color ? ' · '+o.color.toUpperCase() : '')+' ('+fam+')'+(o.fecha ? ' · tocaba el '+fechaCortaBq(o.fecha) : ' · más adelante');
+    sel.appendChild(op);
+  });
+  sel.onclick = (e)=>{ e.stopPropagation(); };
+  sel.onchange = ()=>{
+    if(!sel.value) return;
+    const n = sel.value === 'auto' ? 0 : Number(sel.value);
+    if(host){ mostrarPanelCambioBloque(host, fechaISO, n, sel); return; }
+    const filas = vistaPreviaBloque(fechaISO, n);
+    const hoyISO = hoyLocalISO();
+    const txt = (n ? 'Así quedarían los próximos días:\n\n' : 'Así quedarían al volver al automático:\n\n')+filas.map(x=> (x.cambia ? '✎ ' : '· ')+lineaVistaPrevia(x, hoyISO)).join('\n')+'\n\n¿Confirmar el cambio?';
+    if(confirm(txt)) elegirBloqueDia(fechaISO, n, false); else sel.value = '';
+  };
+  return sel;
+}
+function textoRondaBloques(info){
+  const r = info && info.ronda; if(!r) return '';
+  const f = (nombre, x)=> nombre+' '+x.h+'/'+x.t+(x.adel ? ' (+'+x.adel+' adelantado'+(x.adel>1?'s':'')+')' : '');
+  return 'Vuelta actual (contando este día) · '+f('Graves', r.g)+' · '+f('Menos graves', r.mg);
+}
+function buildElegirBloqueUI(d, info, fechaISO){
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'margin-top:8px;';
+  const lab = document.createElement('div');
+  lab.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--cream-dim);margin-bottom:6px;';
+  lab.textContent = info.bloqueElegido
+    ? '✎ Elegido por ti. Por calendario tocaba el bloque '+info.bloqueAuto+(info.bloqueAutoColor ? ' ('+info.bloqueAutoColor+')' : '')+'.'
+    : 'Estudiar otro de los bloques que te quedan:';
+  wrap.appendChild(lab);
+  wrap.appendChild(crearSelectorBloque(fechaISO, info, wrap));
+  const ronda = textoRondaBloques(info);
+  if(ronda){
+    const rl = document.createElement('div');
+    rl.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:12px;color:var(--cream);';
+    rl.textContent = '📊 '+ronda;
+    wrap.appendChild(rl);
+  }
+  const nota = document.createElement('div');
+  nota.style.cssText = 'margin-top:6px;font-family:var(--font-mono);font-size:11px;color:var(--muted);line-height:1.5;';
+  nota.textContent = 'Solo salen los bloques que aún no has dado en esta vuelta. Al elegir uno verás cómo quedan los días siguientes antes de confirmar.';
+  wrap.appendChild(nota);
+  return wrap;
+}
 function openDayModal(d, info, modo){
   if(modo){ diaModalModo = modo; _secAbiertas = {}; if(modo==='tiempos') _secAbiertas['Tareas del día'] = true; } // abrir un día desde el calendario: todo cerrado (salvo las tareas en el calendario de tiempos)
   const verTiempo = (diaModalModo==='todo' || diaModalModo==='tiempos');
@@ -4337,6 +4588,7 @@ function openDayModal(d, info, modo){
         bHead.innerHTML = '<span class="tag '+(info.bloqueTipo==='grave'?'tag-grave':'tag-mgrave')+'">BLOQUE '+info.bloque+'</span>'+
           '<span class="colorpill '+info.color+'">'+info.color+'</span>';
         bLeft.appendChild(bHead);
+        try{ bLeft.appendChild(buildElegirBloqueUI(d, info, fechaISO)); }catch(e){ console.error('Elegir bloque', e); }
         // Al lado de cada tema del bloque va su propio control de vuelta (Pendiente / Nota test /
         // No test / No tiempo / Solo lectura), igual que en «Temario y notas» — escribe en el mismo
         // sitio (state.ticks) así que se ve automáticamente en Progreso sin nada más que hacer aquí.
@@ -6838,7 +7090,8 @@ function computeArrastreData(asOfDayKey, acumulado){
     todayKey = now.getFullYear()+'-'+pad2(now.getMonth()+1)+'-'+pad2(now.getDate());
   }
 
-  let gIdx=0, mgIdx=0, lIdx=0, iIdx=0, pIdx=0;
+  const bq = {gIdx:0, mgIdx:0, gSkip:{}, mgSkip:{}};
+  let lIdx=0, iIdx=0, pIdx=0;
   let gUnits=0, mgUnits=0; // «medias visitas»: 1 por visita de un solo color, 2 si el día es unificado (azul+morado)
   const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
   const blockTurn = {}; Object.keys(BLOCKS).forEach(k=>{ blockTurn[k]=0; });
@@ -6853,8 +7106,8 @@ function computeArrastreData(asOfDayKey, acumulado){
       if(!Array.isArray(lista) || !lista.length) return;
       while((reiniciosHechos[c.key] || 0) < lista.length && dayKey >= lista[reiniciosHechos[c.key] || 0]){
         reiniciosHechos[c.key] = (reiniciosHechos[c.key] || 0) + 1;
-        if(c.key === 'graves'){ gIdx = 0; gUnits = 0; GRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.graves = poolVacio(); }
-        else if(c.key === 'mgraves'){ mgIdx = 0; mgUnits = 0; MGRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.mgraves = poolVacio(); }
+        if(c.key === 'graves'){ bq.gIdx = 0; bq.gSkip = {}; gUnits = 0; GRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.graves = poolVacio(); }
+        else if(c.key === 'mgraves'){ bq.mgIdx = 0; bq.mgSkip = {}; mgUnits = 0; MGRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.mgraves = poolVacio(); }
         else if(c.key === 'leves'){ lIdx = 0; Object.keys(leveAppear).forEach(q=>{ leveAppear[q] = 0; }); pools.leves = poolVacio(); }
         else if(c.key === 'ingles'){ iIdx = 0; pools.ingles = poolVacio(); }
         else if(c.key === 'psico'){ pIdx = 0; pools.psico = poolVacio(); }
@@ -6902,14 +7155,17 @@ function computeArrastreData(asOfDayKey, acumulado){
       const dayOfMonthParity = d % 2;
 
       // ---- Bloque (grave en días impares, menos grave en días pares) ----
-      const poolKey = dayOfMonthParity===1 ? 'graves' : 'mgraves';
-      const order = dayOfMonthParity===1 ? GRAVES_ORDER : MGRAVES_ORDER;
-      const curIdx = dayOfMonthParity===1 ? gIdx : mgIdx;
-      const bloqueNum = order[curIdx % order.length];
+      const famDiaA = dayOfMonthParity===1 ? 'g' : 'mg';
+      const bAutoA = bqFrente(bq, famDiaA);
+      const bElegA = bloqueElegidoDe(dayKey);
+      const bloqueNum = (bElegA && bElegA !== bAutoA) ? bElegA : bAutoA;
+      const famA = bqFamilia(bloqueNum) || famDiaA;   // un bloque elegido puede ser de la otra familia
+      const poolKey = famA==='g' ? 'graves' : 'mgraves';
+      const order = famA==='g' ? GRAVES_ORDER : MGRAVES_ORDER;
       // Una vuelta de bloques = pasar por cada bloque DOS veces (azul y morado), como en el resto de la app.
       // Antes la vuelta cambiaba cada pasada de un solo color y, al pasar de azul a morado, los temas azules
       // (4, 9, 15…) desaparecían del Arrastre.
-      const unitsNow = dayOfMonthParity===1 ? gUnits : mgUnits;
+      const unitsNow = famA==='g' ? gUnits : mgUnits;
       const lap = Math.floor(unitsNow / (2*order.length)) + 1;
       const unifyThisMonth = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
       let rawTemas, colorHoy;
@@ -6939,7 +7195,8 @@ function computeArrastreData(asOfDayKey, acumulado){
             numTema: temaNumFromClase(t.clase)
           });
         });
-        if(dayOfMonthParity===1){ gIdx++; gUnits += unifyThisMonth ? 2 : 1; } else { mgIdx++; mgUnits += unifyThisMonth ? 2 : 1; }
+        bqConsumir(bq, famA, bloqueNum);
+        if(famA==='g') gUnits += unifyThisMonth ? 2 : 1; else mgUnits += unifyThisMonth ? 2 : 1;
         if(unifyThisMonth || colorHoy==='azul') azulCount[bloqueNum]++;
         blockTurn[bloqueNum]++;
       }

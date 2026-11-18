@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v86'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v169'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -761,3 +761,20 @@ En el desplegable de estado de cada día hay una opción nueva, **Día de simula
 - **Tendencia de simulacros** (`buildSimTendencia()`, arriba de la pestaña Simulacros): total o cada parte, línea del mínimo, puntos verdes/rojos y detalle al tocar un punto.
 - **Microanimaciones nuevas:** llama de la racha (parpadea y «salta» al sumar), fila que se ilumina al resolver un «NO completado», «¡Día completo!» con chispas al quitar el último pendiente, carpeta de exámenes que se despliega suave, botón ▶ que late mientras corre. Todo respeta «reducir movimiento» del sistema.
 - **Repaso de flojos:** ya estaba dentro de la pestaña Progreso (entre «Ritmo» y el resto), así que no se ha movido.
+
+
+## Elegir otro bloque en un día concreto
+
+En la ficha de cualquier día de estudio, dentro de la tarjeta del **Bloque**, hay un desplegable **«Estudiar otro bloque este día»** con los bloques que **te quedan por delante en la vuelta actual** (graves y menos graves, con la fecha en que tocaban; los que ya diste en esta pasada no salen). También está en la propia fila del bloque en la vista de lista. Sirve también para días pasados.
+
+- **El bloque elegido se estudia ese día** (cuenta como visita suya: azul/morado, vuelta, arrastre…).
+- **El bloque que tocaba no se pierde:** ese día la cola de su familia no avanza, así que pasa al siguiente día de su misma familia (grave o menos grave) y lo demás se corre un puesto.
+- **El hueco se cierra:** cuando a un bloque adelantado le llegaba el turno natural, se salta y ese día toca el siguiente.
+- «↩ Volver al automático» deshace la elección. Si ese día marcas «NO completado», la elección no consume nada.
+- Los días con bloque elegido llevan ✎ en la rejilla/lista.
+- **Código:** `bqFrente()` / `bqConsumir()` / `bqFamilia()` (cola por familia con saltos `gSkip`/`mgSkip` en el carry de `computePlan()` y en `computeArrastreData()`), `bloqueElegidoDe()`, `buildElegirBloqueUI()`, `elegirBloqueDia()`. Dato: `state.bloqueElegido = { 'YYYY-MM-DD': nºBloque }` (se sincroniza y entra en las copias; el reinicio completo lo vacía).
+
+### Vista previa antes de confirmar y progreso de la vuelta
+
+- Al elegir un bloque en el desplegable **no se guarda nada todavía**: la ficha del día enseña un panel «Así quedarían los próximos días» (8 días de estudio, con ✎ en los que cambian y el «antes B…») con **Confirmar / Cancelar**; en la vista de lista sale como aviso de confirmación. `vistaPreviaBloque()` calcula el plan con la elección puesta de forma temporal y luego la quita, sin guardar.
+- Bajo el desplegable, **📊 Vuelta actual**: cuántos bloques llevas de cada familia (p. ej. «Menos graves 5/7 (+3 adelantados)»; «adelantados» = estudiados antes de su turno y que aún no han llegado). Viene de `entry.ronda` (`bqRonda()`), que se calcula en `computePlan()` contando ese día.
