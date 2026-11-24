@@ -2164,3 +2164,11 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
 .clase-move-ctrl,.clase-move-btns{display:flex;gap:8px;flex-wrap:wrap;align-items:center;}
 .clase-move-btns{margin-top:8px;}
 .clase-move-ctrl input[type=date]{background:var(--bg);color:var(--cream);border:1px solid var(--line);border-radius:3px;padding:5px 8px;font-family:var(--font-mono);font-size:13px;}
+
+/* ---- Baremo: avanzar temario y repaso extra ---- */
+.bm-slot{margin:8px 0;padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--bg-panel);}
+.bm-slot-vacio{border-style:dashed;font-size:12px;color:var(--muted);}
+.bm-ctl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px;}
+
+.bm-no{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--cream-dim);}
+.baremo-rep-line{margin:4px 0;font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);}

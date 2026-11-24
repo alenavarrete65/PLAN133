@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v172'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v174'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -791,3 +791,32 @@ Sin borrarla ni volver a ponerla: la clase se quita del día de origen y se pone
 - **Con el botón ↔** de cada clase en la ficha del día (vale en móvil y para cualquier mes ya añadido): elige la fecha o usa ◀ −1 día / +1 día ▶ y pulsa «Mover».
 - Si ese día ya tenía esa misma clase, no se duplica. Si el mes de destino no está añadido al calendario, avisa.
 - Código: `moverClases()`, `activarArrastreClases()`, `abrirPanelMoverClase()` en `app.js`; `buildClasePillsHTML(entry, len, arrastrable)` marca las pastillas con `data-mv`.
+
+
+### Baremo: avanzar temario y repaso extra (dos apartados dentro del día de baremo)
+
+Al abrir un día de **Baremo** salen, además de los apuntes a mano, dos desplegables nuevos:
+
+- **Avanzar temario (baremo):** adelantas un **bloque**, un **leve** y/o un **tema de inglés** de los que vienen (la lista solo
+  trae lo que te queda por delante, con el día en que tocaba). Cuenta como estudiado ese día (vueltas, notas, tiempo y Arrastre,
+  igual que en un día de estudio) y, **cuando le tocaba por calendario, se salta y toca el siguiente**. «✕ Quitar avance» lo deshace.
+  Motor: leves e inglés tienen ahora «saltos» (`lSkip`/`iSkip`, `lFrente()`/`lConsumir()`, `iFrente()`/`iConsumir()`), como los
+  bloques (`gSkip`/`mgSkip`); `computePlan()` y `computeArrastreData()` los aplican en los días `BAREMO` (`entry.adelanto`).
+  Dato: `state.baremoAdelanto = { 'YYYY-MM-DD': {bloque, leve (índice desde 0), ingles} }`. Si el día deja de ser de baremo el avance
+  deja de contar (la ficha lo avisa). El reinicio completo lo vacía; «Repaso de flojos» cuenta lo adelantado como visto ese día.
+- **Repaso extra (baremo):** solo un registro (no mueve el calendario). Desplegable con temas de conocimientos (temario, bloques,
+  leves), temas y exámenes de inglés, exámenes psicotécnicos y psicotécnicos especiales; para **ortografía y gramática** se escribe
+  a mano. Cada repaso admite una nota. Dato: `state.baremoRepaso = { 'YYYY-MM-DD': [ {id, tipo, ref, texto} ] }`.
+
+Ambos salen resumidos en la celda del calendario (➕ B7 · Leve 5 · Ing 12 · 🔁 2 repasos), en «Hoy» y en el .ics.
+
+**Notas en baremo:** cada cosa adelantada lleva una caja de notas propia (`state.baremoAdelantoNotas = {fecha:{bloque,leve,ingles}}`; se borra al quitar el avance) además de la nota de test/comentario de cada vuelta. Cada repaso extra lleva **nota/resultado** corto (`nota`, ej. «17/20») y **comentario** (`texto`).
+
+### Baremo: mejoras (vista previa, NO completado, exámenes, repaso en flojos y por tema, atajos)
+
+- **Vista previa:** al elegir algo que adelantar sale «Así quedarían los próximos días» (con ✎ en lo que cambia) y hay que **Confirmar** (`baremoVistaPrevia()`, `mostrarPanelAvance()`).
+- **NO completado:** cada cosa adelantada tiene su casilla (`state.baremoAdelantoNo`). Marcada, no consume su turno (sigue tocando en su día), no entra en el Arrastre ni en flojos; en la celda sale con ✗.
+- **Exámenes adelantables:** psicotécnico, examen de inglés y de ortografía, con saltos propios (`colaFrente()`/`colaConsumir()`, `pSkip`/`xSkip`/`oSkip` en el carry; el reinicio por categoría los vacía). El psicotécnico adelantado entra en el Arrastre.
+- **Repaso extra → flojos:** cada repaso guarda `keys` (claves de tema: `b3-2`, `leve-4`, `ingles-7`, `psico-3`, `iexam-5`; «Tema N» y «Bloque N» expanden a todos sus temas). Cuenta como «visto» ese día en «Repaso de flojos» (`baremoRepasoUltimas()`). Los psicotécnicos especiales y la nota manual de orto-grama no tienen clave y no cuentan ahí.
+- **Por tema:** en «Temario y notas» cada tema muestra «🔁 Repasado en baremo N veces · último … · nota» (con el detalle al pasar el ratón) — `baremoRepasoLineaEl()` dentro de `buildTemaControls()`.
+- **Atajos:** «↻ Repetir los del último día» (copia sin nota) y «☰ Elegir varios a la vez».

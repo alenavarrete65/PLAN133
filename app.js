@@ -971,6 +971,7 @@ function normalizeState(){
   normalizarAgenda();
   // Días de baremo: { 'YYYY-MM-DD': [ {id, materia, tema, nota} ] }.
   normalizarBaremo();
+  normalizarBaremoExtra(); // avance de temario y repaso extra de los días de baremo
   // Bloque elegido a mano en un día concreto: { 'YYYY-MM-DD': nºBloque }. Ver bqFrente().
   normalizarBloqueElegido();
   // Tablón de clases pendientes: clases que ya sabes que tienes por delante (con o sin fecha
@@ -1638,7 +1639,7 @@ const NOMBRES_SECCION = {
   ortoSesiones:'Sesiones de ortografía y gramática', clasesPendientes:'Clases pendientes', notasPendientes:'Notas pendientes', simulacros:'Simulacros',
   simulacroCal:'Calendario de simulacros', agenda:'Calendario personal', agendaSeries:'Calendario personal (repeticiones)', marcas:'Marcas de entreno', entrenosLog:'Registro de entrenos',
   arrastreManual:'Arrastre manual', arrastreTestNotas:'Notas del test de arrastre', arrastreTestHecho:'Test de arrastre hecho', psicoEsp:'Psicotécnicos especiales',
-  baremo:'Estudio de baremo',
+  baremo:'Estudio de baremo', baremoAdelanto:'Baremo · temario adelantado', baremoAdelantoNotas:'Baremo · notas de lo adelantado', baremoAdelantoNo:'Baremo · avances no completados', baremoRepaso:'Baremo · repasos extra',
   settings:'Ajustes'
 };
 function computeDataSize(){
@@ -1755,7 +1756,7 @@ function exportarCalendarioEstudioICS(){
       if(info.status === 'DESCANSO') summary = 'Descanso';
       else if(info.status === 'TRABAJO') summary = 'Trabajo';
       else if(esDiaRecup(info.status)){ summary = statusLabel(info.status); desc = (psicoEspDe(fecha) ? ['Psico especial: '+psicoEspDe(fecha).nombre] : []).concat(recuperarDelDia(fecha).map(x=> x.label)).join('\n'); }
-      else if(info.status === 'BAREMO'){ summary = 'Baremo'; desc = baremoDia(fecha).map(e=> [e.materia, e.tema, e.nota].filter(Boolean).join(' · ')).join('\n'); }
+      else if(info.status === 'BAREMO'){ summary = 'Baremo'; desc = baremoDia(fecha).map(e=> [e.materia, e.tema, e.nota].filter(Boolean).join(' · ')).concat(baremoExtraLineas(fecha)).join('\n'); }
       else if(info.status !== 'ESTUDIO') return; // "sin horario": nada que resumir
       else {
         summary = 'Estudio: Bloque '+info.bloque+' ('+info.color+')';
@@ -2272,6 +2273,49 @@ function bqRonda(c, f){
   let adel = 0; Object.keys(sk).forEach(k=>{ if(sk[k] > 0) adel += sk[k]; });
   return {h: Math.min(len, (c[f+'Idx'] % len) + adel), t: len, adel, vuelta: Math.floor(c[f+'Idx'] / len) + 1};
 }
+/* Leves e inglés también admiten «saltos» (igual que los bloques): si en un día de BAREMO adelantas un leve o un
+   tema de inglés, ese elemento queda anotado en lSkip/iSkip y, cuando le llegaba el turno natural, se salta y toca
+   el siguiente (ver «BAREMO: AVANZAR TEMARIO»). Con la cola sin saltos se comporta exactamente como antes. */
+function lFrente(c){
+  if(!c.lSkip) c.lSkip = {};
+  for(let g = 0; g < 100000; g++){
+    const i = c.lIdx % LEVES.length;
+    if(c.lSkip[i] > 0){ c.lSkip[i]--; c.lIdx++; continue; }
+    return i;
+  }
+  return c.lIdx % LEVES.length;
+}
+function lConsumir(c, i){
+  if(lFrente(c) === i) c.lIdx++;
+  else c.lSkip[i] = (c.lSkip[i] || 0) + 1;
+}
+function iFrente(c){
+  if(!c.iSkip) c.iSkip = {};
+  for(let g = 0; g < 100000; g++){
+    const i = c.iIdx % INGLES_TOTAL;
+    if(c.iSkip[i] > 0){ c.iSkip[i]--; c.iIdx++; continue; }
+    return i;
+  }
+  return c.iIdx % INGLES_TOTAL;
+}
+function iConsumir(c, i){
+  if(iFrente(c) === i) c.iIdx++;
+  else c.iSkip[i] = (c.iSkip[i] || 0) + 1;
+}
+// Cola genérica con saltos (psicotécnicos, exámenes de inglés y de ortografía): igual que lFrente/lConsumir.
+function colaFrente(c, ik, sk, total){
+  if(!c[sk]) c[sk] = {};
+  for(let g = 0; g < 100000; g++){
+    const i = c[ik] % total;
+    if(c[sk][i] > 0){ c[sk][i]--; c[ik]++; continue; }
+    return i;
+  }
+  return c[ik] % total;
+}
+function colaConsumir(c, ik, sk, total, i){
+  if(colaFrente(c, ik, sk, total) === i) c[ik]++;
+  else c[sk][i] = (c[sk][i] || 0) + 1;
+}
 function bloqueElegidoData(){
   if(!state.bloqueElegido || typeof state.bloqueElegido !== 'object' || Array.isArray(state.bloqueElegido)) state.bloqueElegido = {};
   return state.bloqueElegido;
@@ -2293,11 +2337,11 @@ function freshPlanCarry(){
   Object.keys(BLOCKS).forEach(b=>{ blockTurn[b]=0; azulCount[b]=0; });
   const leveAppear = {};
   for(let i=0;i<LEVES.length;i++) leveAppear[i]=0;
-  return {gIdx:0, mgIdx:0, gSkip:{}, mgSkip:{}, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, sEv:0, sCola:[], blockTurn, azulCount, leveAppear, rs:{}};
+  return {gIdx:0, mgIdx:0, gSkip:{}, mgSkip:{}, lSkip:{}, iSkip:{}, pSkip:{}, xSkip:{}, oSkip:{}, lIdx:0, iIdx:0, pIdx:0, xIdx:0, oIdx:0, sV:'', sPos:0, sPas:1, sEv:0, sCola:[], blockTurn, azulCount, leveAppear, rs:{}};
 }
 function clonePlanCarry(c){
   return {
-    gIdx:c.gIdx, mgIdx:c.mgIdx, gSkip:Object.assign({}, c.gSkip || {}), mgSkip:Object.assign({}, c.mgSkip || {}), lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1), sEv:(c.sEv || 0), sCola:(Array.isArray(c.sCola) ? c.sCola.slice() : []),
+    gIdx:c.gIdx, mgIdx:c.mgIdx, gSkip:Object.assign({}, c.gSkip || {}), mgSkip:Object.assign({}, c.mgSkip || {}), lSkip:Object.assign({}, c.lSkip || {}), iSkip:Object.assign({}, c.iSkip || {}), pSkip:Object.assign({}, c.pSkip || {}), xSkip:Object.assign({}, c.xSkip || {}), oSkip:Object.assign({}, c.oSkip || {}), lIdx:c.lIdx, iIdx:c.iIdx, pIdx:c.pIdx, xIdx:(c.xIdx || 0), oIdx:(c.oIdx || 0), sV:(c.sV || ''), sPos:(c.sPos || 0), sPas:(c.sPas || 1), sEv:(c.sEv || 0), sCola:(Array.isArray(c.sCola) ? c.sCola.slice() : []),
     blockTurn: Object.assign({}, c.blockTurn),
     azulCount: Object.assign({}, c.azulCount),
     leveAppear: Object.assign({}, c.leveAppear),
@@ -2327,11 +2371,11 @@ function reiniciosPorCat(){
 function resetCarryCat(carry, cat){
   if(cat === 'graves'){ carry.gIdx = 0; carry.gSkip = {}; GRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
   else if(cat === 'mgraves'){ carry.mgIdx = 0; carry.mgSkip = {}; MGRAVES_ORDER.forEach(n=>{ carry.blockTurn[n] = 0; carry.azulCount[n] = 0; }); }
-  else if(cat === 'leves'){ carry.lIdx = 0; Object.keys(carry.leveAppear).forEach(k=>{ carry.leveAppear[k] = 0; }); }
-  else if(cat === 'ingles'){ carry.iIdx = 0; }
-  else if(cat === 'iexam'){ carry.xIdx = 0; }
-  else if(cat === 'oexam'){ carry.oIdx = 0; }
-  else if(cat === 'psico'){ carry.pIdx = 0; }
+  else if(cat === 'leves'){ carry.lIdx = 0; carry.lSkip = {}; Object.keys(carry.leveAppear).forEach(k=>{ carry.leveAppear[k] = 0; }); }
+  else if(cat === 'ingles'){ carry.iIdx = 0; carry.iSkip = {}; }
+  else if(cat === 'iexam'){ carry.xIdx = 0; carry.xSkip = {}; }
+  else if(cat === 'oexam'){ carry.oIdx = 0; carry.oSkip = {}; }
+  else if(cat === 'psico'){ carry.pIdx = 0; carry.pSkip = {}; }
 }
 // Aplica a `carry` los reinicios cuya fecha ya ha llegado (dayKey = «YYYY-MM-DD»). Cada fecha se aplica una sola vez.
 function aplicarReiniciosCarry(dayKey, carry){
@@ -2512,7 +2556,47 @@ function computePlan(){
       aplicarReiniciosCarry(dayKey, carry); // reinicios por categoría que empiezan hoy (o antes)
 
       if(status !== 'ESTUDIO'){
-        plan[k][d] = {status, dow:jsDow};
+        const entNo = {status, dow:jsDow};
+        // Día de BAREMO con temario adelantado: cuenta como estudiado ese día (ver «BAREMO: AVANZAR TEMARIO»).
+        const selAd = (status === 'BAREMO') ? baremoAdelantoDe(dayKey) : null;
+        if(selAd){
+          const ad = {}, no = selAd.no || {};
+          const unifAd = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
+          if(selAd.bloque){
+            const n = selAd.bloque, fam = bqFamilia(n);
+            const colorAd = unifAd ? 'unificado' : ((carry.blockTurn[n] % 2 === 0) ? 'azul' : 'morado');
+            const temasAd = BLOCKS[n].temas.map((t,idx)=>({t,idx})).filter(o=> unifAd || o.t.color === colorAd).map(o=> resolveTema(o.t, n, o.idx));
+            ad.bloque = {n, tipo: fam === 'g' ? 'grave' : 'mgrave', color: colorAd, unify: unifAd, temasDelDia: temasAd, noHecho: !!no.bloque};
+            if(!no.bloque){
+              bqConsumir(carry, fam, n);
+              if(unifAd || colorAd === 'azul') carry.azulCount[n]++;
+              carry.blockTurn[n]++;
+            }
+          }
+          if(selAd.leve !== undefined){
+            const li = selAd.leve;
+            ad.leve = {idx: li, num: li + 1, info: resolveLeve(li), noHecho: !!no.leve};
+            if(!no.leve){ carry.leveAppear[li]++; lConsumir(carry, li); }
+          }
+          if(selAd.ingles){
+            ad.ingles = {num: selAd.ingles, noHecho: !!no.ingles};
+            if(!no.ingles) iConsumir(carry, selAd.ingles - 1);
+          }
+          if(selAd.psico !== undefined){
+            ad.psico = {idx: selAd.psico, nombre: PSICO_ITEMS[selAd.psico], noHecho: !!no.psico};
+            if(!no.psico) colaConsumir(carry, 'pIdx', 'pSkip', PSICO_ITEMS.length, selAd.psico);
+          }
+          if(selAd.iexam !== undefined){
+            ad.iexam = {idx: selAd.iexam, nombre: INGLES_EXAMS[selAd.iexam], noHecho: !!no.iexam};
+            if(!no.iexam) colaConsumir(carry, 'xIdx', 'xSkip', INGLES_EXAMS.length, selAd.iexam);
+          }
+          if(selAd.oexam !== undefined){
+            ad.oexam = {idx: selAd.oexam, nombre: ORTO_EXAMS[selAd.oexam], noHecho: !!no.oexam};
+            if(!no.oexam) colaConsumir(carry, 'oIdx', 'oSkip', ORTO_EXAMS.length, selAd.oexam);
+          }
+          entNo.adelanto = ad;
+        }
+        plan[k][d] = entNo;
         continue;
       }
       const ticks = monthTicks[d] || {};
@@ -2555,10 +2639,10 @@ function computePlan(){
       }
       entry.ronda = {g:bqRonda(carry,'g'), mg:bqRonda(carry,'mg')};
 
-      const leveIdx = carry.lIdx % LEVES.length;
+      const leveIdx = lFrente(carry);
       entry.leveNum = leveIdx + 1;
       entry.leveInfo = resolveLeve(leveIdx);
-      if(!ticks.leve){ carry.leveAppear[leveIdx]++; carry.lIdx++; }
+      if(!ticks.leve){ carry.leveAppear[leveIdx]++; lConsumir(carry, leveIdx); }
 
       const nuevoPlan = planSemanalActivo(dayKey);
       const hoyExamenes = diaExamenes(dayKey, jsDow);
@@ -2567,19 +2651,20 @@ function computePlan(){
 
       // Inglés (temario): a diario antes del cambio; después solo martes, jueves, sábado y domingo.
       if(!nuevoPlan || hoyMaterias){
-        entry.inglesNum = (carry.iIdx % INGLES_TOTAL) + 1;
-        if(!ticks.ingles){ carry.iIdx++; }
+        const iFr = iFrente(carry);
+        entry.inglesNum = iFr + 1;
+        if(!ticks.ingles){ iConsumir(carry, iFr); }
       }
 
       // Exámenes de inglés y de ortografía: a diario antes del cambio; después solo lunes, miércoles y viernes.
       if(!nuevoPlan || hoyExamenes){
-        entry.iexamIdx = carry.xIdx % INGLES_EXAMS.length;
+        entry.iexamIdx = colaFrente(carry, 'xIdx', 'xSkip', INGLES_EXAMS.length);
         entry.iexam = INGLES_EXAMS[entry.iexamIdx];
-        if(!ticks.iexam){ carry.xIdx++; }
+        if(!ticks.iexam){ colaConsumir(carry, 'xIdx', 'xSkip', INGLES_EXAMS.length, entry.iexamIdx); }
 
-        entry.oexamIdx = carry.oIdx % ORTO_EXAMS.length;
+        entry.oexamIdx = colaFrente(carry, 'oIdx', 'oSkip', ORTO_EXAMS.length);
         entry.oexam = ORTO_EXAMS[entry.oexamIdx];
-        if(!ticks.oexam){ carry.oIdx++; }
+        if(!ticks.oexam){ colaConsumir(carry, 'oIdx', 'oSkip', ORTO_EXAMS.length, entry.oexamIdx); }
       }
 
       // Orto-grama (sesión del día + sus tests): a diario antes del cambio; después solo martes, jueves, sábado y domingo.
@@ -2592,10 +2677,10 @@ function computePlan(){
       }
       // Examen psicotécnico: lunes y miércoles antes del cambio; después lunes, miércoles y viernes.
       if(nuevoPlan ? hoyExamenes : (isMonWed && !isTueThu)){
-        const psicoIdx = carry.pIdx % PSICO_ITEMS.length;
+        const psicoIdx = colaFrente(carry, 'pIdx', 'pSkip', PSICO_ITEMS.length);
         entry.psico = PSICO_ITEMS[psicoIdx];
         entry.psicoIdx = psicoIdx;
-        if(!ticks.psico){ carry.pIdx++; }
+        if(!ticks.psico){ colaConsumir(carry, 'pIdx', 'pSkip', PSICO_ITEMS.length, psicoIdx); }
       }
       plan[k][d] = entry;
     }
@@ -2857,6 +2942,8 @@ function empezarPlanningDeNuevo(mk, d){
   state.settings.unifyFromDate = null;
   delete state.settings.unifyFromKey;
   state.bloqueElegido = {}; // las elecciones de bloque de días concretos también parten de cero
+  state.baremoAdelantoNotas = {}; state.baremoAdelantoNo = {};
+  state.baremoAdelanto = {}; // lo adelantado en días de baremo también (los repasos extra, como los apuntes, se conservan)
   state.settings.reinicios = {}; // el reinicio completo ya parte de cero: los reinicios por categoría anteriores sobran
   state.settings.reiniciosClases = {}; // (y el calendario de clases queda vacío, así que sus reinicios también sobran)
 
@@ -3368,7 +3455,10 @@ function normalizarBaremo(){
   });
 }
 function baremoDia(fecha){ const l = baremoData()[fecha]; return Array.isArray(l) ? l : []; }
-function baremoMarca(fecha){ const l = baremoDia(fecha); return l.length ? JSON.stringify(l) : ''; }
+function baremoMarca(fecha){
+  const l = baremoDia(fecha), a = (state.baremoAdelanto || {})[fecha], r = (state.baremoRepaso || {})[fecha];
+  return (l.length ? JSON.stringify(l) : '') + (a ? '|a'+JSON.stringify(a) : '') + (r && r.length ? '|r'+JSON.stringify(r) : '') + (((state.baremoAdelantoNotas || {})[fecha]) ? '|n'+JSON.stringify(state.baremoAdelantoNotas[fecha]) : '') + (((state.baremoAdelantoNo || {})[fecha]) ? '|x'+JSON.stringify(state.baremoAdelantoNo[fecha]) : '');
+}
 function baremoGuardarDia(fecha, lista){
   const b = baremoData();
   if(lista.length) b[fecha] = lista; else delete b[fecha];
@@ -3385,10 +3475,13 @@ function baremoMaterias(){
 }
 function baremoResumenTxt(fecha){
   const l = baremoDia(fecha);
-  if(!l.length) return '';
-  const mats = [];
-  l.forEach(e=>{ const m = (e.materia||'').trim(); if(m && mats.indexOf(m)===-1) mats.push(m); });
-  return mats.length ? mats.join(' · ') : (l.length+(l.length===1?' nota':' notas'));
+  let base = '';
+  if(l.length){
+    const mats = [];
+    l.forEach(e=>{ const m = (e.materia||'').trim(); if(m && mats.indexOf(m)===-1) mats.push(m); });
+    base = mats.length ? mats.join(' · ') : (l.length+(l.length===1?' nota':' notas'));
+  }
+  return [base, baremoExtraTxt(fecha)].filter(Boolean).join(' · ');
 }
 function baremoResumenEl(fecha){
   const t = baremoResumenTxt(fecha);
@@ -3397,10 +3490,541 @@ function baremoResumenEl(fecha){
   el.textContent = '🎯 '+t;
   return el;
 }
+/* ===================== BAREMO: AVANZAR TEMARIO Y REPASO EXTRA =====================
+   Dos apartados más dentro del día de baremo:
+   · «Avanzar temario»: adelantas bloque, leve, tema de inglés y/o exámenes (psicotécnico, inglés, ortografía) de
+     los que vienen. Cuenta como estudiado ese día (vueltas, notas, tiempo y Arrastre) y, cuando le tocaba por
+     calendario, se salta y toca el siguiente (computePlan() / computeArrastreData() usan «saltos» en cada cola).
+     Antes de confirmar se ve cómo quedan los días siguientes, y cada cosa adelantada tiene su «NO completado»
+     (si lo marcas, no consume su turno) y su caja de notas.
+     Datos: state.baremoAdelanto = { fecha: {bloque:nº, leve:índice, ingles:nº, psico:índice, iexam:índice, oexam:índice} },
+            state.baremoAdelantoNo = { fecha: {campo:true} }, state.baremoAdelantoNotas = { fecha: {campo:texto} }.
+   · «Repaso extra»: registro de lo que repasas (no mueve el calendario): tema/bloque/leve, inglés, exámenes,
+     psicotécnicos o una nota manual de ortografía y gramática. Cada repaso guarda `keys` (las claves de tema
+     de Temario y notas) para contar en «Repaso de flojos» y verse en cada tema.
+     Datos: state.baremoRepaso = { fecha: [ {id, tipo, ref, keys, nota, texto} ] }. */
+const BAREMO_SLOTS = [
+  {campo:'bloque', ph:'＋ Adelantar un bloque…',                 corto:v=>'B'+v},
+  {campo:'leve',   ph:'＋ Adelantar un leve…',                   corto:v=>'Leve '+(v+1)},
+  {campo:'ingles', ph:'＋ Adelantar un tema de inglés…',         corto:v=>'Ing '+v},
+  {campo:'psico',  ph:'＋ Adelantar un examen psicotécnico…',    corto:v=>'Psico '+(v+1)},
+  {campo:'iexam',  ph:'＋ Adelantar un examen de inglés…',       corto:v=>'Exa. ing '+(v+1)},
+  {campo:'oexam',  ph:'＋ Adelantar un examen de ortografía…',   corto:v=>'Exa. orto '+(v+1)}
+];
+function baremoMapa(nombre){
+  if(!state[nombre] || typeof state[nombre] !== 'object' || Array.isArray(state[nombre])) state[nombre] = {};
+  return state[nombre];
+}
+function baremoAdelantoData(){ return baremoMapa('baremoAdelanto'); }
+function baremoAdelantoNoData(){ return baremoMapa('baremoAdelantoNo'); }
+function baremoAvanceNotas(){ return baremoMapa('baremoAdelantoNotas'); }
+function baremoRepasoData(){ return baremoMapa('baremoRepaso'); }
+function baremoRepasoDia(fecha){ const l = baremoRepasoData()[fecha]; return Array.isArray(l) ? l : []; }
+function normalizarBaremoExtra(){
+  const reFecha = /^\d{4}-\d{2}-\d{2}$/;
+  const a = baremoAdelantoData();
+  Object.keys(a).forEach(f=>{
+    const r = a[f];
+    if(!reFecha.test(f) || !r || typeof r !== 'object' || Array.isArray(r)){ delete a[f]; return; }
+    const lim = {};
+    ['bloque','leve','ingles','psico','iexam','oexam'].forEach(c=>{
+      if(r[c] === undefined || r[c] === null || r[c] === '') return;
+      const v = Number(r[c]);
+      if(Number.isInteger(v) && v >= (c === 'bloque' || c === 'ingles' ? 1 : 0)) lim[c] = v;
+    });
+    if(Object.keys(lim).length) a[f] = lim; else delete a[f];
+  });
+  [['baremoAdelantoNo', false], ['baremoAdelantoNotas', true]].forEach(([nom, esTexto])=>{
+    const m = baremoMapa(nom);
+    Object.keys(m).forEach(f=>{
+      const r = m[f]; const lim = {};
+      if(reFecha.test(f) && r && typeof r === 'object' && !Array.isArray(r)){
+        BAREMO_SLOTS.forEach(sl=>{
+          if(esTexto){ const t = baremoTxt(r[sl.campo], 3000); if(t.trim()) lim[sl.campo] = t; }
+          else if(r[sl.campo]) lim[sl.campo] = true;
+        });
+      }
+      if(Object.keys(lim).length) m[f] = lim; else delete m[f];
+    });
+  });
+  const rp = baremoRepasoData();
+  Object.keys(rp).forEach(f=>{
+    const l = (reFecha.test(f) && Array.isArray(rp[f])) ? rp[f] : [];
+    const limpia = l.filter(e=> e && typeof e === 'object').map(e=>({
+      id: String(e.id || baremoNuevoId()),
+      tipo: ['con','ing','iex','psi','pse','orto'].indexOf(e.tipo) >= 0 ? e.tipo : 'con',
+      ref: baremoTxt(e.ref, 200),
+      keys: Array.isArray(e.keys) ? e.keys.filter(k=> typeof k === 'string' && k.length <= 40).slice(0, 80) : [],
+      nota: baremoTxt(e.nota, 30),
+      texto: baremoTxt(e.texto, 3000)
+    })).filter(e=> e.ref.trim() || e.texto.trim() || e.nota.trim());
+    if(limpia.length) rp[f] = limpia; else delete rp[f];
+  });
+}
+// Avance de ese día validado contra el temario actual (null si no hay). `no` = cosas marcadas «NO completado».
+function baremoAdelantoDe(dayKey){
+  const r = (state.baremoAdelanto || {})[dayKey];
+  if(!r || typeof r !== 'object') return null;
+  const out = {};
+  const b = Number(r.bloque); if(b && BLOCKS[b] && bqFamilia(b)) out.bloque = b;
+  const i = Number(r.ingles); if(Number.isInteger(i) && i >= 1 && i <= INGLES_TOTAL) out.ingles = i;
+  [['leve', LEVES.length], ['psico', PSICO_ITEMS.length], ['iexam', INGLES_EXAMS.length], ['oexam', ORTO_EXAMS.length]].forEach(([c, total])=>{
+    if(r[c] === undefined || r[c] === null || r[c] === '') return;
+    const v = Number(r[c]);
+    if(Number.isInteger(v) && v >= 0 && v < total) out[c] = v;
+  });
+  if(!Object.keys(out).length) return null;
+  const nm = (state.baremoAdelantoNo || {})[dayKey], no = {};
+  if(nm) Object.keys(out).forEach(c=>{ if(nm[c]) no[c] = true; });
+  if(Object.keys(no).length) out.no = no;
+  return out;
+}
+function baremoExtraTxt(fecha){
+  const parts = [];
+  const sel = baremoAdelantoDe(fecha);
+  if(sel){
+    const p = [];
+    BAREMO_SLOTS.forEach(sl=>{ if(sel[sl.campo] !== undefined) p.push(sl.corto(sel[sl.campo])+(sel.no && sel.no[sl.campo] ? ' ✗' : '')); });
+    parts.push('➕ '+p.join(' · '));
+  }
+  const r = baremoRepasoDia(fecha);
+  if(r.length) parts.push('🔁 '+r.length+(r.length===1 ? ' repaso' : ' repasos'));
+  return parts.join(' · ');
+}
+function baremoExtraLineas(fecha){
+  const out = [];
+  const sel = baremoAdelantoDe(fecha), an = (state.baremoAdelantoNotas || {})[fecha] || {};
+  if(sel){
+    const p = [];
+    BAREMO_SLOTS.forEach(sl=>{ if(sel[sl.campo] !== undefined) p.push(sl.corto(sel[sl.campo])+(sel.no && sel.no[sl.campo] ? ' (NO completado)' : '')); });
+    out.push('Avance de temario: '+p.join(', '));
+    BAREMO_SLOTS.forEach(sl=>{ if(an[sl.campo]) out.push('Nota ('+sl.corto(sel[sl.campo] !== undefined ? sel[sl.campo] : 0)+'): '+an[sl.campo]); });
+  }
+  baremoRepasoDia(fecha).forEach(e=>{ out.push('Repaso: '+[e.ref, e.nota ? '['+e.nota+']' : '', e.texto].filter(Boolean).join(' — ')); });
+  return out;
+}
+// Ejecuta fn() con el avance `campo` de ese día quitado temporalmente (para listar lo que «queda por delante»).
+function baremoSinAdelanto(fechaISO, campo, fn){
+  const a = baremoAdelantoData(), mk = fechaISO.slice(0,7);
+  const prev = a[fechaISO] ? Object.assign({}, a[fechaISO]) : null;
+  if(!prev || prev[campo] === undefined) return fn();
+  const c = Object.assign({}, prev); delete c[campo];
+  if(Object.keys(c).length) a[fechaISO] = c; else delete a[fechaISO];
+  invalidatePlan(mk); computePlan();
+  try{ return fn(); }
+  finally{ a[fechaISO] = prev; invalidatePlan(mk); computePlan(); }
+}
+// Elementos de una cola que quedan por delante, en orden de aparición, hasta que la cola da la vuelta.
+function baremoColaProxima(fechaISO, getInfo, total, etqFallback){
+  const plan = computePlan(), out = [], visto = {};
+  let fin = false, ultimo = 0;
+  const keys = sortedMonthKeys();
+  for(let i=0; i<keys.length && !fin; i++){
+    const mk = keys[i];
+    if(mk < fechaISO.slice(0,7)) continue;
+    const dias = plan[mk] || {};
+    const n = daysInMonth(Number(mk.slice(0,4)), Number(mk.slice(5)));
+    for(let dd=1; dd<=n; dd++){
+      const iso = mk+'-'+pad2(dd);
+      if(iso <= fechaISO) continue;
+      const e = dias[dd];
+      if(!e || e.status !== 'ESTUDIO') continue;
+      const inf = getInfo(e);
+      if(!inf || !inf.num) continue;
+      if(visto[inf.num]){ fin = true; break; }
+      visto[inf.num] = true; ultimo = inf.num;
+      out.push({num:inf.num, fecha:iso, etq:inf.etq || ''});
+    }
+  }
+  if(!fin && ultimo){
+    for(let q = ultimo + 1; q <= total; q++){ if(visto[q]) break; visto[q] = true; out.push({num:q, fecha:null, etq:etqFallback(q)}); }
+  }
+  return out;
+}
+function baremoLeveEtq(i){ const it = LEVES[i]; return (it.clase ? it.clase+' · ' : '')+(it.nombre || (it.l39+' / '+it.l40)); }
+function baremoOpcionesAvance(fechaISO, campo){
+  return baremoSinAdelanto(fechaISO, campo, ()=>{
+    const cuando = (f)=> f ? ' · tocaba el '+fechaCortaBq(f) : ' · más adelante';
+    if(campo === 'bloque'){
+      return bloquesProximos(fechaISO, null).map(o=>({v:o.n, txt:'Bloque '+o.n+(o.color ? ' · '+o.color.toUpperCase() : '')+' ('+(bqFamilia(o.n)==='g' ? 'grave' : 'menos grave')+')'+cuando(o.fecha)}));
+    }
+    if(campo === 'leve'){
+      return baremoColaProxima(fechaISO, e=> e.leveInfo ? {num:e.leveNum, etq:(e.leveInfo.clase ? e.leveInfo.clase+' · ' : '')+e.leveInfo.nombre} : null, LEVES.length, q=> baremoLeveEtq(q-1))
+        .map(o=>({v:o.num-1, txt:'Leve '+o.num+' — '+o.etq+cuando(o.fecha)}));
+    }
+    if(campo === 'ingles'){
+      return baremoColaProxima(fechaISO, e=> e.inglesNum ? {num:e.inglesNum} : null, INGLES_TOTAL, ()=>'')
+        .map(o=>({v:o.num, txt:'Tema '+o.num+' / '+INGLES_TOTAL+cuando(o.fecha)}));
+    }
+    const cfg = campo === 'psico' ? {lista:PSICO_ITEMS, idx:'psicoIdx', nom:'psico'}
+      : campo === 'iexam' ? {lista:INGLES_EXAMS, idx:'iexamIdx', nom:'iexam'} : {lista:ORTO_EXAMS, idx:'oexamIdx', nom:'oexam'};
+    return baremoColaProxima(fechaISO, e=> (e[cfg.nom] && e[cfg.idx] !== undefined) ? {num:e[cfg.idx]+1, etq:e[cfg.nom]} : null, cfg.lista.length, q=> cfg.lista[q-1])
+      .map(o=>({v:o.num-1, txt:o.num+'. '+o.etq+cuando(o.fecha)}));
+  });
+}
+// ---- Vista previa: cómo quedan los próximos días de estudio si se adelanta `valor` en `campo` ----
+function proximosDiasBaremo(plan, fechaISO){
+  const out = [];
+  const keys = sortedMonthKeys();
+  for(let i=0; i<keys.length && out.length<8; i++){
+    const mk = keys[i];
+    if(mk < fechaISO.slice(0,7)) continue;
+    const n = daysInMonth(Number(mk.slice(0,4)), Number(mk.slice(5)));
+    for(let dd=1; dd<=n && out.length<8; dd++){
+      const iso = mk+'-'+pad2(dd);
+      if(iso <= fechaISO) continue;
+      const e = (plan[mk] || {})[dd];
+      if(!e || e.status !== 'ESTUDIO' || !e.bloque) continue;
+      out.push({iso, dow:e.dow, txt:'B'+e.bloque+(e.color ? ' '+e.color.toUpperCase() : '')+' · L'+e.leveNum+(e.inglesNum ? ' · I'+e.inglesNum : '')
+        +(e.psico ? ' · P'+(e.psicoIdx+1) : '')+(e.iexam ? ' · EI'+(e.iexamIdx+1) : '')+(e.oexam ? ' · EO'+(e.oexamIdx+1) : '')});
+    }
+  }
+  return out;
+}
+function baremoVistaPrevia(fechaISO, campo, valor){
+  const a = baremoAdelantoData(), mk = fechaISO.slice(0,7);
+  const prev = a[fechaISO] ? Object.assign({}, a[fechaISO]) : null;
+  const antes = proximosDiasBaremo(computePlan(), fechaISO);
+  const cur = Object.assign({}, prev || {}); cur[campo] = valor; a[fechaISO] = cur;
+  invalidatePlan(mk);
+  let despues = [];
+  try{ despues = proximosDiasBaremo(computePlan(), fechaISO); }
+  finally{
+    if(prev) a[fechaISO] = prev; else delete a[fechaISO];
+    invalidatePlan(mk); computePlan();
+  }
+  return despues.map((x,i)=>({x, antes:antes[i], cambia: !antes[i] || antes[i].txt !== x.txt}));
+}
+function mostrarPanelAvance(host, fechaISO, campo, valor, selEl){
+  const viejo = host.querySelector('.bloque-preview'); if(viejo) viejo.remove();
+  const filas = baremoVistaPrevia(fechaISO, campo, valor);
+  const hoyISO = hoyLocalISO();
+  const box = document.createElement('div'); box.className = 'bloque-preview';
+  box.style.cssText = 'margin-top:8px;padding:8px 10px;border:1px solid var(--line);border-radius:3px;background:var(--bg-panel-2);';
+  const t = document.createElement('div');
+  t.style.cssText = 'font-family:var(--font-mono);font-size:12px;color:var(--amber-ink);text-transform:uppercase;letter-spacing:.04em;margin-bottom:6px;';
+  t.textContent = 'Así quedarían los próximos días';
+  box.appendChild(t);
+  filas.forEach(f=>{
+    const p = f.x.iso.split('-').map(Number);
+    const dia = (f.x.iso === hoyISO ? 'Hoy' : DOW[(f.x.dow===0 ? 6 : f.x.dow-1)].slice(0,3)+' '+p[2]+' '+MESES_CORTOS_BQ[p[1]-1]);
+    const r = document.createElement('div');
+    r.style.cssText = 'font-family:var(--font-mono);font-size:12px;line-height:1.6;'+(f.cambia ? 'color:var(--cream);font-weight:700;' : 'color:var(--muted);');
+    r.textContent = (f.cambia ? '✎ ' : '· ')+dia+' · '+f.x.txt+(f.cambia && f.antes ? '  (antes '+f.antes.txt+')' : '');
+    box.appendChild(r);
+  });
+  const btns = document.createElement('div'); btns.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;';
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn small'; ok.textContent = '✓ Confirmar avance';
+  ok.onclick = ()=>{ baremoSetAdelanto(fechaISO, campo, valor); };
+  const no = document.createElement('button'); no.type = 'button'; no.className = 'btn ghost small'; no.textContent = 'Cancelar';
+  no.onclick = ()=>{ box.remove(); if(selEl) selEl.value = ''; };
+  btns.appendChild(ok); btns.appendChild(no); box.appendChild(btns);
+  host.appendChild(box);
+}
+function baremoSetAdelanto(fechaISO, campo, valor){
+  const a = baremoAdelantoData(), mk = fechaISO.slice(0,7), d = Number(fechaISO.slice(8));
+  const cur = Object.assign({}, a[fechaISO] || {});
+  if(valor === null || valor === undefined) delete cur[campo]; else cur[campo] = valor;
+  if(Object.keys(cur).length) a[fechaISO] = cur; else delete a[fechaISO];
+  // El «NO completado» es de lo elegido: al cambiarlo o quitarlo se limpia; las notas solo al quitar.
+  const no = baremoAdelantoNoData();
+  if(no[fechaISO]){ delete no[fechaISO][campo]; if(!Object.keys(no[fechaISO]).length) delete no[fechaISO]; }
+  if(valor === null || valor === undefined){
+    const an = baremoAvanceNotas();
+    if(an[fechaISO]){ delete an[fechaISO][campo]; if(!Object.keys(an[fechaISO]).length) delete an[fechaISO]; }
+  }
+  invalidatePlan(mk);
+  scheduleSave();
+  renderCalendar();
+  currentMonthKey = mk;
+  openDayModal(d, (computePlan()[mk] || {})[d]);
+  showToast(valor === null || valor === undefined ? 'Avance quitado: vuelve a tocar en su día' : 'Adelantado: cuando le tocaba por calendario se salta y toca el siguiente');
+}
+function baremoSetNoHecho(fechaISO, campo, val){
+  const no = baremoAdelantoNoData(), mk = fechaISO.slice(0,7), d = Number(fechaISO.slice(8));
+  if(val){ if(!no[fechaISO]) no[fechaISO] = {}; no[fechaISO][campo] = true; }
+  else if(no[fechaISO]){ delete no[fechaISO][campo]; if(!Object.keys(no[fechaISO]).length) delete no[fechaISO]; }
+  invalidatePlan(mk);
+  scheduleSave();
+  renderCalendar();
+  currentMonthKey = mk;
+  openDayModal(d, (computePlan()[mk] || {})[d]);
+}
+function buildBaremoAvance(body, fechaISO, status, onCambio){
+  const {body:sb, setResumen} = daySection(body, 'Avanzar temario (baremo)');
+  const mk = fechaISO.slice(0,7), d = Number(fechaISO.slice(8));
+  const info = (computePlan()[mk] || {})[d] || {};
+  const ad = info.adelanto || {};
+  const sel = (state.baremoAdelanto || {})[fechaISO] || {};
+  const noMap = (state.baremoAdelantoNo || {})[fechaISO] || {};
+  const tiene = (c)=> sel[c] !== undefined && sel[c] !== null && sel[c] !== '';
+  const partes = [];
+  BAREMO_SLOTS.forEach(sl=>{ if(tiene(sl.campo)) partes.push(sl.corto(Number(sel[sl.campo]))+(noMap[sl.campo] ? ' ✗' : '')); });
+  setResumen(partes.length ? partes.join(' · ') : 'nada adelantado');
+  const intro = document.createElement('div'); intro.className = 'tick-help'; intro.style.marginBottom = '10px';
+  intro.textContent = 'Adelanta algo de lo que viene. Cuenta como estudiado hoy y, cuando le tocaba por calendario, se salta y toca el siguiente. Antes de confirmar verás cómo quedan los días siguientes.';
+  sb.appendChild(intro);
+  if(status !== 'BAREMO' && partes.length){
+    const w = document.createElement('div'); w.className = 'day-warn';
+    w.textContent = 'Este día ya no es de baremo, así que el avance no cuenta para el calendario. Quítalo o vuelve a poner el día como Baremo.';
+    sb.appendChild(w);
+  }
+  const selectorOpciones = (campo, primera)=>{
+    const opts = baremoOpcionesAvance(fechaISO, campo);
+    const s2 = document.createElement('select'); s2.className = 'status-select'; s2.style.cssText = 'width:auto;max-width:100%;';
+    s2.setAttribute('aria-label', primera);
+    const o0 = document.createElement('option'); o0.value = ''; o0.textContent = primera; s2.appendChild(o0);
+    opts.forEach(o=>{ const op = document.createElement('option'); op.value = String(o.v); op.textContent = o.txt; s2.appendChild(op); });
+    return {s2, n:opts.length};
+  };
+  const hacerControles = (card, campo, etqActual)=>{
+    const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
+    nota.placeholder = 'Notas de lo que has adelantado (dudas, qué te ha costado…)'; nota.setAttribute('aria-label', 'Notas del avance');
+    nota.value = ((baremoAvanceNotas()[fechaISO] || {})[campo]) || '';
+    const guardaNota = ()=>{
+      const an = baremoAvanceNotas(); const t = nota.value;
+      if(t.trim()){ if(!an[fechaISO]) an[fechaISO] = {}; an[fechaISO][campo] = t; }
+      else if(an[fechaISO]){ delete an[fechaISO][campo]; if(!Object.keys(an[fechaISO]).length) delete an[fechaISO]; }
+      scheduleSave();
+    };
+    nota.oninput = guardaNota; nota.onblur = ()=>{ guardaNota(); if(onCambio) onCambio(); };
+    card.appendChild(nota);
+    // NO completado: si lo marcas, esto NO consume su turno y volverá a tocar en su día.
+    const lab = document.createElement('label'); lab.className = 'bm-no';
+    const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'day-tick'; cb.checked = !!noMap[campo];
+    cb.onchange = ()=> baremoSetNoHecho(fechaISO, campo, cb.checked);
+    lab.appendChild(cb); lab.appendChild(document.createTextNode(' NO lo he completado (volverá a tocar en su día)'));
+    card.appendChild(lab);
+    const ctl = document.createElement('div'); ctl.className = 'bm-ctl';
+    const {s2, n} = selectorOpciones(campo, etqActual+' ▾ cambiar…');
+    s2.onchange = ()=>{ if(s2.value !== '') mostrarPanelAvance(card, fechaISO, campo, Number(s2.value), s2); };
+    if(n) ctl.appendChild(s2);
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕ Quitar avance';
+    del.onclick = ()=> baremoSetAdelanto(fechaISO, campo, null);
+    ctl.appendChild(del); card.appendChild(ctl);
+  };
+  const hacerSelector = (campo, ph)=>{
+    const wrap = document.createElement('div'); wrap.className = 'bm-slot bm-slot-vacio';
+    const {s2, n} = selectorOpciones(campo, ph);
+    if(!n){ wrap.textContent = ph.replace('＋ Adelantar', 'No quedan por delante')+' (no hay nada más en el calendario).'; return wrap; }
+    s2.onchange = ()=>{ if(s2.value !== '') mostrarPanelAvance(wrap, fechaISO, campo, Number(s2.value), s2); };
+    wrap.appendChild(s2);
+    return wrap;
+  };
+  const sinEfecto = (campo, txt)=>{
+    const card = document.createElement('div'); card.className = 'bm-slot';
+    card.textContent = txt+' (sin efecto) ';
+    const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕ Quitar';
+    del.onclick = ()=> baremoSetAdelanto(fechaISO, campo, null); card.appendChild(del);
+    return card;
+  };
+  BAREMO_SLOTS.forEach(sl=>{
+    const campo = sl.campo, res = ad[campo];
+    if(campo === 'psico'){
+      const h = document.createElement('div'); h.className = 'baremo-form-title'; h.style.marginTop = '12px';
+      h.textContent = 'Exámenes oficiales'; sb.appendChild(h);
+    }
+    if(!tiene(campo)){ sb.appendChild(hacerSelector(campo, sl.ph)); return; }
+    if(!res){ sb.appendChild(sinEfecto(campo, sl.corto(Number(sel[campo])))); return; }
+    if(campo === 'bloque'){
+      const card = document.createElement('div'); card.className = 'bm-slot modal-row '+(res.tipo==='grave' ? 'mr-grave' : 'mr-mgrave')+' bc-'+res.color;
+      const head = document.createElement('div');
+      head.innerHTML = '<span class="tag '+(res.tipo==='grave' ? 'tag-grave' : 'tag-mgrave')+'">BLOQUE '+res.n+'</span><span class="colorpill '+res.color+'">'+res.color+'</span>';
+      card.appendChild(head);
+      res.temasDelDia.forEach(t=>{
+        const line = document.createElement('div'); line.className = 'modal-tema-line tc-'+(t.color || res.color);
+        const txt = document.createElement('span'); txt.className = 'tema-line-txt';
+        txt.textContent = '• '+(t.clase ? t.clase : t.nombre)+(t.clase ? ' ('+t.nombre+')' : '');
+        line.appendChild(txt);
+        line.appendChild(tiempoMini((state.tiempos.temas || {})[t.key], v=>setTiempoTema(t.key, v), t.clase ? t.clase : t.nombre, 'tema|'+t.key));
+        line.appendChild(buildQuickVueltaControl(t.key, GROUP_MAX_NOTA.Bloques, fechaISO));
+        card.appendChild(line);
+      });
+      hacerControles(card, 'bloque', 'Bloque '+res.n+' · '+res.color.toUpperCase());
+      sb.appendChild(card); return;
+    }
+    const card = document.createElement('div'); card.className = 'bm-slot';
+    if(campo === 'leve'){
+      addModalRow(card, 'tag-leve', 'LEVE', 'Leve '+res.num+' — '+(res.info.clase ? res.info.clase : res.info.nombre)+(res.info.clase ? ' ('+res.info.nombre+')' : ''), null, {key:res.info.key, maxNota:GROUP_MAX_NOTA.Leves}, fechaISO, null);
+      hacerControles(card, 'leve', 'Leve '+res.num);
+    } else if(campo === 'ingles'){
+      addModalRow(card, 'tag-ing', 'INGLÉS', 'Tema '+res.num+' / '+INGLES_TOTAL, null, {key:'ingles-'+res.num, maxNota:GROUP_MAX_NOTA['Inglés']}, fechaISO, null);
+      hacerControles(card, 'ingles', 'Inglés tema '+res.num);
+    } else if(campo === 'psico'){
+      addModalRow(card, 'tag-psico', 'EXAMEN PSICOTÉCNICO', res.nombre, null, {key:'psico-'+res.idx, maxNota:GROUP_MAX_NOTA['Psicotécnicos']}, fechaISO, null);
+      hacerControles(card, 'psico', 'Psicotécnico '+(res.idx+1));
+    } else if(campo === 'iexam'){
+      addModalRow(card, 'tag-iexam', 'EXAMEN INGLÉS', res.nombre, null, {key:'iexam-'+res.idx, maxNota:GROUP_MAX_NOTA['Examen inglés']}, fechaISO, null);
+      hacerControles(card, 'iexam', 'Examen inglés '+(res.idx+1));
+    } else {
+      addModalRow(card, 'tag-oexam', 'EXAMEN ORTOGRAFÍA', res.nombre, null, {key:'oexam-'+res.idx}, fechaISO, null);
+      hacerControles(card, 'oexam', 'Examen ortografía '+(res.idx+1));
+    }
+    sb.appendChild(card);
+  });
+}
+// ---- Repaso extra ----
+const BAREMO_REPASO_TAG = {con:'CON', ing:'ING', iex:'EXA ING', psi:'PSICO', pse:'PSICO ESP.', orto:'ORTO-GRAMA'};
+function baremoKeysBloque(n){
+  const out = [];
+  ((BLOCKS[n] && BLOCKS[n].temas) || []).forEach((t,i)=>{
+    if(t.type==='armas_explosivos') out.push('b'+n+'-'+i+'-armas', 'b'+n+'-'+i+'-explosivos'); else out.push('b'+n+'-'+i);
+  });
+  return out;
+}
+function baremoKeysLeve(i){ const t = LEVES[i]; return t.type==='l39_l40' ? ['leve-'+i+'-l39', 'leve-'+i+'-l40'] : ['leve-'+i]; }
+function baremoKeysTemaNum(num){
+  const tag = 'TEMA '+num, out = [];
+  Object.keys(BLOCKS).forEach(n=>{
+    (BLOCKS[n].temas || []).forEach((t,i)=>{
+      if(temaNumFromClase(t.clase) !== tag) return;
+      if(t.type==='armas_explosivos') out.push('b'+n+'-'+i+'-armas', 'b'+n+'-'+i+'-explosivos'); else out.push('b'+n+'-'+i);
+    });
+  });
+  LEVES.forEach((t,i)=>{ if(temaNumFromClase(t.clase) === tag) baremoKeysLeve(i).forEach(k=> out.push(k)); });
+  return out;
+}
+function baremoRepasoOpciones(){
+  const g = [];
+  g.push({grupo:'Conocimientos · Temas', tipo:'con', items:TEMARIO_GENERAL.map(t=>({ref:'Tema '+t.num+' · '+t.titulo, keys:baremoKeysTemaNum(t.num)}))});
+  g.push({grupo:'Conocimientos · Bloques', tipo:'con', items:Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).map(n=>({ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', keys:baremoKeysBloque(n)}))});
+  g.push({grupo:'Conocimientos · Leves', tipo:'con', items:LEVES.map((_,i)=>({ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), keys:baremoKeysLeve(i)}))});
+  const ing = []; for(let i=1; i<=INGLES_TOTAL; i++) ing.push({ref:'Tema '+i, keys:['ingles-'+i]});
+  g.push({grupo:'Inglés · Temas', tipo:'ing', items:ing});
+  g.push({grupo:'Inglés · Exámenes', tipo:'iex', items:INGLES_EXAMS.map((n,i)=>({ref:n, keys:['iexam-'+i]}))});
+  g.push({grupo:'Psicotécnicos · Exámenes', tipo:'psi', items:PSICO_ITEMS.map((n,i)=>({ref:n, keys:['psico-'+i]}))});
+  g.push({grupo:'Psicotécnicos · Especiales', tipo:'pse', items:PSICO_ESPECIALES.map(n=>({ref:n, keys:[]}))});
+  return g;
+}
+// Repasos extra de baremo que tocan una clave de tema (para «Temario y notas»).
+function baremoRepasosDeKey(key){
+  const out = [];
+  Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
+    (state.baremoRepaso[f] || []).forEach(e=>{ if(Array.isArray(e.keys) && e.keys.indexOf(key) >= 0) out.push({fecha:f, nota:e.nota || '', texto:e.texto || ''}); });
+  });
+  return out;
+}
+function baremoRepasoLineaEl(key){
+  const l = baremoRepasosDeKey(key);
+  if(!l.length) return null;
+  const ult = l[l.length-1];
+  const el = document.createElement('div'); el.className = 'baremo-rep-line';
+  el.textContent = '🔁 Repasado en baremo '+l.length+(l.length===1 ? ' vez' : ' veces')+' · último '+fechaCortaBq(ult.fecha)+(ult.nota ? ' · '+ult.nota : '');
+  el.title = l.map(x=> fechaCortaBq(x.fecha)+(x.nota ? ' · '+x.nota : '')+(x.texto ? ' — '+x.texto : '')).join('\n');
+  return el;
+}
+// Último día repasado (≤ hoy) por clave: «Repaso de flojos» lo cuenta como visto.
+function baremoRepasoUltimas(hoy){
+  const ult = {};
+  Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
+    if(f > hoy) return;
+    (state.baremoRepaso[f] || []).forEach(e=>{ (e.keys || []).forEach(k=>{ if(!ult[k] || f > ult[k]) ult[k] = f; }); });
+  });
+  return ult;
+}
+function buildBaremoRepaso(body, fechaISO, onCambio){
+  const {body:sb, setResumen} = daySection(body, 'Repaso extra (baremo)');
+  const intro = document.createElement('div'); intro.className = 'tick-help'; intro.style.marginBottom = '10px';
+  intro.textContent = 'Apunta lo que repasas de más (no mueve el calendario). Cuenta en «Repaso de flojos» y se ve en cada tema de «Temario y notas».';
+  sb.appendChild(intro);
+  const host = document.createElement('div'); sb.appendChild(host);
+  let modoVarios = false;
+  const resumen = ()=>{ const n = baremoRepasoDia(fechaISO).length; setResumen(n ? n+(n===1 ? ' repaso' : ' repasos') : 'ninguno'); };
+  const guardarLista = (l)=>{ const r = baremoRepasoData(); if(l.length) r[fechaISO] = l; else delete r[fechaISO]; };
+  const borrar = (id)=>{ guardarLista(baremoRepasoDia(fechaISO).filter(e=> e.id !== id)); scheduleSave(); pintar(); if(onCambio) onCambio(); };
+  const ultimoDia = ()=>{ const r = baremoRepasoData(); return Object.keys(r).filter(f=> f < fechaISO && r[f].length).sort().pop() || null; };
+  function pintar(){
+    host.innerHTML = ''; resumen();
+    const lista = baremoRepasoDia(fechaISO);
+    if(!lista.length){ const v = document.createElement('div'); v.className = 'ag-empty'; v.textContent = 'Todavía no has apuntado ningún repaso este día.'; host.appendChild(v); }
+    lista.forEach(e=>{
+      const card = document.createElement('div'); card.className = 'baremo-item';
+      const top = document.createElement('div'); top.className = 'baremo-item-top';
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = BAREMO_REPASO_TAG[e.tipo] || 'REPASO';
+      const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere;'; tx.textContent = e.ref;
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕';
+      del.title = 'Quitar este repaso'; del.setAttribute('aria-label', 'Quitar repaso extra'); del.onclick = ()=> borrar(e.id);
+      top.appendChild(tag); top.appendChild(tx); top.appendChild(del);
+      const res = document.createElement('input'); res.type = 'text'; res.className = 'baremo-in'; res.maxLength = 30;
+      res.placeholder = 'Nota / resultado (ej. 17/20, 80 %, Apto)'; res.value = e.nota || ''; res.setAttribute('aria-label', 'Nota o resultado del repaso');
+      res.oninput = ()=>{ e.nota = res.value; scheduleSave(); };
+      res.onblur = ()=>{ e.nota = res.value; scheduleSave(); if(onCambio) onCambio(); };
+      const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
+      nota.placeholder = 'Comentario (opcional)…'; nota.value = e.texto || ''; nota.setAttribute('aria-label', 'Comentario del repaso');
+      nota.oninput = ()=>{ e.texto = nota.value; scheduleSave(); };
+      nota.onblur = ()=>{ e.texto = nota.value; scheduleSave(); if(onCambio) onCambio(); };
+      card.appendChild(top); card.appendChild(res); card.appendChild(nota); host.appendChild(card);
+    });
+    const form = document.createElement('div'); form.className = 'baremo-form';
+    const ft = document.createElement('div'); ft.className = 'baremo-form-title'; ft.textContent = 'Añadir repaso'; form.appendChild(ft);
+    // Atajos: repetir los del último día con repasos y elegir varios a la vez.
+    const atajos = document.createElement('div'); atajos.className = 'baremo-chips';
+    const uf = ultimoDia();
+    if(uf){
+      const rep = document.createElement('button'); rep.type = 'button'; rep.className = 'day-mini-btn';
+      rep.textContent = '↻ Repetir los del '+fechaCortaBq(uf)+' ('+baremoRepasoDia(uf).length+')';
+      rep.onclick = ()=>{
+        const ya = baremoRepasoDia(fechaISO).map(e=> e.tipo+'|'+e.ref);
+        const nuevos = baremoRepasoDia(uf).filter(e=> ya.indexOf(e.tipo+'|'+e.ref) < 0).map(e=>({id:baremoNuevoId(), tipo:e.tipo, ref:e.ref, keys:(e.keys || []).slice(), nota:'', texto:''}));
+        if(!nuevos.length){ showToast('Ya tienes esos repasos apuntados hoy'); return; }
+        guardarLista(baremoRepasoDia(fechaISO).concat(nuevos));
+        scheduleSave(); pintar(); if(onCambio) onCambio();
+        showToast(nuevos.length+(nuevos.length===1 ? ' repaso copiado' : ' repasos copiados')+' (sin nota; ponles la de hoy)');
+      };
+      atajos.appendChild(rep);
+    }
+    const vr = document.createElement('button'); vr.type = 'button'; vr.className = 'day-mini-btn';
+    vr.textContent = modoVarios ? '☑ Elegir varios (activado)' : '☰ Elegir varios a la vez';
+    vr.onclick = ()=>{ modoVarios = !modoVarios; pintar(); };
+    atajos.appendChild(vr);
+    form.appendChild(atajos);
+    const sel = document.createElement('select'); sel.className = 'status-select'; sel.style.cssText = 'width:100%;margin-bottom:6px;'; sel.setAttribute('aria-label', '¿Qué repasas?');
+    if(modoVarios){ sel.multiple = true; sel.size = 8; }
+    else { const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Elige qué repasar…'; sel.appendChild(o0); }
+    const plano = [];
+    baremoRepasoOpciones().forEach(gr=>{
+      const og = document.createElement('optgroup'); og.label = gr.grupo;
+      gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = String(plano.length); op.textContent = it.ref; og.appendChild(op); plano.push({tipo:gr.tipo, ref:it.ref, keys:it.keys}); });
+      sel.appendChild(og);
+    });
+    const oOrto = document.createElement('option'); oOrto.value = 'orto'; oOrto.textContent = '✍️ Ortografía y gramática (lo escribo yo)'; sel.appendChild(oOrto);
+    form.appendChild(sel);
+    const valores = ()=> Array.from(sel.options).filter(o=> o.selected && o.value !== '').map(o=> o.value);
+    const ortoIn = document.createElement('input'); ortoIn.type = 'text'; ortoIn.className = 'baremo-in'; ortoIn.maxLength = 200;
+    ortoIn.placeholder = '¿Qué de ortografía o gramática repasas? (ej. tilde diacrítica)'; ortoIn.setAttribute('aria-label', 'Tema de ortografía o gramática');
+    ortoIn.style.display = 'none'; form.appendChild(ortoIn);
+    const resN = document.createElement('input'); resN.type = 'text'; resN.className = 'baremo-in'; resN.maxLength = 30;
+    resN.placeholder = 'Nota / resultado (opcional: 17/20, 80 %, Apto)'; resN.setAttribute('aria-label', 'Nota o resultado del repaso nuevo'); form.appendChild(resN);
+    const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
+    nota.placeholder = 'Comentario (opcional)…'; nota.setAttribute('aria-label', 'Comentario del repaso nuevo'); form.appendChild(nota);
+    const msg = document.createElement('div'); msg.className = 'baremo-msg'; msg.setAttribute('role', 'status');
+    sel.onchange = ()=>{ const o = valores().indexOf('orto') >= 0; ortoIn.style.display = o ? '' : 'none'; if(o) ortoIn.focus(); msg.textContent = ''; };
+    const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = modoVarios ? '＋ Añadir los marcados' : '＋ Añadir';
+    add.onclick = ()=>{
+      const nuevos = [], vs = valores();
+      if(!vs.length){ msg.textContent = 'Elige qué repasar del desplegable.'; return; }
+      for(const v of vs){
+        if(v === 'orto'){
+          if(!ortoIn.value.trim()){ msg.textContent = 'Escribe qué repasas de ortografía o gramática.'; return; }
+          nuevos.push({id: baremoNuevoId(), tipo:'orto', ref: ortoIn.value.trim(), keys:[], nota: resN.value.trim(), texto: nota.value.trim()});
+        } else if(plano[Number(v)]){
+          const it = plano[Number(v)];
+          nuevos.push({id: baremoNuevoId(), tipo: it.tipo, ref: it.ref, keys: (it.keys || []).slice(0, 80), nota: resN.value.trim(), texto: nota.value.trim()});
+        }
+      }
+      if(!nuevos.length){ msg.textContent = 'Elige qué repasar del desplegable.'; return; }
+      guardarLista(baremoRepasoDia(fechaISO).concat(nuevos));
+      scheduleSave(); pintar(); if(onCambio) onCambio();
+    };
+    form.appendChild(add); form.appendChild(msg); host.appendChild(form);
+  }
+  pintar();
+}
+
 function buildDiaBaremo(body, fechaISO, onCambio){
   const {body:sb, setResumen} = daySection(body, 'Estudio de baremo');
   const intro = document.createElement('div'); intro.className = 'tick-help'; intro.style.marginBottom = '10px';
-  intro.textContent = 'Día para materias que puntúan en el baremo. No se estudia temario: apunta aquí la materia, un tema concreto o una nota, lo que quieras.';
+  intro.textContent = 'Día para materias que puntúan en el baremo. No se estudia temario: apunta aquí la materia, un tema concreto o una nota, lo que quieras. Más abajo puedes adelantar temario o apuntar un repaso extra.';
   sb.appendChild(intro);
   const host = document.createElement('div'); sb.appendChild(host);
   let materiaForm = '';
@@ -4675,6 +5299,14 @@ function openDayModal(d, info, modo){
     if(status === 'BAREMO' || baremoDia(fechaISO).length){
       if(_secAbiertas['Estudio de baremo'] === undefined) _secAbiertas['Estudio de baremo'] = true;
       buildDiaBaremo(body, fechaISO, ()=>{ renderCalendar(); });
+    }
+    if(status === 'BAREMO' || (state.baremoAdelanto || {})[fechaISO]){
+      if(_secAbiertas['Avanzar temario (baremo)'] === undefined && (state.baremoAdelanto || {})[fechaISO]) _secAbiertas['Avanzar temario (baremo)'] = true;
+      buildBaremoAvance(body, fechaISO, status, ()=>{ renderCalendar(); });
+    }
+    if(status === 'BAREMO' || baremoRepasoDia(fechaISO).length){
+      if(_secAbiertas['Repaso extra (baremo)'] === undefined && baremoRepasoDia(fechaISO).length) _secAbiertas['Repaso extra (baremo)'] = true;
+      buildBaremoRepaso(body, fechaISO, ()=>{ renderCalendar(); });
     }
   }catch(err){
     try{ console.error('Error pintando el estudio de baremo', err); }catch(e){}
@@ -6798,6 +7430,7 @@ function renderAccordionSection(host, key, titleText, buildFn){
 function buildTemaControls(key, grupo, label, notePlaceholder){
   KEY_LABELS[key] = {grupo, label, max:GROUP_MAX_NOTA[grupo]};
   const frag = document.createDocumentFragment();
+  try{ const rl = baremoRepasoLineaEl(key); if(rl) frag.appendChild(rl); }catch(err){}
   frag.appendChild(buildNoteBox(key, notePlaceholder));
   frag.appendChild(buildTicksRow(key, GROUP_MAX_NOTA[grupo]));
   return frag;
@@ -7107,7 +7740,7 @@ function computeArrastreData(asOfDayKey, acumulado){
   }
 
   const bq = {gIdx:0, mgIdx:0, gSkip:{}, mgSkip:{}};
-  let lIdx=0, iIdx=0, pIdx=0;
+  const lq = {lIdx:0, iIdx:0, lSkip:{}, iSkip:{}, pIdx:0, pSkip:{}}; // colas de leves, inglés y psicotécnicos (con saltos)
   let gUnits=0, mgUnits=0; // «medias visitas»: 1 por visita de un solo color, 2 si el día es unificado (azul+morado)
   const azulCount = {}; Object.keys(BLOCKS).forEach(k=>{ azulCount[k]=0; });
   const blockTurn = {}; Object.keys(BLOCKS).forEach(k=>{ blockTurn[k]=0; });
@@ -7124,9 +7757,9 @@ function computeArrastreData(asOfDayKey, acumulado){
         reiniciosHechos[c.key] = (reiniciosHechos[c.key] || 0) + 1;
         if(c.key === 'graves'){ bq.gIdx = 0; bq.gSkip = {}; gUnits = 0; GRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.graves = poolVacio(); }
         else if(c.key === 'mgraves'){ bq.mgIdx = 0; bq.mgSkip = {}; mgUnits = 0; MGRAVES_ORDER.forEach(n=>{ azulCount[n] = 0; blockTurn[n] = 0; }); pools.mgraves = poolVacio(); }
-        else if(c.key === 'leves'){ lIdx = 0; Object.keys(leveAppear).forEach(q=>{ leveAppear[q] = 0; }); pools.leves = poolVacio(); }
-        else if(c.key === 'ingles'){ iIdx = 0; pools.ingles = poolVacio(); }
-        else if(c.key === 'psico'){ pIdx = 0; pools.psico = poolVacio(); }
+        else if(c.key === 'leves'){ lq.lIdx = 0; lq.lSkip = {}; Object.keys(leveAppear).forEach(q=>{ leveAppear[q] = 0; }); pools.leves = poolVacio(); }
+        else if(c.key === 'ingles'){ lq.iIdx = 0; lq.iSkip = {}; pools.ingles = poolVacio(); }
+        else if(c.key === 'psico'){ lq.pIdx = 0; lq.pSkip = {}; pools.psico = poolVacio(); }
         // iexam / oexam no entran en el Arrastre
       }
     });
@@ -7146,6 +7779,45 @@ function computeArrastreData(asOfDayKey, acumulado){
     p.items[lap].push(item);
   }
 
+  // Día de BAREMO con temario adelantado: lo que adelantaste entra en el Arrastre y consume su turno (igual que en computePlan).
+  function arrastreAdelanto(sel, dayKey){
+    const unif = !!(state.settings.unifyFromDate && dayKey >= state.settings.unifyFromDate);
+    const no = sel.no || {};
+    if(sel.bloque && !no.bloque){
+      const n = sel.bloque, fam = bqFamilia(n);
+      const pk = fam==='g' ? 'graves' : 'mgraves';
+      const ord = fam==='g' ? GRAVES_ORDER : MGRAVES_ORDER;
+      const lap = Math.floor((fam==='g' ? gUnits : mgUnits) / (2*ord.length)) + 1;
+      const color = unif ? 'unificado' : ((blockTurn[n] % 2 === 0) ? 'azul' : 'morado');
+      const raw = unif ? BLOCKS[n].temas : BLOCKS[n].temas.filter(t=>t.color===color);
+      raw.forEach(t=>{
+        let nombre = t.nombre;
+        if(t.type==='armas_explosivos') nombre = (azulCount[n]%2===0) ? t.armas : t.explosivos;
+        pushItem(pk, lap, {key:'b'+n+'-'+nombre, clase:t.clase, nombre, grupo:'B'+n, color, pool:pk, numTema:temaNumFromClase(t.clase)});
+      });
+      bqConsumir(bq, fam, n);
+      if(fam==='g') gUnits += unif ? 2 : 1; else mgUnits += unif ? 2 : 1;
+      if(unif || color==='azul') azulCount[n]++;
+      blockTurn[n]++;
+    }
+    if(sel.leve !== undefined && !no.leve){
+      const li = sel.leve, it = LEVES[li];
+      let nombre = it.nombre;
+      if(it.type==='l39_l40') nombre = (leveAppear[li]%2===0) ? it.l39 : it.l40;
+      pushItem('leves', Math.floor(lq.lIdx / LEVES.length) + 1, {key:'leve-'+li+'-'+nombre, clase:it.clase, nombre, grupo:'LEVE Nº'+(li+1), pool:'leves', numTema:temaNumFromClase(it.clase)});
+      leveAppear[li]++;
+      lConsumir(lq, li);
+    }
+    if(sel.ingles && !no.ingles){
+      pushItem('ingles', Math.floor(lq.iIdx / INGLES_TOTAL) + 1, {key:'ingles-'+sel.ingles, clase:'', nombre:'Tema '+sel.ingles, pool:'ingles', numTema:''});
+      iConsumir(lq, sel.ingles - 1);
+    }
+    if(sel.psico !== undefined && !no.psico){
+      pushItem('psico', Math.floor(lq.pIdx / PSICO_ITEMS.length) + 1, {key:'psico-'+sel.psico, clase:'', nombre:PSICO_ITEMS[sel.psico], pool:'psico', numTema:''});
+      colaConsumir(lq, 'pIdx', 'pSkip', PSICO_ITEMS.length, sel.psico);
+    }
+  }
+
   outer:
   for(let ki=0; ki<keys.length; ki++){
     const k = keys[ki];
@@ -7160,7 +7832,10 @@ function computeArrastreData(asOfDayKey, acumulado){
       if(dayKey >= todayKey) break outer;
       aplicarReiniciosArrastre(dayKey);
       const status = days[d] || 'ESTUDIO';
-      if(status !== 'ESTUDIO') continue;
+      if(status !== 'ESTUDIO'){
+        if(status === 'BAREMO'){ const selA = baremoAdelantoDe(dayKey); if(selA) arrastreAdelanto(selA, dayKey); }
+        continue;
+      }
       const ticks = monthTicks[d] || {};
       const dateObj = new Date(y, m-1, d);
       const jsDow = dateObj.getDay();
@@ -7218,8 +7893,8 @@ function computeArrastreData(asOfDayKey, acumulado){
       }
 
       // ---- Leve ----
-      const leveIdx = lIdx % LEVES.length;
-      const leveLap = Math.floor(lIdx / LEVES.length) + 1;
+      const leveIdx = lFrente(lq);
+      const leveLap = Math.floor(lq.lIdx / LEVES.length) + 1;
       const leveItemRaw = LEVES[leveIdx];
       let leveResolved;
       if(leveItemRaw.type==='l39_l40'){
@@ -7238,27 +7913,30 @@ function computeArrastreData(asOfDayKey, acumulado){
           numTema: temaNumFromClase(leveResolved.clase)
         });
         leveAppear[leveIdx]++;
-        lIdx++;
+        lConsumir(lq, leveIdx);
       }
 
       // ---- Inglés ----
-      const inglesNum = (iIdx % INGLES_TOTAL) + 1;
-      const inglesLap = Math.floor(iIdx / INGLES_TOTAL) + 1;
-      if(!ticks.ingles && (!nuevoPlanA || hoyMateriasA)){
-        pushItem('ingles', inglesLap, {
-          key: 'ingles-'+inglesNum,
-          clase: '',
-          nombre: 'Tema '+inglesNum,
-          pool: 'ingles',
-          numTema: ''
-        });
-        iIdx++;
+      if(!nuevoPlanA || hoyMateriasA){
+        const iFr = iFrente(lq);
+        const inglesNum = iFr + 1;
+        const inglesLap = Math.floor(lq.iIdx / INGLES_TOTAL) + 1;
+        if(!ticks.ingles){
+          pushItem('ingles', inglesLap, {
+            key: 'ingles-'+inglesNum,
+            clase: '',
+            nombre: 'Tema '+inglesNum,
+            pool: 'ingles',
+            numTema: ''
+          });
+          iConsumir(lq, iFr);
+        }
       }
 
       // ---- Examen psicotécnico (lunes/miércoles; desde el cambio, lunes/miércoles/viernes) ----
       if(nuevoPlanA ? hoyExamenesA : isMonWed){
-        const psicoIdx = pIdx % PSICO_ITEMS.length;
-        const psicoLap = Math.floor(pIdx / PSICO_ITEMS.length) + 1;
+        const psicoIdx = colaFrente(lq, 'pIdx', 'pSkip', PSICO_ITEMS.length);
+        const psicoLap = Math.floor(lq.pIdx / PSICO_ITEMS.length) + 1;
         if(!ticks.psico){
           pushItem('psico', psicoLap, {
             key: 'psico-'+psicoIdx,
@@ -7267,7 +7945,7 @@ function computeArrastreData(asOfDayKey, acumulado){
             pool: 'psico',
             numTema: ''
           });
-          pIdx++;
+          colaConsumir(lq, 'pIdx', 'pSkip', PSICO_ITEMS.length, psicoIdx);
         }
       }
     }
@@ -14047,20 +14725,32 @@ function flojosAparicionesPlan(){
     const md = plan[k] || {};
     Object.keys(md).map(Number).sort((a,b)=>a-b).forEach(d=>{
       const e = md[d];
-      if(e.status !== 'ESTUDIO') return;
+      const esAd = (e.status === 'BAREMO' && e.adelanto);
+      if(e.status !== 'ESTUDIO' && !esAd) return;
       const iso = k + '-' + pad2(d);
       const t = e.ticks || {};
       const items = [];
-      (e.temasDelDia || []).forEach(x=> items.push([x.key, 'bloque']));
-      if(e.leveInfo) items.push([e.leveInfo.key, 'leve']);
-      if(e.inglesNum) items.push(['ingles-'+e.inglesNum, 'ingles']);
-      if(e.psico) items.push(['psico-'+e.psicoIdx, 'psico']);
+      if(esAd){
+        const A = e.adelanto;
+        if(A.bloque && !A.bloque.noHecho) A.bloque.temasDelDia.forEach(x=> items.push([x.key, 'bloque']));
+        if(A.leve && !A.leve.noHecho) items.push([A.leve.info.key, 'leve']);
+        if(A.ingles && !A.ingles.noHecho) items.push(['ingles-'+A.ingles.num, 'ingles']);
+        if(A.psico && !A.psico.noHecho) items.push(['psico-'+A.psico.idx, 'psico']);
+      } else {
+        (e.temasDelDia || []).forEach(x=> items.push([x.key, 'bloque']));
+        if(e.leveInfo) items.push([e.leveInfo.key, 'leve']);
+        if(e.inglesNum) items.push(['ingles-'+e.inglesNum, 'ingles']);
+        if(e.psico) items.push(['psico-'+e.psicoIdx, 'psico']);
+      }
       items.forEach(([key, stream])=>{
         if(iso <= hoy){ if(!t[stream]) ult[key] = iso; }
         else if(!prox[key]) prox[key] = iso;
       });
     });
   });
+  // Repasos extra de baremo: cuentan como «visto» ese día.
+  const rpU = baremoRepasoUltimas(hoy);
+  Object.keys(rpU).forEach(k=>{ if(!ult[k] || rpU[k] > ult[k]) ult[k] = rpU[k]; });
   return {ult, prox, hoy};
 }
 function fechaCortaEs(iso){ // «3 sep» (con el año si no es el actual)
