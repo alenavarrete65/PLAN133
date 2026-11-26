@@ -2172,3 +2172,9 @@ html[data-theme="light"] .ag-dia[aria-pressed="true"]{color:#fff;}
 
 .bm-no{display:flex;align-items:center;gap:6px;margin-top:8px;font-size:12px;color:var(--cream-dim);}
 .baremo-rep-line{margin:4px 0;font-family:var(--font-mono);font-size:11px;color:var(--amber-ink);}
+
+/* Calendario: adelantos (➕) y repasos extra (🔁) de un día de baremo, como etiquetas */
+.baremo-resumen .bm-chip{margin-top:3px;padding:2px 6px;border:1px solid currentColor;border-left-width:3px;border-radius:3px;background:rgba(255,255,255,.45);text-align:left;font-size:11px;line-height:1.3;font-weight:600;overflow-wrap:anywhere;}
+.baremo-resumen .bm-chip-av{border-left-color:var(--amber-ink);}
+.baremo-resumen .bm-chip-rep{border-left-color:var(--muted);}
+.baremo-resumen .bm-chip-mas{margin-top:2px;font-size:10px;color:var(--muted);}

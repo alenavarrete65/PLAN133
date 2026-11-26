@@ -3473,21 +3473,48 @@ function baremoMaterias(){
   BAREMO_SUGERIDAS.forEach(s=>{ if(!usadas.some(u=> u.toLowerCase()===s.toLowerCase())) usadas.push(s); });
   return usadas.slice(0, 10);
 }
-function baremoResumenTxt(fecha){
+function baremoMateriasTxt(fecha){
   const l = baremoDia(fecha);
-  let base = '';
-  if(l.length){
-    const mats = [];
-    l.forEach(e=>{ const m = (e.materia||'').trim(); if(m && mats.indexOf(m)===-1) mats.push(m); });
-    base = mats.length ? mats.join(' · ') : (l.length+(l.length===1?' nota':' notas'));
-  }
-  return [base, baremoExtraTxt(fecha)].filter(Boolean).join(' · ');
+  if(!l.length) return '';
+  const mats = [];
+  l.forEach(e=>{ const m = (e.materia||'').trim(); if(m && mats.indexOf(m)===-1) mats.push(m); });
+  return mats.length ? mats.join(' · ') : (l.length+(l.length===1?' nota':' notas'));
 }
+function baremoResumenTxt(fecha){
+  return [baremoMateriasTxt(fecha), baremoExtraTxt(fecha)].filter(Boolean).join(' · ');
+}
+// «Tema 9 · Derechos…» → «Tema 9»; el resto se recorta para que quepa en la celda.
+function baremoRefCorto(ref){
+  const m = /^(Tema|Bloque|Leve)\s+\d+/.exec(ref || '');
+  if(m) return m[0];
+  return (ref || '').length > 26 ? ref.slice(0, 25)+'…' : (ref || '');
+}
+/* Lo que se ve «por fuera» en el calendario de un día con baremo: las materias apuntadas y, debajo, una etiqueta
+   por cada cosa adelantada (➕) y por cada repaso extra (🔁), igual que las de CLASES. */
 function baremoResumenEl(fecha){
-  const t = baremoResumenTxt(fecha);
-  if(!t) return null;
+  const base = baremoMateriasTxt(fecha);
+  const sel = baremoAdelantoDe(fecha), reps = baremoRepasoDia(fecha);
+  if(!base && !sel && !reps.length) return null;
   const el = document.createElement('div'); el.className = 'baremo-resumen';
-  el.textContent = '🎯 '+t;
+  if(base){ const b = document.createElement('div'); b.textContent = '🎯 '+base; el.appendChild(b); }
+  const chips = [];
+  if(sel){
+    BAREMO_SLOTS.forEach(sl=>{
+      if(sel[sl.campo] === undefined) return;
+      const noH = !!(sel.no && sel.no[sl.campo]);
+      chips.push({cls:'bm-chip-av', txt:'➕ '+sl.corto(sel[sl.campo])+(noH ? ' ✗' : ''), title:'Adelantado'+(noH ? ' (NO completado)' : '')});
+    });
+  }
+  reps.forEach(e=>{
+    const subC = e.sub ? ' › '+(e.sub.length > 22 ? e.sub.slice(0, 21)+'…' : e.sub) : '';
+    chips.push({cls:'bm-chip-rep', txt:'🔁 '+(BAREMO_REPASO_TAG[e.tipo] || 'REPASO')+' · '+baremoRefCorto(e.ref)+subC+(e.nota ? ' · '+e.nota : ''),
+      title:'Repaso extra: '+e.ref+(e.sub ? ' › '+e.sub : '')+(e.nota ? ' · '+e.nota : '')+(e.texto ? ' — '+e.texto : '')});
+  });
+  const MAX = 5;
+  chips.slice(0, MAX).forEach(c=>{
+    const x = document.createElement('div'); x.className = 'bm-chip '+c.cls; x.textContent = c.txt; x.title = c.title; el.appendChild(x);
+  });
+  if(chips.length > MAX){ const m = document.createElement('div'); m.className = 'bm-chip-mas'; m.textContent = '+'+(chips.length-MAX)+' más'; el.appendChild(m); }
   return el;
 }
 /* ===================== BAREMO: AVANZAR TEMARIO Y REPASO EXTRA =====================
@@ -3554,10 +3581,11 @@ function normalizarBaremoExtra(){
       id: String(e.id || baremoNuevoId()),
       tipo: ['con','ing','iex','psi','pse','orto'].indexOf(e.tipo) >= 0 ? e.tipo : 'con',
       ref: baremoTxt(e.ref, 200),
+      sub: baremoTxt(e.sub, 200),
       keys: Array.isArray(e.keys) ? e.keys.filter(k=> typeof k === 'string' && k.length <= 40).slice(0, 80) : [],
       nota: baremoTxt(e.nota, 30),
       texto: baremoTxt(e.texto, 3000)
-    })).filter(e=> e.ref.trim() || e.texto.trim() || e.nota.trim());
+    })).filter(e=> e.ref.trim() || e.sub.trim() || e.texto.trim() || e.nota.trim());
     if(limpia.length) rp[f] = limpia; else delete rp[f];
   });
 }
@@ -3600,7 +3628,7 @@ function baremoExtraLineas(fecha){
     out.push('Avance de temario: '+p.join(', '));
     BAREMO_SLOTS.forEach(sl=>{ if(an[sl.campo]) out.push('Nota ('+sl.corto(sel[sl.campo] !== undefined ? sel[sl.campo] : 0)+'): '+an[sl.campo]); });
   }
-  baremoRepasoDia(fecha).forEach(e=>{ out.push('Repaso: '+[e.ref, e.nota ? '['+e.nota+']' : '', e.texto].filter(Boolean).join(' — ')); });
+  baremoRepasoDia(fecha).forEach(e=>{ out.push('Repaso: '+[e.ref+(e.sub ? ' › '+e.sub : ''), e.nota ? '['+e.nota+']' : '', e.texto].filter(Boolean).join(' — ')); });
   return out;
 }
 // Ejecuta fn() con el avance `campo` de ese día quitado temporalmente (para listar lo que «queda por delante»).
@@ -3884,11 +3912,25 @@ function baremoKeysTemaNum(num){
   LEVES.forEach((t,i)=>{ if(temaNumFromClase(t.clase) === tag) baremoKeysLeve(i).forEach(k=> out.push(k)); });
   return out;
 }
+// Subtemas de un bloque = sus temas internos (cada uno con su clave propia, así el repaso cuenta solo para ese tema).
+function baremoSubsBloque(n){
+  const out = [];
+  ((BLOCKS[n] && BLOCKS[n].temas) || []).forEach((t,i)=>{
+    const c = t.clase ? t.clase+' — ' : '';
+    if(t.type==='armas_explosivos'){
+      out.push({txt:c+t.armas, keys:['b'+n+'-'+i+'-armas']}, {txt:c+t.explosivos, keys:['b'+n+'-'+i+'-explosivos']});
+    } else out.push({txt:c+t.nombre, keys:['b'+n+'-'+i]});
+  });
+  return out;
+}
+function baremoOpcionesSub(it){ return (it && it.subs) ? it.subs : []; }
 function baremoRepasoOpciones(){
   const g = [];
-  g.push({grupo:'Conocimientos · Temas', tipo:'con', items:TEMARIO_GENERAL.map(t=>({ref:'Tema '+t.num+' · '+t.titulo, keys:baremoKeysTemaNum(t.num)}))});
-  g.push({grupo:'Conocimientos · Bloques', tipo:'con', items:Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).map(n=>({ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', keys:baremoKeysBloque(n)}))});
-  g.push({grupo:'Conocimientos · Leves', tipo:'con', items:LEVES.map((_,i)=>({ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), keys:baremoKeysLeve(i)}))});
+  // Temario general: sus subtemas son texto (no tienen clave propia) → el repaso cuenta para todo el tema.
+  g.push({grupo:'Conocimientos · Temas', tipo:'con', items:TEMARIO_GENERAL.map(t=>({ref:'Tema '+t.num+' · '+t.titulo, keys:baremoKeysTemaNum(t.num), subs:(t.subtemas || []).map(x=>({txt:x}))}))});
+  g.push({grupo:'Conocimientos · Bloques', tipo:'con', items:Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).map(n=>({ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', keys:baremoKeysBloque(n), subs:baremoSubsBloque(n)}))});
+  g.push({grupo:'Conocimientos · Leves', tipo:'con', items:LEVES.map((it,i)=>({ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), keys:baremoKeysLeve(i),
+    subs: it.type==='l39_l40' ? [{txt:it.l39, keys:['leve-'+i+'-l39']}, {txt:it.l40, keys:['leve-'+i+'-l40']}] : []}))});
   const ing = []; for(let i=1; i<=INGLES_TOTAL; i++) ing.push({ref:'Tema '+i, keys:['ingles-'+i]});
   g.push({grupo:'Inglés · Temas', tipo:'ing', items:ing});
   g.push({grupo:'Inglés · Exámenes', tipo:'iex', items:INGLES_EXAMS.map((n,i)=>({ref:n, keys:['iexam-'+i]}))});
@@ -3941,7 +3983,7 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
       const card = document.createElement('div'); card.className = 'baremo-item';
       const top = document.createElement('div'); top.className = 'baremo-item-top';
       const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = BAREMO_REPASO_TAG[e.tipo] || 'REPASO';
-      const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere;'; tx.textContent = e.ref;
+      const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere;'; tx.textContent = e.ref+(e.sub ? ' › '+e.sub : '');
       const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕';
       del.title = 'Quitar este repaso'; del.setAttribute('aria-label', 'Quitar repaso extra'); del.onclick = ()=> borrar(e.id);
       top.appendChild(tag); top.appendChild(tx); top.appendChild(del);
@@ -3964,8 +4006,8 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
       const rep = document.createElement('button'); rep.type = 'button'; rep.className = 'day-mini-btn';
       rep.textContent = '↻ Repetir los del '+fechaCortaBq(uf)+' ('+baremoRepasoDia(uf).length+')';
       rep.onclick = ()=>{
-        const ya = baremoRepasoDia(fechaISO).map(e=> e.tipo+'|'+e.ref);
-        const nuevos = baremoRepasoDia(uf).filter(e=> ya.indexOf(e.tipo+'|'+e.ref) < 0).map(e=>({id:baremoNuevoId(), tipo:e.tipo, ref:e.ref, keys:(e.keys || []).slice(), nota:'', texto:''}));
+        const ya = baremoRepasoDia(fechaISO).map(e=> e.tipo+'|'+e.ref+'|'+(e.sub || ''));
+        const nuevos = baremoRepasoDia(uf).filter(e=> ya.indexOf(e.tipo+'|'+e.ref+'|'+(e.sub || '')) < 0).map(e=>({id:baremoNuevoId(), tipo:e.tipo, ref:e.ref, sub:e.sub || '', keys:(e.keys || []).slice(), nota:'', texto:''}));
         if(!nuevos.length){ showToast('Ya tienes esos repasos apuntados hoy'); return; }
         guardarLista(baremoRepasoDia(fechaISO).concat(nuevos));
         scheduleSave(); pintar(); if(onCambio) onCambio();
@@ -3984,11 +4026,24 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
     const plano = [];
     baremoRepasoOpciones().forEach(gr=>{
       const og = document.createElement('optgroup'); og.label = gr.grupo;
-      gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = String(plano.length); op.textContent = it.ref; og.appendChild(op); plano.push({tipo:gr.tipo, ref:it.ref, keys:it.keys}); });
+      gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = String(plano.length); op.textContent = it.ref; og.appendChild(op); plano.push({tipo:gr.tipo, ref:it.ref, keys:it.keys, subs:baremoOpcionesSub(it)}); });
       sel.appendChild(og);
     });
     const oOrto = document.createElement('option'); oOrto.value = 'orto'; oOrto.textContent = '✍️ Ortografía y gramática (lo escribo yo)'; sel.appendChild(oOrto);
     form.appendChild(sel);
+    // Segundo desplegable: subtema del tema/bloque/leve elegido (solo con una elección; en «varios» se añade el tema entero).
+    const selSub = document.createElement('select'); selSub.className = 'status-select'; selSub.style.cssText = 'width:100%;margin-bottom:6px;display:none;';
+    selSub.setAttribute('aria-label', 'Subtema (opcional)');
+    form.appendChild(selSub);
+    const pintarSubs = ()=>{
+      selSub.innerHTML = '';
+      const it = (!modoVarios && sel.value !== '' && sel.value !== 'orto') ? plano[Number(sel.value)] : null;
+      const subs = it ? it.subs : [];
+      if(!subs || !subs.length){ selSub.style.display = 'none'; return; }
+      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Subtema (opcional) — todo el tema'; selSub.appendChild(o0);
+      subs.forEach((x,i)=>{ const op = document.createElement('option'); op.value = String(i); op.textContent = x.txt; selSub.appendChild(op); });
+      selSub.style.display = '';
+    };
     const valores = ()=> Array.from(sel.options).filter(o=> o.selected && o.value !== '').map(o=> o.value);
     const ortoIn = document.createElement('input'); ortoIn.type = 'text'; ortoIn.className = 'baremo-in'; ortoIn.maxLength = 200;
     ortoIn.placeholder = '¿Qué de ortografía o gramática repasas? (ej. tilde diacrítica)'; ortoIn.setAttribute('aria-label', 'Tema de ortografía o gramática');
@@ -3998,7 +4053,7 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
     const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
     nota.placeholder = 'Comentario (opcional)…'; nota.setAttribute('aria-label', 'Comentario del repaso nuevo'); form.appendChild(nota);
     const msg = document.createElement('div'); msg.className = 'baremo-msg'; msg.setAttribute('role', 'status');
-    sel.onchange = ()=>{ const o = valores().indexOf('orto') >= 0; ortoIn.style.display = o ? '' : 'none'; if(o) ortoIn.focus(); msg.textContent = ''; };
+    sel.onchange = ()=>{ const o = valores().indexOf('orto') >= 0; ortoIn.style.display = o ? '' : 'none'; if(o) ortoIn.focus(); msg.textContent = ''; pintarSubs(); };
     const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = modoVarios ? '＋ Añadir los marcados' : '＋ Añadir';
     add.onclick = ()=>{
       const nuevos = [], vs = valores();
@@ -4006,10 +4061,11 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
       for(const v of vs){
         if(v === 'orto'){
           if(!ortoIn.value.trim()){ msg.textContent = 'Escribe qué repasas de ortografía o gramática.'; return; }
-          nuevos.push({id: baremoNuevoId(), tipo:'orto', ref: ortoIn.value.trim(), keys:[], nota: resN.value.trim(), texto: nota.value.trim()});
+          nuevos.push({id: baremoNuevoId(), tipo:'orto', ref: ortoIn.value.trim(), sub:'', keys:[], nota: resN.value.trim(), texto: nota.value.trim()});
         } else if(plano[Number(v)]){
           const it = plano[Number(v)];
-          nuevos.push({id: baremoNuevoId(), tipo: it.tipo, ref: it.ref, keys: (it.keys || []).slice(0, 80), nota: resN.value.trim(), texto: nota.value.trim()});
+          const sb = (!modoVarios && selSub.value !== '' && it.subs && it.subs[Number(selSub.value)]) ? it.subs[Number(selSub.value)] : null;
+          nuevos.push({id: baremoNuevoId(), tipo: it.tipo, ref: it.ref, sub: sb ? sb.txt : '', keys: ((sb && sb.keys) || it.keys || []).slice(0, 80), nota: resN.value.trim(), texto: nota.value.trim()});
         }
       }
       if(!nuevos.length){ msg.textContent = 'Elige qué repasar del desplegable.'; return; }
