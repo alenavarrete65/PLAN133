@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v177'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v178'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -826,3 +826,11 @@ Ambos salen resumidos en la celda del calendario (➕ B7 · Leve 5 · Ing 12 · 
 **Subtema en el repaso extra:** bajo el desplegable principal sale otro, «Subtema (opcional)», cuando lo elegido tiene subtemas: en **Temas** salen los de `TEMARIO_GENERAL` (texto; el repaso cuenta para todo el tema), en **Bloques** sus temas internos (cada uno con su clave: cuenta solo para ese tema en flojos y «Temario y notas») y en leves con dos normas (l39/l40) cada una. Se guarda en `sub` y sale «Tema 9 › Título II» en la ficha, el calendario y el .ics. Con «Elegir varios» se añade el tema entero.
 
 **Corrección «Repasado en baremo»:** un repaso de «Tema N» del temario general ya no marca como repasados los temas de bloque de ese tema (antes salía en todos). Solo marcan temas los repasos de **Bloque** (todos sus temas, o solo el tema del subtema elegido) y de **Leve**, inglés y exámenes. Al cargar, los repasos de «Tema N» ya guardados pierden esas claves (normalizarBaremoExtra). La línea de «Temario y notas» ignora repasos puestos en días futuros.
+
+### Baremo: sugerencias, pendientes, nota como test, ritmo y fallos de simulacro
+
+- **Qué repasar (sugerido):** en el repaso extra de un día de baremo (de hoy en adelante) salen hasta 5 temas de «Repaso de flojos» (fallos de simulacro > notas bajas > temas sin ver) con «＋ Planificar» (`baremoSugerencias()`, `baremoEntradaDeKey()`). Se añaden como **pendientes**.
+- **Pendiente / Hecho:** cada repaso lleva `hecho` (false = planificado). Solo los hechos cuentan como «visto» en flojos, en la línea de «Temario y notas» y en las notas. Los pendientes salen con ⏳ (calendario, «Hoy») y los de días anteriores aparecen en el **siguiente día de baremo** con «Traer a este día» / «Ya lo hice» (`siguienteDiaBaremo()`, `baremoPendientes()`).
+- **Nota del repaso = test:** en repasos de UN tema concreto (1 clave), la nota («7,5», «17/20», «80 %») cuenta como la última nota del tema en flojos si es más reciente que la de la última vuelta (`baremoNotaAFraccion()`, `baremoNotasRepasoPorKey()` en `computeFlojos()`). Los repasos de bloque entero o «Tema N» no puntúan.
+- **Ritmo:** lo adelantado en baremo suma como visita hecha (`computeRitmoExamen()`); se muestra «Vas por delante del calendario» (saltos pendientes: `_adelStats`, calculado en `computePlan()` al empezar hoy) y, por parte, «cierras la vuelta N ≈ fecha».
+- **Fallos de simulacro:** `state.simFallos = [{id, fecha, nombre, keys}]`, se registran desde el repaso extra o desde «Repaso de flojos». Salen como «❌ Fallados en simulacro» y en las sugerencias hasta que repasas ese tema (repaso hecho de fecha igual o posterior).

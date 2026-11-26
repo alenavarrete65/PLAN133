@@ -2229,6 +2229,7 @@ async function renderAdminBox(){
    recalcula todo — pero eso es una acción puntual y poco frecuente, a
    diferencia de marcar/desmarcar ticks o cambiar el estado de un día, que es
    la operación habitual y la que de verdad necesita ser barata. */
+let _adelStats = null; // temas por delante del calendario al empezar hoy (saltos pendientes)
 let _planCache = null; // { keysSig, plan, checkpoints }
 let _planDirtyFromKey = ''; // '' = recalcular todo; 'YYYY-MM' = recalcular desde ese mes; null = nada pendiente
 function invalidatePlan(fromKey){
@@ -2539,6 +2540,8 @@ function computePlan(){
     return {nombre:item.nombre, clase:item.clase, key:'leve-'+idx};
   }
 
+  if(startIdx === 0) _adelStats = null;
+  const _hoyAd = hoyLocalISO();
   for(let ki=startIdx; ki<keys.length; ki++){
     const k = keys[ki];
     const [y,m] = k.split('-').map(Number);
@@ -2554,6 +2557,10 @@ function computePlan(){
       const isMonWed = (jsDow===1 || jsDow===3);
       const dayKey = k + '-' + pad2(d);
       aplicarReiniciosCarry(dayKey, carry); // reinicios por categoría que empiezan hoy (o antes)
+      if(dayKey === _hoyAd){
+        const sm = o=> Object.keys(o || {}).reduce((a,q)=> a + (o[q] > 0 ? o[q] : 0), 0);
+        _adelStats = {bloques: sm(carry.gSkip) + sm(carry.mgSkip), leves: sm(carry.lSkip), ingles: sm(carry.iSkip), psico: sm(carry.pSkip), iexam: sm(carry.xSkip), oexam: sm(carry.oSkip)};
+      }
 
       if(status !== 'ESTUDIO'){
         const entNo = {status, dow:jsDow};
@@ -3507,8 +3514,8 @@ function baremoResumenEl(fecha){
   }
   reps.forEach(e=>{
     const subC = e.sub ? ' › '+(e.sub.length > 22 ? e.sub.slice(0, 21)+'…' : e.sub) : '';
-    chips.push({cls:'bm-chip-rep', txt:'🔁 '+(BAREMO_REPASO_TAG[e.tipo] || 'REPASO')+' · '+baremoRefCorto(e.ref)+subC+(e.nota ? ' · '+e.nota : ''),
-      title:'Repaso extra: '+e.ref+(e.sub ? ' › '+e.sub : '')+(e.nota ? ' · '+e.nota : '')+(e.texto ? ' — '+e.texto : '')});
+    chips.push({cls:'bm-chip-rep'+(e.hecho === false ? ' bm-chip-pend' : ''), txt:(e.hecho === false ? '⏳ ' : '🔁 ')+(BAREMO_REPASO_TAG[e.tipo] || 'REPASO')+' · '+baremoRefCorto(e.ref)+subC+(e.nota ? ' · '+e.nota : ''),
+      title:(e.hecho === false ? 'Repaso pendiente: ' : 'Repaso extra: ')+e.ref+(e.sub ? ' › '+e.sub : '')+(e.nota ? ' · '+e.nota : '')+(e.texto ? ' — '+e.texto : '')});
   });
   const MAX = 5;
   chips.slice(0, MAX).forEach(c=>{
@@ -3574,6 +3581,12 @@ function normalizarBaremoExtra(){
       if(Object.keys(lim).length) m[f] = lim; else delete m[f];
     });
   });
+  // Fallos de simulacro por tema: [{id, fecha, nombre, keys:[claves de tema]}]
+  if(!Array.isArray(state.simFallos)) state.simFallos = [];
+  state.simFallos = state.simFallos.filter(f=> f && typeof f === 'object' && reFecha.test(f.fecha)).map(f=>({
+    id: String(f.id || baremoNuevoId()), fecha: f.fecha, nombre: baremoTxt(f.nombre, 80),
+    keys: (Array.isArray(f.keys) ? f.keys : []).filter(k=> typeof k === 'string' && k.length <= 40).slice(0, 200)
+  })).filter(f=> f.keys.length);
   const rp = baremoRepasoData();
   Object.keys(rp).forEach(f=>{
     const l = (reFecha.test(f) && Array.isArray(rp[f])) ? rp[f] : [];
@@ -3584,6 +3597,7 @@ function normalizarBaremoExtra(){
       sub: baremoTxt(e.sub, 200),
       keys: Array.isArray(e.keys) ? e.keys.filter(k=> typeof k === 'string' && k.length <= 40).slice(0, 80) : [],
       nota: baremoTxt(e.nota, 30),
+      hecho: e.hecho === false ? false : true, // false = planificado, aún sin hacer
       texto: baremoTxt(e.texto, 3000)
     })).map(e=>{
       // Antes un repaso de «Tema N» marcaba como repasados todos los temas de bloque de ese tema; ya no.
@@ -3619,8 +3633,9 @@ function baremoExtraTxt(fecha){
     BAREMO_SLOTS.forEach(sl=>{ if(sel[sl.campo] !== undefined) p.push(sl.corto(sel[sl.campo])+(sel.no && sel.no[sl.campo] ? ' ✗' : '')); });
     parts.push('➕ '+p.join(' · '));
   }
-  const r = baremoRepasoDia(fecha);
-  if(r.length) parts.push('🔁 '+r.length+(r.length===1 ? ' repaso' : ' repasos'));
+  const r = baremoRepasoDia(fecha), hechos = r.filter(e=> e.hecho !== false).length, pend = r.length - hechos;
+  if(hechos) parts.push('🔁 '+hechos+(hechos===1 ? ' repaso' : ' repasos'));
+  if(pend) parts.push('⏳ '+pend+(pend===1 ? ' pendiente' : ' pendientes'));
   return parts.join(' · ');
 }
 function baremoExtraLineas(fecha){
@@ -3632,7 +3647,7 @@ function baremoExtraLineas(fecha){
     out.push('Avance de temario: '+p.join(', '));
     BAREMO_SLOTS.forEach(sl=>{ if(an[sl.campo]) out.push('Nota ('+sl.corto(sel[sl.campo] !== undefined ? sel[sl.campo] : 0)+'): '+an[sl.campo]); });
   }
-  baremoRepasoDia(fecha).forEach(e=>{ out.push('Repaso: '+[e.ref+(e.sub ? ' › '+e.sub : ''), e.nota ? '['+e.nota+']' : '', e.texto].filter(Boolean).join(' — ')); });
+  baremoRepasoDia(fecha).forEach(e=>{ out.push((e.hecho === false ? 'Repaso PENDIENTE: ' : 'Repaso: ')+[e.ref+(e.sub ? ' › '+e.sub : ''), e.nota ? '['+e.nota+']' : '', e.texto].filter(Boolean).join(' — ')); });
   return out;
 }
 // Ejecuta fn() con el avance `campo` de ese día quitado temporalmente (para listar lo que «queda por delante»).
@@ -3942,12 +3957,111 @@ function baremoRepasoOpciones(){
   g.push({grupo:'Psicotécnicos · Especiales', tipo:'pse', items:PSICO_ESPECIALES.map(n=>({ref:n, keys:[]}))});
   return g;
 }
+// Convierte una clave de tema (b3-2, leve-4-l39, ingles-7, psico-3, iexam-5) en un repaso listo para añadir.
+function baremoEntradaDeKey(key){
+  let m;
+  if((m = /^b(\d+)-(\d+)(?:-(armas|explosivos))?$/.exec(key))){
+    const n = Number(m[1]), i = Number(m[2]);
+    const t = BLOCKS[n] && BLOCKS[n].temas[i];
+    if(!t) return null;
+    const nom = m[3] ? t[m[3]] : t.nombre;
+    return {tipo:'con', ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', sub:(t.clase ? t.clase+' — ' : '')+nom, keys:[key]};
+  }
+  if((m = /^leve-(\d+)(?:-(l39|l40))?$/.exec(key))){
+    const i = Number(m[1]), it = LEVES[i];
+    if(!it) return null;
+    return {tipo:'con', ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), sub:m[2] ? it[m[2]] : '', keys:[key]};
+  }
+  if((m = /^ingles-(\d+)$/.exec(key))) return {tipo:'ing', ref:'Tema '+m[1], sub:'', keys:[key]};
+  if((m = /^psico-(\d+)$/.exec(key))){ const nm = PSICO_ITEMS[Number(m[1])]; return nm ? {tipo:'psi', ref:nm, sub:'', keys:[key]} : null; }
+  if((m = /^iexam-(\d+)$/.exec(key))){ const nm = INGLES_EXAMS[Number(m[1])]; return nm ? {tipo:'iex', ref:nm, sub:'', keys:[key]} : null; }
+  return null;
+}
+// «7,5» / «17/20» / «80 %» → fracción 0..1 (un número suelto se lee sobre la nota máxima del tema). null si no se entiende.
+function baremoNotaAFraccion(txt, max){
+  const t = String(txt || '').trim().toLowerCase().replace(',', '.');
+  let m;
+  if((m = /^(\d+(?:\.\d+)?)\s*\/\s*(\d+(?:\.\d+)?)$/.exec(t))) return Number(m[2]) > 0 ? Math.min(1, Number(m[1]) / Number(m[2])) : null;
+  if((m = /^(\d+(?:\.\d+)?)\s*%$/.exec(t))) return Math.min(1, Number(m[1]) / 100);
+  if((m = /^(\d+(?:\.\d+)?)$/.exec(t)) && max > 0){ const v = Number(m[1]); return v <= max ? v / max : null; }
+  return null;
+}
+// Última nota de repaso (hecho, hasta hoy) por clave, solo en repasos de UN tema concreto (1 clave).
+function baremoNotasRepasoPorKey(){
+  const hoy = hoyLocalISO(), out = {};
+  Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
+    if(f > hoy) return;
+    (state.baremoRepaso[f] || []).forEach(e=>{
+      if(e.hecho === false || !e.nota || !Array.isArray(e.keys) || e.keys.length !== 1) return;
+      out[e.keys[0]] = {fecha:f, txt:e.nota};
+    });
+  });
+  return out;
+}
+// Fallos de simulacro todavía vigentes: sin un repaso hecho posterior de ese tema.
+function baremoFallosVigentes(){
+  const hoy = hoyLocalISO(), ult = {};
+  (state.simFallos || []).forEach(f=>{ f.keys.forEach(k=>{ if(!ult[k] || f.fecha > ult[k].fecha) ult[k] = {key:k, fecha:f.fecha, nombre:f.nombre}; }); });
+  const rep = baremoRepasoUltimas(hoy);
+  return Object.keys(ult).filter(k=> !(rep[k] && rep[k] >= ult[k].fecha)).map(k=> ult[k]);
+}
+// Todas las claves de tema que se pueden marcar como falladas, agrupadas.
+function baremoClavesFallables(){
+  const g = [];
+  Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).forEach(n=>{
+    const items = [];
+    (BLOCKS[n].temas || []).forEach((t,i)=>{
+      const ks = t.type==='armas_explosivos' ? ['b'+n+'-'+i+'-armas', 'b'+n+'-'+i+'-explosivos'] : ['b'+n+'-'+i];
+      ks.forEach(k=>{ const e = baremoEntradaDeKey(k); if(e) items.push({key:k, txt:e.sub}); });
+    });
+    g.push({grupo:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', items});
+  });
+  const lev = []; LEVES.forEach((it,i)=>{ baremoKeysLeve(i).forEach(k=>{ const e = baremoEntradaDeKey(k); if(e) lev.push({key:k, txt:'Leve '+(i+1)+' · '+(e.sub || baremoLeveEtq(i))}); }); });
+  g.push({grupo:'Leves', items:lev});
+  const ing = []; for(let i=1; i<=INGLES_TOTAL; i++) ing.push({key:'ingles-'+i, txt:'Tema '+i});
+  g.push({grupo:'Inglés', items:ing});
+  g.push({grupo:'Psicotécnicos', items:PSICO_ITEMS.map((n,i)=>({key:'psico-'+i, txt:n}))});
+  return g;
+}
+function baremoEtiquetaClave(key){ const e = baremoEntradaDeKey(key); return e ? (e.sub ? e.ref+' › '+e.sub : e.ref) : key; }
+// Siguiente día de baremo desde una fecha (incluida).
+function siguienteDiaBaremo(desdeISO){
+  const plan = computePlan(), keys = sortedMonthKeys();
+  for(let i=0; i<keys.length; i++){
+    const mk = keys[i];
+    if(mk < desdeISO.slice(0,7)) continue;
+    const n = daysInMonth(Number(mk.slice(0,4)), Number(mk.slice(5)));
+    for(let dd=1; dd<=n; dd++){
+      const iso = mk+'-'+pad2(dd);
+      if(iso < desdeISO) continue;
+      const e = (plan[mk] || {})[dd];
+      if(e && e.status === 'BAREMO') return iso;
+    }
+  }
+  return null;
+}
+// Repasos pendientes (planificados, aún sin hacer) hasta una fecha, de más antiguo a más nuevo.
+function baremoPendientes(hastaISO){
+  const out = [];
+  Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
+    if(f > hastaISO) return;
+    (state.baremoRepaso[f] || []).forEach(e=>{ if(e.hecho === false) out.push({fecha:f, e}); });
+  });
+  return out;
+}
+function baremoPendientesHomeHtml(){
+  const l = baremoPendientes(hoyLocalISO());
+  if(!l.length) return '';
+  const esc = t=> String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+  const filas = l.slice(0, 5).map(x=>'<li>'+esc((BAREMO_REPASO_TAG[x.e.tipo] || 'REPASO')+' · '+x.e.ref+(x.e.sub ? ' › '+x.e.sub : ''))+(x.fecha < hoyLocalISO() ? ' <span style="color:var(--muted)">('+fechaCortaBq(x.fecha)+')</span>' : '')+'</li>').join('');
+  return '<div class="home-card-note" style="margin-top:8px;"><b>⏳ Repasos extra pendientes ('+l.length+')</b></div><ul class="home-today-list">'+filas+(l.length > 5 ? '<li>…y '+(l.length-5)+' más</li>' : '')+'</ul>';
+}
 // Repasos extra de baremo que tocan una clave de tema (para «Temario y notas»).
 function baremoRepasosDeKey(key){
   const out = [], hoy = hoyLocalISO();
   Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
     if(f > hoy) return;
-    (state.baremoRepaso[f] || []).forEach(e=>{ if(Array.isArray(e.keys) && e.keys.indexOf(key) >= 0) out.push({fecha:f, nota:e.nota || '', texto:e.texto || ''}); });
+    (state.baremoRepaso[f] || []).forEach(e=>{ if(e.hecho !== false && Array.isArray(e.keys) && e.keys.indexOf(key) >= 0) out.push({fecha:f, nota:e.nota || '', texto:e.texto || ''}); });
   });
   return out;
 }
@@ -3965,42 +4079,171 @@ function baremoRepasoUltimas(hoy){
   const ult = {};
   Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
     if(f > hoy) return;
-    (state.baremoRepaso[f] || []).forEach(e=>{ (e.keys || []).forEach(k=>{ if(!ult[k] || f > ult[k]) ult[k] = f; }); });
+    (state.baremoRepaso[f] || []).forEach(e=>{ if(e.hecho === false) return; (e.keys || []).forEach(k=>{ if(!ult[k] || f > ult[k]) ult[k] = f; }); });
   });
   return ult;
 }
+// Sugerencias de qué repasar: fallos de simulacro vigentes, notas bajas y temas sin ver hace tiempo (de «Repaso de flojos»).
+function baremoSugerencias(fechaISO, max){
+  const r = computeFlojos();
+  const out = [], vistos = new Set();
+  const yaPuestos = new Set();
+  baremoRepasoDia(fechaISO).forEach(e=> (e.keys || []).forEach(k=> yaPuestos.add(k)));
+  baremoPendientes('9999-12-31').forEach(x=> (x.e.keys || []).forEach(k=> yaPuestos.add(k)));
+  const add = (key, motivo)=>{
+    if(vistos.has(key) || yaPuestos.has(key)) return;
+    const ent = baremoEntradaDeKey(key);
+    if(!ent) return;
+    vistos.add(key); out.push(Object.assign({key, motivo}, ent));
+  };
+  (r.fallos || []).forEach(x=> add(x.key, '❌ fallado en simulacro ('+fechaCortaBq(x.fechaFallo)+')'));
+  r.bajas.forEach(x=> add(x.key, '🔻 nota '+x.nota+'/'+x.max));
+  r.viejos.forEach(x=> add(x.key, '⏳ '+x.hace+' días sin verlo'));
+  return out.slice(0, max);
+}
+// Formulario: marcar qué temas fallaste en un simulacro (entran en «Repaso de flojos» y en las sugerencias).
+function buildFormFallosSimulacro(onDone){
+  const box = document.createElement('div'); box.className = 'baremo-form';
+  const t = document.createElement('div'); t.className = 'baremo-form-title'; t.textContent = 'Fallos de un simulacro'; box.appendChild(t);
+  const nom = document.createElement('input'); nom.type = 'text'; nom.className = 'baremo-in'; nom.maxLength = 80;
+  nom.placeholder = 'Nombre del simulacro (opcional)'; nom.setAttribute('aria-label', 'Nombre del simulacro'); box.appendChild(nom);
+  const fec = document.createElement('input'); fec.type = 'date'; fec.className = 'baremo-in'; fec.value = hoyLocalISO();
+  fec.setAttribute('aria-label', 'Fecha del simulacro'); box.appendChild(fec);
+  const sel = document.createElement('select'); sel.multiple = true; sel.size = 8; sel.className = 'status-select'; sel.style.cssText = 'width:100%;margin:6px 0;';
+  sel.setAttribute('aria-label', 'Temas fallados (marca varios)');
+  baremoClavesFallables().forEach(gr=>{
+    if(!gr.items.length) return;
+    const og = document.createElement('optgroup'); og.label = gr.grupo;
+    gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = it.key; op.textContent = it.txt; og.appendChild(op); });
+    sel.appendChild(og);
+  });
+  box.appendChild(sel);
+  const msg = document.createElement('div'); msg.className = 'baremo-msg'; msg.setAttribute('role', 'status');
+  const ok = document.createElement('button'); ok.type = 'button'; ok.className = 'btn small'; ok.textContent = '＋ Guardar fallos';
+  ok.onclick = ()=>{
+    const keys = Array.from(sel.options).filter(o=> o.selected).map(o=> o.value);
+    if(!keys.length){ msg.textContent = 'Marca al menos un tema fallado (en el móvil, mantén pulsado para elegir varios).'; return; }
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(fec.value)){ msg.textContent = 'Pon la fecha del simulacro.'; return; }
+    state.simFallos.push({id: baremoNuevoId(), fecha: fec.value, nombre: nom.value.trim(), keys});
+    scheduleSave(); showToast(keys.length+(keys.length===1 ? ' tema fallado guardado' : ' temas fallados guardados'));
+    if(onDone) onDone();
+  };
+  box.appendChild(ok); box.appendChild(msg);
+  const reg = (state.simFallos || []).slice().sort((a,b)=> a.fecha < b.fecha ? 1 : -1).slice(0, 6);
+  if(reg.length){
+    const h = document.createElement('div'); h.className = 'baremo-form-title'; h.style.marginTop = '10px'; h.textContent = 'Registrados'; box.appendChild(h);
+    reg.forEach(f=>{
+      const row = document.createElement('div'); row.className = 'baremo-item-top'; row.style.marginTop = '4px';
+      const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere;';
+      tx.textContent = fechaCortaBq(f.fecha)+(f.nombre ? ' · '+f.nombre : '')+' · '+f.keys.length+(f.keys.length===1 ? ' tema' : ' temas');
+      tx.title = f.keys.map(baremoEtiquetaClave).join('\n');
+      const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕';
+      del.setAttribute('aria-label', 'Quitar este registro de fallos');
+      del.onclick = ()=>{ state.simFallos = state.simFallos.filter(x=> x.id !== f.id); scheduleSave(); if(onDone) onDone(); };
+      row.appendChild(tx); row.appendChild(del); box.appendChild(row);
+    });
+  }
+  return box;
+}
 function buildBaremoRepaso(body, fechaISO, onCambio){
   const {body:sb, setResumen} = daySection(body, 'Repaso extra (baremo)');
+  const hoy = hoyLocalISO();
   const intro = document.createElement('div'); intro.className = 'tick-help'; intro.style.marginBottom = '10px';
-  intro.textContent = 'Apunta lo que repasas de más (no mueve el calendario). Cuenta en «Repaso de flojos» y se ve en cada tema de «Temario y notas».';
+  intro.textContent = 'Apunta lo que repasas de más (no mueve el calendario). Puedes dejarlo como pendiente y marcarlo «Hecho» cuando lo hagas; lo hecho cuenta en «Repaso de flojos» y se ve en cada tema de «Temario y notas».';
   sb.appendChild(intro);
+  const top = document.createElement('div'); sb.appendChild(top);
   const host = document.createElement('div'); sb.appendChild(host);
-  let modoVarios = false;
-  const resumen = ()=>{ const n = baremoRepasoDia(fechaISO).length; setResumen(n ? n+(n===1 ? ' repaso' : ' repasos') : 'ninguno'); };
+  let modoVarios = false, verFallos = false;
+  const resumen = ()=>{
+    const l = baremoRepasoDia(fechaISO), p = l.filter(e=> e.hecho === false).length, h = l.length - p;
+    setResumen(l.length ? [h ? h+(h===1 ? ' hecho' : ' hechos') : '', p ? p+(p===1 ? ' pendiente' : ' pendientes') : ''].filter(Boolean).join(' · ') : 'ninguno');
+  };
   const guardarLista = (l)=>{ const r = baremoRepasoData(); if(l.length) r[fechaISO] = l; else delete r[fechaISO]; };
-  const borrar = (id)=>{ guardarLista(baremoRepasoDia(fechaISO).filter(e=> e.id !== id)); scheduleSave(); pintar(); if(onCambio) onCambio(); };
+  const refrescar = ()=>{ scheduleSave(); pintar(); if(onCambio) onCambio(); };
+  const nuevoRep = (o)=> Object.assign({id: baremoNuevoId(), sub:'', keys:[], nota:'', texto:'', hecho:true}, o);
+  const borrar = (id)=>{ guardarLista(baremoRepasoDia(fechaISO).filter(e=> e.id !== id)); refrescar(); };
   const ultimoDia = ()=>{ const r = baremoRepasoData(); return Object.keys(r).filter(f=> f < fechaISO && r[f].length).sort().pop() || null; };
+  const filaTxt = (e)=> (BAREMO_REPASO_TAG[e.tipo] || 'REPASO')+' · '+e.ref+(e.sub ? ' › '+e.sub : '');
+  const bloqueTop = (titulo)=>{
+    const d = document.createElement('div'); d.className = 'bm-sug';
+    const h = document.createElement('div'); h.className = 'baremo-form-title'; h.textContent = titulo; d.appendChild(h);
+    top.appendChild(d); return d;
+  };
+  const filaAccion = (cont, txt, botones)=>{
+    const row = document.createElement('div'); row.className = 'baremo-item-top'; row.style.marginTop = '4px';
+    const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:12px;overflow-wrap:anywhere;'; tx.textContent = txt;
+    row.appendChild(tx);
+    botones.forEach(([lab, fn, ghost, aria])=>{
+      const b = document.createElement('button'); b.type = 'button'; b.className = 'btn small'+(ghost ? ' ghost' : ''); b.textContent = lab;
+      if(aria) b.setAttribute('aria-label', aria);
+      b.onclick = fn; row.appendChild(b);
+    });
+    cont.appendChild(row);
+  };
+  function pintarTop(){
+    top.innerHTML = '';
+    // 1) Pendientes de días anteriores: pasan solos al siguiente día de baremo.
+    if(fechaISO >= hoy && fechaISO === siguienteDiaBaremo(hoy)){
+      const previos = baremoPendientes(fechaISO).filter(x=> x.fecha < fechaISO);
+      if(previos.length){
+        const d = bloqueTop('⏳ Pendientes de días anteriores ('+previos.length+')');
+        previos.forEach(x=>{
+          filaAccion(d, fechaCortaBq(x.fecha)+' · '+filaTxt(x.e), [
+            ['Traer a este día', ()=>{
+              const o = baremoRepasoData();
+              o[x.fecha] = (o[x.fecha] || []).filter(q=> q.id !== x.e.id); if(!o[x.fecha].length) delete o[x.fecha];
+              guardarLista(baremoRepasoDia(fechaISO).concat([x.e])); refrescar();
+            }, false],
+            ['✓ Ya lo hice', ()=>{ x.e.hecho = true; refrescar(); }, true]
+          ]);
+        });
+      }
+    }
+    // 2) Qué repasar: sugerencias a partir de flojos y fallos de simulacro.
+    if(fechaISO >= hoy){
+      const sug = baremoSugerencias(fechaISO, 5);
+      const d = bloqueTop('Qué repasar (sugerido)');
+      if(!sug.length){
+        const v = document.createElement('div'); v.className = 'ag-empty'; v.textContent = 'Nada flojo ahora mismo: sin notas bajas, fallos de simulacro ni temas olvidados.'; d.appendChild(v);
+      }
+      sug.forEach(x=>{
+        filaAccion(d, x.motivo+' · '+filaTxt(x), [['＋ Planificar', ()=>{
+          guardarLista(baremoRepasoDia(fechaISO).concat([nuevoRep({tipo:x.tipo, ref:x.ref, sub:x.sub, keys:x.keys.slice(), hecho:false})]));
+          refrescar(); showToast('Planificado como pendiente: márcalo «Hecho» cuando lo repases');
+        }, false, 'Añadir como repaso pendiente']]);
+      });
+      const bf = document.createElement('button'); bf.type = 'button'; bf.className = 'day-mini-btn'; bf.style.marginTop = '6px';
+      bf.textContent = verFallos ? '▾ Fallos de simulacro' : '＋ Registrar fallos de un simulacro';
+      bf.onclick = ()=>{ verFallos = !verFallos; pintarTop(); };
+      d.appendChild(bf);
+      if(verFallos) d.appendChild(buildFormFallosSimulacro(()=>{ pintar(); }));
+    }
+  }
   function pintar(){
-    host.innerHTML = ''; resumen();
+    host.innerHTML = ''; resumen(); pintarTop();
     const lista = baremoRepasoDia(fechaISO);
     if(!lista.length){ const v = document.createElement('div'); v.className = 'ag-empty'; v.textContent = 'Todavía no has apuntado ningún repaso este día.'; host.appendChild(v); }
     lista.forEach(e=>{
-      const card = document.createElement('div'); card.className = 'baremo-item';
-      const top = document.createElement('div'); top.className = 'baremo-item-top';
-      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = BAREMO_REPASO_TAG[e.tipo] || 'REPASO';
+      const card = document.createElement('div'); card.className = 'baremo-item'+(e.hecho === false ? ' baremo-item-pend' : '');
+      const top2 = document.createElement('div'); top2.className = 'baremo-item-top';
+      const tag = document.createElement('span'); tag.className = 'tag'; tag.textContent = (e.hecho === false ? '⏳ ' : '')+(BAREMO_REPASO_TAG[e.tipo] || 'REPASO');
       const tx = document.createElement('span'); tx.style.cssText = 'flex:1;min-width:0;font-size:13px;overflow-wrap:anywhere;'; tx.textContent = e.ref+(e.sub ? ' › '+e.sub : '');
       const del = document.createElement('button'); del.type = 'button'; del.className = 'btn small ghost'; del.textContent = '✕';
       del.title = 'Quitar este repaso'; del.setAttribute('aria-label', 'Quitar repaso extra'); del.onclick = ()=> borrar(e.id);
-      top.appendChild(tag); top.appendChild(tx); top.appendChild(del);
+      top2.appendChild(tag); top2.appendChild(tx); top2.appendChild(del);
+      const lab = document.createElement('label'); lab.className = 'bm-no';
+      const cb = document.createElement('input'); cb.type = 'checkbox'; cb.className = 'day-tick'; cb.checked = e.hecho !== false;
+      cb.onchange = ()=>{ e.hecho = cb.checked; refrescar(); };
+      lab.appendChild(cb); lab.appendChild(document.createTextNode(' Hecho'));
       const res = document.createElement('input'); res.type = 'text'; res.className = 'baremo-in'; res.maxLength = 30;
-      res.placeholder = 'Nota / resultado (ej. 17/20, 80 %, Apto)'; res.value = e.nota || ''; res.setAttribute('aria-label', 'Nota o resultado del repaso');
+      res.placeholder = 'Nota / resultado (ej. 7,5 · 17/20 · 80 %)'; res.value = e.nota || ''; res.setAttribute('aria-label', 'Nota o resultado del repaso');
       res.oninput = ()=>{ e.nota = res.value; scheduleSave(); };
       res.onblur = ()=>{ e.nota = res.value; scheduleSave(); if(onCambio) onCambio(); };
       const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
       nota.placeholder = 'Comentario (opcional)…'; nota.value = e.texto || ''; nota.setAttribute('aria-label', 'Comentario del repaso');
       nota.oninput = ()=>{ e.texto = nota.value; scheduleSave(); };
       nota.onblur = ()=>{ e.texto = nota.value; scheduleSave(); if(onCambio) onCambio(); };
-      card.appendChild(top); card.appendChild(res); card.appendChild(nota); host.appendChild(card);
+      card.appendChild(top2); card.appendChild(lab); card.appendChild(res); card.appendChild(nota); host.appendChild(card);
     });
     const form = document.createElement('div'); form.className = 'baremo-form';
     const ft = document.createElement('div'); ft.className = 'baremo-form-title'; ft.textContent = 'Añadir repaso'; form.appendChild(ft);
@@ -4012,11 +4255,11 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
       rep.textContent = '↻ Repetir los del '+fechaCortaBq(uf)+' ('+baremoRepasoDia(uf).length+')';
       rep.onclick = ()=>{
         const ya = baremoRepasoDia(fechaISO).map(e=> e.tipo+'|'+e.ref+'|'+(e.sub || ''));
-        const nuevos = baremoRepasoDia(uf).filter(e=> ya.indexOf(e.tipo+'|'+e.ref+'|'+(e.sub || '')) < 0).map(e=>({id:baremoNuevoId(), tipo:e.tipo, ref:e.ref, sub:e.sub || '', keys:(e.keys || []).slice(), nota:'', texto:''}));
+        const nuevos = baremoRepasoDia(uf).filter(e=> ya.indexOf(e.tipo+'|'+e.ref+'|'+(e.sub || '')) < 0).map(e=> nuevoRep({tipo:e.tipo, ref:e.ref, sub:e.sub || '', keys:(e.keys || []).slice(), hecho:false}));
         if(!nuevos.length){ showToast('Ya tienes esos repasos apuntados hoy'); return; }
         guardarLista(baremoRepasoDia(fechaISO).concat(nuevos));
-        scheduleSave(); pintar(); if(onCambio) onCambio();
-        showToast(nuevos.length+(nuevos.length===1 ? ' repaso copiado' : ' repasos copiados')+' (sin nota; ponles la de hoy)');
+        refrescar();
+        showToast(nuevos.length+(nuevos.length===1 ? ' repaso copiado' : ' repasos copiados')+' como pendientes: márcalos «Hecho» y ponles la nota de hoy');
       };
       atajos.appendChild(rep);
     }
@@ -4054,28 +4297,32 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
     ortoIn.placeholder = '¿Qué de ortografía o gramática repasas? (ej. tilde diacrítica)'; ortoIn.setAttribute('aria-label', 'Tema de ortografía o gramática');
     ortoIn.style.display = 'none'; form.appendChild(ortoIn);
     const resN = document.createElement('input'); resN.type = 'text'; resN.className = 'baremo-in'; resN.maxLength = 30;
-    resN.placeholder = 'Nota / resultado (opcional: 17/20, 80 %, Apto)'; resN.setAttribute('aria-label', 'Nota o resultado del repaso nuevo'); form.appendChild(resN);
+    resN.placeholder = 'Nota / resultado (opcional: 7,5 · 17/20 · 80 %)'; resN.setAttribute('aria-label', 'Nota o resultado del repaso nuevo'); form.appendChild(resN);
     const nota = document.createElement('textarea'); nota.className = 'note-inline baremo-nota'; nota.rows = 2; nota.maxLength = 3000;
     nota.placeholder = 'Comentario (opcional)…'; nota.setAttribute('aria-label', 'Comentario del repaso nuevo'); form.appendChild(nota);
+    const labP = document.createElement('label'); labP.className = 'bm-no';
+    const cbP = document.createElement('input'); cbP.type = 'checkbox'; cbP.className = 'day-tick'; cbP.checked = fechaISO > hoy;
+    labP.appendChild(cbP); labP.appendChild(document.createTextNode(' Todavía no lo he hecho (planificado)'));
+    form.appendChild(labP);
     const msg = document.createElement('div'); msg.className = 'baremo-msg'; msg.setAttribute('role', 'status');
     sel.onchange = ()=>{ const o = valores().indexOf('orto') >= 0; ortoIn.style.display = o ? '' : 'none'; if(o) ortoIn.focus(); msg.textContent = ''; pintarSubs(); };
     const add = document.createElement('button'); add.type = 'button'; add.className = 'btn small'; add.textContent = modoVarios ? '＋ Añadir los marcados' : '＋ Añadir';
     add.onclick = ()=>{
-      const nuevos = [], vs = valores();
+      const nuevos = [], vs = valores(), hecho = !cbP.checked;
       if(!vs.length){ msg.textContent = 'Elige qué repasar del desplegable.'; return; }
       for(const v of vs){
         if(v === 'orto'){
           if(!ortoIn.value.trim()){ msg.textContent = 'Escribe qué repasas de ortografía o gramática.'; return; }
-          nuevos.push({id: baremoNuevoId(), tipo:'orto', ref: ortoIn.value.trim(), sub:'', keys:[], nota: resN.value.trim(), texto: nota.value.trim()});
+          nuevos.push(nuevoRep({tipo:'orto', ref: ortoIn.value.trim(), nota: resN.value.trim(), texto: nota.value.trim(), hecho}));
         } else if(plano[Number(v)]){
           const it = plano[Number(v)];
-          const sb = (!modoVarios && selSub.value !== '' && it.subs && it.subs[Number(selSub.value)]) ? it.subs[Number(selSub.value)] : null;
-          nuevos.push({id: baremoNuevoId(), tipo: it.tipo, ref: it.ref, sub: sb ? sb.txt : '', keys: ((sb && sb.keys) || it.keys || []).slice(0, 80), nota: resN.value.trim(), texto: nota.value.trim()});
+          const sb2 = (!modoVarios && selSub.value !== '' && it.subs && it.subs[Number(selSub.value)]) ? it.subs[Number(selSub.value)] : null;
+          nuevos.push(nuevoRep({tipo: it.tipo, ref: it.ref, sub: sb2 ? sb2.txt : '', keys: ((sb2 && sb2.keys) || it.keys || []).slice(0, 80), nota: resN.value.trim(), texto: nota.value.trim(), hecho}));
         }
       }
       if(!nuevos.length){ msg.textContent = 'Elige qué repasar del desplegable.'; return; }
       guardarLista(baremoRepasoDia(fechaISO).concat(nuevos));
-      scheduleSave(); pintar(); if(onCambio) onCambio();
+      refrescar();
     };
     form.appendChild(add); form.appendChild(msg); host.appendChild(form);
   }
@@ -4552,6 +4799,7 @@ function renderHomeDash(){
   } else {
     resumenHtml = '<div class="home-today-status">Sin plan para hoy todavía.</div>';
   }
+  try{ resumenHtml += baremoPendientesHomeHtml(); }catch(err){}
 
   // La racha va a día vencido: hoy no suma hasta que el día termine.
   let rachaNota = '';
@@ -13042,7 +13290,7 @@ function collectNotaData(opts){
           // de la misma vuelta).
           testsDeVuelta(sl).forEach((n,k)=>{
             notas.push(n);
-            seq.push(Object.assign({mode:'nota', nota:n, extra:k>0, vuelta, rec:!!sl.recuperado}, tag));
+            seq.push(Object.assign({mode:'nota', nota:n, extra:k>0, vuelta, rec:!!sl.recuperado, fecha:sl.fecha || null}, tag));
           });
         } else if(sl.mode==='no_test' || sl.mode==='no_tiempo' || sl.mode==='solo_lectura' || sl.mode==='recuperar'){
           seq.push(Object.assign({mode:sl.mode, vuelta, rec:!!sl.recuperado}, tag));
@@ -14700,6 +14948,13 @@ function computeRitmoExamen(){
       const iso = k + '-' + pad2(d);
       diasTotal++; if(e.status === 'ESTUDIO') estudioTotal++;
       if(iso >= hoyISO){ diasDesdeHoy++; if(e.status === 'ESTUDIO') estudioDesdeHoy++; }
+      if(e.status === 'BAREMO' && e.adelanto && iso < hoyISO){ // lo adelantado en un día de baremo también es una visita hecha
+        const A = e.adelanto;
+        if(A.bloque && !A.bloque.noHecho) hechas[A.bloque.tipo === 'grave' ? 'graves' : 'mgraves'] += pesoBloque(iso);
+        if(A.leve && !A.leve.noHecho) hechas.leves++;
+        if(A.ingles && !A.ingles.noHecho) hechas.ingles++;
+        if(A.psico && !A.psico.noHecho) hechas.psico++;
+      }
       if(e.status !== 'ESTUDIO' || iso >= hoyISO) return;
       const t = e.ticks || {};
       const bl = (d % 2 === 1) ? 'graves' : 'mgraves';
@@ -14758,15 +15013,24 @@ function computeRitmoExamen(){
     const hechasV = hechas[df.id] / df.lap;
     const futurasV = restantes[df.id] * ritmo[df.id] / df.lap;
     const total = hechasV + futurasV;
+    // Cuándo cierras la vuelta en curso, al ritmo actual (visitas por día natural).
+    const visitasDia = diasNaturales > 0 ? (futurasV * df.lap) / diasNaturales : 0;
+    const faltaVuelta = df.lap * (Math.floor(hechasV + 1e-9) + 1) - hechas[df.id];
+    const diasCierre = visitasDia > 0 ? Math.ceil(faltaVuelta / visitasDia) : null;
+    let cierre = null;
+    if(diasCierre !== null){
+      const dt = new Date(now.getFullYear(), now.getMonth(), now.getDate() + diasCierre);
+      cierre = {n: Math.floor(hechasV + 1e-9) + 1, iso: dt.getFullYear()+'-'+pad2(dt.getMonth()+1)+'-'+pad2(dt.getDate()), despues: diasCierre > diasNaturales};
+    }
     return {
-      id: df.id, label: df.label, lap: df.lap,
+      cierre, id: df.id, label: df.label, lap: df.lap,
       hechasV, futurasV, total, ritmo: ritmo[df.id],
       diasPorVuelta: futurasV > 0 ? diasNaturales / futurasV : null,
       faltan: Math.max(0, objetivo - total),
       factor: total > 0 ? objetivo / total : null
     };
   });
-  return {exam, diasNaturales, diasEstudio, pEstudio, objetivo, areas, ritmo};
+  return {exam, diasNaturales, diasEstudio, pEstudio, objetivo, areas, ritmo, adelantados: _adelStats};
 }
 /* ===================== REPASO DE FLOJOS =====================
    Dos listas para saber qué reforzar:
@@ -14836,30 +15100,52 @@ function computeFlojos(){
   const bajas = [];
   const conNotaBuenaOBaja = new Set(); // claves con alguna nota (para no repetirlas en «sin repasar» si son buenas)
   const todasLasClaves = [];
-  Object.keys(data.porGrupo).forEach(grupo=>{
-    data.porGrupo[grupo].forEach(item=>{
-      todasLasClaves.push(item);
-      // Unidades: en inglés, cada test (general / 1-4) por separado; en el resto, el tema entero.
-      const unidades = {};
-      item.seq.forEach(x=>{
-        if(x.mode !== 'nota') return;
-        const id = x.slot || '_';
-        (unidades[id] = unidades[id] || []).push(x.nota);
-      });
-      Object.keys(unidades).forEach(id=>{
-        const arr = unidades[id];
-        const ultimaNota = arr[arr.length-1];
-        const previa = arr.length > 1 ? arr[arr.length-2] : null;
-        const pct = ultimaNota / item.max;
-        if(pct >= 0.7) conNotaBuenaOBaja.add(item.key);
-        if(pct < umbral){
-          bajas.push(Object.assign({
-            key: item.key, grupo, label: item.label + (id !== '_' ? ' · ' + slotEtiqueta(id) : ''),
-            nota: ultimaNota, previa, max: item.max, pct
-          }, info(item.key)));
-        }
-      });
+  const notasRep = baremoNotasRepasoPorKey(); // nota de un repaso extra de UN tema concreto: cuenta como un test más
+  const procesa = (grupo, item)=>{
+    // Unidades: en inglés, cada test (general / 1-4) por separado; en el resto, el tema entero.
+    const unidades = {};
+    item.seq.forEach(x=>{
+      if(x.mode !== 'nota') return;
+      const id = x.slot || '_';
+      (unidades[id] = unidades[id] || []).push(x.nota);
     });
+    let viaRepaso = false;
+    const rn = (!esKeyIngles(item.key) && !esKeyOexam(item.key)) ? notasRep[item.key] : null;
+    if(rn){
+      const fr = baremoNotaAFraccion(rn.txt, item.max);
+      if(fr !== null){
+        // Si la última vuelta con test tiene fecha y es posterior al repaso, manda la vuelta.
+        const ultN = item.seq.filter(x=> x.mode === 'nota').slice(-1)[0];
+        if(!ultN || !ultN.fecha || rn.fecha >= ultN.fecha){
+          (unidades['_'] = unidades['_'] || []).push(Math.round(fr * item.max * 10) / 10);
+          viaRepaso = true;
+        }
+      }
+    }
+    Object.keys(unidades).forEach(id=>{
+      const arr = unidades[id];
+      const ultimaNota = arr[arr.length-1];
+      const previa = arr.length > 1 ? arr[arr.length-2] : null;
+      const pct = ultimaNota / item.max;
+      if(pct >= 0.7) conNotaBuenaOBaja.add(item.key);
+      if(pct < umbral){
+        bajas.push(Object.assign({
+          key: item.key, grupo, label: item.label + (id !== '_' ? ' · ' + slotEtiqueta(id) : ''),
+          nota: ultimaNota, previa, max: item.max, pct, viaRepaso: viaRepaso && id === '_'
+        }, info(item.key)));
+      }
+    });
+  };
+  Object.keys(data.porGrupo).forEach(grupo=>{
+    data.porGrupo[grupo].forEach(item=>{ todasLasClaves.push(item); procesa(grupo, item); });
+  });
+  // Temas con nota de repaso extra pero sin ninguna vuelta con test todavía.
+  Object.keys(notasRep).forEach(key=>{
+    if(todasLasClaves.some(x=> x.key === key)) return;
+    const meta = KEY_LABELS[key];
+    if(!meta || esKeyIngles(key) || esKeyOexam(key)) return;
+    const it = {key, label: meta.label, notas: [], seq: [], max: meta.max || GROUP_MAX_NOTA[meta.grupo] || 10};
+    todasLasClaves.push(it); procesa(meta.grupo, it);
   });
   bajas.sort((a,b)=> a.pct - b.pct || (b.hace||0) - (a.hace||0));
   const yaEnBajas = new Set(bajas.map(b=>b.key));
@@ -14877,7 +15163,16 @@ function computeFlojos(){
     viejos.push(Object.assign({key, grupo: meta.grupo, label: meta.label, max: meta.max, nota: ultimaNota}, inf));
   });
   viejos.sort((a,b)=> b.hace - a.hace);
-  return {umbral, dias, bajas, viejos};
+  // «Fallados en simulacro»: vigentes hasta que repasas ese tema (repaso extra hecho, o fecha posterior al fallo).
+  const fallos = baremoFallosVigentes().map(f=>{
+    const meta = KEY_LABELS[f.key], ent = baremoEntradaDeKey(f.key);
+    return Object.assign({
+      key: f.key, grupo: meta ? meta.grupo : (ent ? ent.ref : 'Tema'), label: meta ? meta.label : (ent ? (ent.sub || ent.ref) : f.key),
+      nota: null, max: (meta && meta.max) || 10, fechaFallo: f.fecha,
+      extraTxt: 'fallado en simulacro'+(f.nombre ? ' «'+f.nombre+'»' : '')+' el '+fechaCortaEs(f.fecha)
+    }, info(f.key));
+  }).sort((a,b)=> a.fechaFallo < b.fechaFallo ? 1 : -1);
+  return {umbral, dias, bajas, viejos, fallos};
 }
 function claveAEntradaTema(key){
   const mB = /^b(\d+)-/.exec(key);
@@ -14888,6 +15183,7 @@ function claveAEntradaTema(key){
 }
 const flojosOpen = {flojos:false};
 let _flojosVerTodo = false;
+let _flojosFormFallos = false;
 function renderFlojos(){
   const host = document.getElementById('flojosHost');
   if(!host) return;
@@ -14917,6 +15213,8 @@ function renderFlojos(){
       nom.textContent = x.grupo + ' · ' + x.label;
       const sub = document.createElement('div'); sub.className = 'flojo-sub';
       const partes = [];
+      if(x.extraTxt) partes.push(x.extraTxt);
+      if(x.viaRepaso) partes.push('última nota: de un repaso extra');
       if(x.previa !== null && x.previa !== undefined && !viejo){
         const dif = Math.round((x.nota - x.previa)*10)/10;
         partes.push('antes ' + x.previa + '/' + x.max + (dif > 0 ? ' · ▲ mejora' : dif < 0 ? ' · ▼ empeora' : ' · = igual'));
@@ -14933,7 +15231,8 @@ function renderFlojos(){
       }
       div.appendChild(main);
       const nota = document.createElement('div'); nota.className = 'flojo-nota';
-      if(x.nota !== null && x.nota !== undefined){
+      if(x.fechaFallo){ nota.textContent = '❌ fallo'; nota.style.color = 'var(--red-text)'; }
+      else if(x.nota !== null && x.nota !== undefined){
         nota.textContent = x.nota + '/' + x.max + ' (' + Math.round(x.nota / x.max * 100) + ' %)';
         nota.style.color = 'var(--red-text)';
       } else { nota.textContent = 'sin nota'; nota.style.color = 'var(--muted)'; }
@@ -14949,9 +15248,15 @@ function renderFlojos(){
       if(!arr.length){ body.appendChild(cicloIntro(vacio)); return; }
       (_flojosVerTodo ? arr : arr.slice(0, LIM)).forEach(x=> body.appendChild(fila(x, viejo)));
     };
+    const regBtn = document.createElement('button'); regBtn.type = 'button'; regBtn.className = 'btn small ghost'; regBtn.style.margin = '8px 0';
+    regBtn.textContent = _flojosFormFallos ? '▾ Fallos de simulacro' : '＋ Registrar fallos de un simulacro';
+    regBtn.onclick = ()=>{ _flojosFormFallos = !_flojosFormFallos; renderFlojos(); };
+    body.appendChild(regBtn);
+    if(_flojosFormFallos) body.appendChild(buildFormFallosSimulacro(()=>{ renderFlojos(); }));
+    if((r.fallos || []).length) lista('❌ Fallados en simulacro', r.fallos, false, '');
     lista('🔻 Notas bajas', r.bajas, false, 'Ningún tema tiene su última nota por debajo del ' + Math.round(r.umbral*100) + ' %. ¡Bien!');
     lista('⏳ Sin repasar hace tiempo', r.viejos, true, 'No hay temas sin nota buena que lleven ' + r.dias + ' días o más sin tocarte.');
-    const total = Math.max(r.bajas.length, r.viejos.length);
+    const total = Math.max(r.bajas.length, r.viejos.length, (r.fallos || []).length);
     if(total > LIM){
       const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'btn small ghost'; btn.style.marginTop = '6px';
       btn.textContent = _flojosVerTodo ? 'Ver solo los ' + LIM + ' primeros' : 'Ver todos';
@@ -14982,6 +15287,21 @@ function renderRitmo(){
     resumen.innerHTML = 'Examen: <strong>'+exam.etiqueta+'</strong> · faltan <strong>'+exam.daysLeft+'</strong> días (≈ <strong>'+Math.round(r.diasEstudio)+'</strong> de estudio).'
       + (lenta ? ' Al ritmo actual, tu parte más lenta (<strong>'+lenta.label+'</strong>) llegará a <strong>'+fmtVueltas(lenta.total)+'</strong> vueltas completas.' : '');
     body.appendChild(resumen);
+    if(r.adelantados){
+      const A = r.adelantados;
+      const par = [];
+      if(A.bloques) par.push(A.bloques+(A.bloques===1 ? ' bloque' : ' bloques'));
+      if(A.leves) par.push(A.leves+(A.leves===1 ? ' leve' : ' leves'));
+      if(A.ingles) par.push(A.ingles+' de inglés');
+      if(A.psico) par.push(A.psico+(A.psico===1 ? ' psicotécnico' : ' psicotécnicos'));
+      if(A.iexam) par.push(A.iexam+(A.iexam===1 ? ' examen de inglés' : ' exámenes de inglés'));
+      if(A.oexam) par.push(A.oexam+(A.oexam===1 ? ' examen de ortografía' : ' exámenes de ortografía'));
+      if(par.length){
+        const ad = document.createElement('p'); ad.className = 'ritmo-resumen';
+        ad.innerHTML = '➕ <strong>Vas por delante del calendario:</strong> '+par.join(' · ')+' (adelantados en días de baremo y aún sin llegar a su turno).';
+        body.appendChild(ad);
+      }
+    }
 
     const obj = document.createElement('div'); obj.className = 'ritmo-obj';
     const lbl = document.createElement('label'); lbl.textContent = 'Objetivo: vueltas completas antes del examen'; lbl.setAttribute('for', 'ritmoObjetivoSel');
@@ -15015,7 +15335,7 @@ function renderRitmo(){
         '<td data-label="Vueltas hechas">'+fmtVueltas(a.hechasV)+'</td>'+
         '<td data-label="Hasta el examen">+'+fmtVueltas(a.futurasV)+ritmoTxt+'</td>'+
         '<td data-label="Total al llegar"><strong>'+fmtVueltas(a.total)+'</strong></td>'+
-        '<td data-label="1 vuelta cada">'+(a.diasPorVuelta ? '≈ '+Math.round(a.diasPorVuelta)+' días' : '—')+'</td>'+
+        '<td data-label="1 vuelta cada">'+(a.diasPorVuelta ? '≈ '+Math.round(a.diasPorVuelta)+' días' : '—')+(a.cierre ? '<div style="font-size:11px;color:var(--muted);">cierras la vuelta '+a.cierre.n+(a.cierre.despues ? ' después del examen' : ' ≈ '+fechaCortaEs(a.cierre.iso))+'</div>' : '')+'</td>'+
         '<td data-label="Objetivo">'+veredicto+'</td>';
       tb.appendChild(tr);
     });
