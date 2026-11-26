@@ -3585,7 +3585,11 @@ function normalizarBaremoExtra(){
       keys: Array.isArray(e.keys) ? e.keys.filter(k=> typeof k === 'string' && k.length <= 40).slice(0, 80) : [],
       nota: baremoTxt(e.nota, 30),
       texto: baremoTxt(e.texto, 3000)
-    })).filter(e=> e.ref.trim() || e.sub.trim() || e.texto.trim() || e.nota.trim());
+    })).map(e=>{
+      // Antes un repaso de «Tema N» marcaba como repasados todos los temas de bloque de ese tema; ya no.
+      if(e.tipo === 'con' && /^Tema \d/.test(e.ref)) e.keys = [];
+      return e;
+    }).filter(e=> e.ref.trim() || e.sub.trim() || e.texto.trim() || e.nota.trim());
     if(limpia.length) rp[f] = limpia; else delete rp[f];
   });
 }
@@ -3927,9 +3931,9 @@ function baremoOpcionesSub(it){ return (it && it.subs) ? it.subs : []; }
 function baremoRepasoOpciones(){
   const g = [];
   // Temario general: sus subtemas son texto (no tienen clave propia) → el repaso cuenta para todo el tema.
-  g.push({grupo:'Conocimientos · Temas', tipo:'con', items:TEMARIO_GENERAL.map(t=>({ref:'Tema '+t.num+' · '+t.titulo, keys:baremoKeysTemaNum(t.num), subs:(t.subtemas || []).map(x=>({txt:x}))}))});
-  g.push({grupo:'Conocimientos · Bloques', tipo:'con', items:Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).map(n=>({ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', keys:baremoKeysBloque(n), subs:baremoSubsBloque(n)}))});
-  g.push({grupo:'Conocimientos · Leves', tipo:'con', items:LEVES.map((it,i)=>({ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), keys:baremoKeysLeve(i),
+  g.push({grupo:'Conocimientos · Temas', tipo:'con', items:TEMARIO_GENERAL.map(t=>({ref:'Tema '+t.num+' · '+t.titulo, keys:[], todoTxt:'Sin concretar subtema (solo se apunta, no marca temas)', subs:(t.subtemas || []).map(x=>({txt:x}))}))});
+  g.push({grupo:'Conocimientos · Bloques', tipo:'con', items:Object.keys(BLOCKS).map(Number).sort((a,b)=>a-b).map(n=>({ref:'Bloque '+n+' ('+(bqFamilia(n)==='g' ? 'grave' : 'menos grave')+')', keys:baremoKeysBloque(n), todoTxt:'Todo el bloque (todos sus temas)', subs:baremoSubsBloque(n)}))});
+  g.push({grupo:'Conocimientos · Leves', tipo:'con', items:LEVES.map((it,i)=>({ref:'Leve '+(i+1)+' · '+baremoLeveEtq(i), keys:baremoKeysLeve(i), todoTxt:'Todo el leve (las dos normas)',
     subs: it.type==='l39_l40' ? [{txt:it.l39, keys:['leve-'+i+'-l39']}, {txt:it.l40, keys:['leve-'+i+'-l40']}] : []}))});
   const ing = []; for(let i=1; i<=INGLES_TOTAL; i++) ing.push({ref:'Tema '+i, keys:['ingles-'+i]});
   g.push({grupo:'Inglés · Temas', tipo:'ing', items:ing});
@@ -3940,8 +3944,9 @@ function baremoRepasoOpciones(){
 }
 // Repasos extra de baremo que tocan una clave de tema (para «Temario y notas»).
 function baremoRepasosDeKey(key){
-  const out = [];
+  const out = [], hoy = hoyLocalISO();
   Object.keys(state.baremoRepaso || {}).sort().forEach(f=>{
+    if(f > hoy) return;
     (state.baremoRepaso[f] || []).forEach(e=>{ if(Array.isArray(e.keys) && e.keys.indexOf(key) >= 0) out.push({fecha:f, nota:e.nota || '', texto:e.texto || ''}); });
   });
   return out;
@@ -4026,7 +4031,7 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
     const plano = [];
     baremoRepasoOpciones().forEach(gr=>{
       const og = document.createElement('optgroup'); og.label = gr.grupo;
-      gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = String(plano.length); op.textContent = it.ref; og.appendChild(op); plano.push({tipo:gr.tipo, ref:it.ref, keys:it.keys, subs:baremoOpcionesSub(it)}); });
+      gr.items.forEach(it=>{ const op = document.createElement('option'); op.value = String(plano.length); op.textContent = it.ref; og.appendChild(op); plano.push({tipo:gr.tipo, ref:it.ref, keys:it.keys, todoTxt:it.todoTxt, subs:baremoOpcionesSub(it)}); });
       sel.appendChild(og);
     });
     const oOrto = document.createElement('option'); oOrto.value = 'orto'; oOrto.textContent = '✍️ Ortografía y gramática (lo escribo yo)'; sel.appendChild(oOrto);
@@ -4040,7 +4045,7 @@ function buildBaremoRepaso(body, fechaISO, onCambio){
       const it = (!modoVarios && sel.value !== '' && sel.value !== 'orto') ? plano[Number(sel.value)] : null;
       const subs = it ? it.subs : [];
       if(!subs || !subs.length){ selSub.style.display = 'none'; return; }
-      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = 'Subtema (opcional) — todo el tema'; selSub.appendChild(o0);
+      const o0 = document.createElement('option'); o0.value = ''; o0.textContent = (it && it.todoTxt) || 'Todo el tema'; selSub.appendChild(o0);
       subs.forEach((x,i)=>{ const op = document.createElement('option'); op.value = String(i); op.textContent = x.txt; selSub.appendChild(op); });
       selSub.style.display = '';
     };

@@ -96,7 +96,7 @@ persona simplemente crea su cuenta de correo/contraseña y espera tu aprobación
 2. Si tocas el `index.html`, `styles.css`, `app.js`, `manifest.json`, `service-worker.js`
    o los iconos, sube **la versión del caché** en `service-worker.js`:
    ```js
-   const CACHE_NAME = 'operacion-baeza-v176'; // sube el número cada vez que despliegues
+   const CACHE_NAME = 'operacion-baeza-v177'; // sube el número cada vez que despliegues
    ```
    Si no lo haces, los móviles que ya tengan la PWA instalada pueden tardar en ver
    los cambios porque siguen sirviendo la copia cacheada antigua.
@@ -824,3 +824,5 @@ Ambos salen resumidos en la celda del calendario (➕ B7 · Leve 5 · Ing 12 · 
 **Calendario:** en la celda de un día de baremo, cada cosa adelantada (➕ Bloque 7, Leve 5…, con ✗ si es «NO completado») y cada repaso extra (🔁 CON · Tema 9 · 17/20) salen como etiqueta propia (máx. 5, luego «+N más»); `baremoResumenEl()`. «Hoy» y el .ics siguen usando el texto corto.
 
 **Subtema en el repaso extra:** bajo el desplegable principal sale otro, «Subtema (opcional)», cuando lo elegido tiene subtemas: en **Temas** salen los de `TEMARIO_GENERAL` (texto; el repaso cuenta para todo el tema), en **Bloques** sus temas internos (cada uno con su clave: cuenta solo para ese tema en flojos y «Temario y notas») y en leves con dos normas (l39/l40) cada una. Se guarda en `sub` y sale «Tema 9 › Título II» en la ficha, el calendario y el .ics. Con «Elegir varios» se añade el tema entero.
+
+**Corrección «Repasado en baremo»:** un repaso de «Tema N» del temario general ya no marca como repasados los temas de bloque de ese tema (antes salía en todos). Solo marcan temas los repasos de **Bloque** (todos sus temas, o solo el tema del subtema elegido) y de **Leve**, inglés y exámenes. Al cargar, los repasos de «Tema N» ya guardados pierden esas claves (normalizarBaremoExtra). La línea de «Temario y notas» ignora repasos puestos en días futuros.
